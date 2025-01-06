@@ -1,5 +1,6 @@
 use axum::Router;
 use axum::routing::get;
+use crate::database::get_db_instance;
 
 /**
  * Initializing the api routes.
@@ -12,8 +13,10 @@ pub async fn init_router() -> Router {
         .route("/send-msg", get(send_message))
 }
 
-async fn poll_for_new_messages() -> &'static str {
-    "Not Implemented"
+async fn poll_for_new_messages() -> String {
+    let db = get_db_instance().await;
+    let msgs = db.fetch_data().await;
+    msgs.unwrap()
 }
 
 async fn scroll_chat_timeline() -> &'static str {

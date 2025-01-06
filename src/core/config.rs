@@ -1,4 +1,3 @@
-use std::env;
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
@@ -14,11 +13,11 @@ pub struct ISMConfig {
 
 
 impl ISMConfig {
-    pub fn new_config() -> Result<Self, ConfigError> {
-        let run_mode = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
+    pub fn new_config(mode: &str) -> Result<Self, ConfigError> {
+        //layering the different environment variables, default values first, overwritten by config files and env-vars
         let config = Config::builder()
             .add_source(File::with_name("default.config.toml"))
-            .add_source(File::with_name(&format!("{run_mode}.config.toml")))
+            .add_source(File::with_name(&format!("{mode}.config.toml")))
             .add_source(Environment::default())
             .build()?;
         config.try_deserialize()

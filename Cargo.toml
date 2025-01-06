@@ -11,6 +11,7 @@ tokio = {version = "1.42.0", features = ["full"]}
 tower = "0.5.2"
 config = "0.15.4"
 serde = "1.0.217"
-
+scylla = "0.15.1"
+async-trait = "0.1.84"
 
 [features]

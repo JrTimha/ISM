@@ -9,9 +9,11 @@ pub struct ISMConfig {
     pub db_url: String,
     pub ism_url: String,
     pub log_level: String,
+    pub db_user: String,
+    pub db_password: String
 }
 
-
+//examples: https://github.com/rust-cli/config-rs/blob/main/examples/hierarchical-env/settings.rs
 impl ISMConfig {
     pub fn new_config(mode: &str) -> Result<Self, ConfigError> {
         //layering the different environment variables, default values first, overwritten by config files and env-vars

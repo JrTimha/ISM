@@ -1,0 +1,15 @@
+services:
+  cassandra:
+    image: cassandra:latest
+    container_name: cassandra-container
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_USER=admin
+      - CASSANDRA_PASSWORD=admin
+    volumes:
+      - .out/cassandra-data:/var/lib/cassandra
+
+volumes:
+  cassandra-data:
+    driver: local

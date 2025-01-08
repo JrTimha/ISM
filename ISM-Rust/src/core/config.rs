@@ -1,7 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
-
 #[derive(Deserialize)]
 #[allow(unused)]
 pub struct ISMConfig {
@@ -10,7 +9,8 @@ pub struct ISMConfig {
     pub ism_url: String,
     pub log_level: String,
     pub db_user: String,
-    pub db_password: String
+    pub db_password: String,
+    pub db_keyspace: String
 }
 
 //examples: https://github.com/rust-cli/config-rs/blob/main/examples/hierarchical-env/settings.rs

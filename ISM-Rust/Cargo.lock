@@ -271,7 +271,10 @@ checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "serde",
+ "wasm-bindgen",
  "windows-targets",
 ]
 
@@ -769,15 +772,17 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 name = "ism"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "axum",
+ "chrono",
  "config",
  "env_logger",
+ "futures",
  "log",
  "scylla",
  "serde",
  "tokio",
  "tower",
+ "uuid",
 ]
 
 [[package]]
@@ -1208,6 +1213,7 @@ dependencies = [
  "async-trait",
  "byteorder",
  "bytes",
+ "chrono",
  "lz4_flex",
  "scylla-macros",
  "snap",
@@ -1252,9 +1258,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.134"
+version = "1.0.135"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
+checksum = "2b0d7ba2887406110130a978386c4e1befb98c674b4fba677954e4db976630d9"
 dependencies = [
  "itoa",
  "memchr",
@@ -1601,6 +1607,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 dependencies = [
  "getrandom",
+ "serde",
 ]
 
 [[package]]

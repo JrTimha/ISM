@@ -1,4 +1,6 @@
-use axum::Router;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::{Json, Router};
 use axum::routing::get;
 use crate::database::get_db_instance;
 
@@ -13,10 +15,16 @@ pub async fn init_router() -> Router {
         .route("/send-msg", get(send_message))
 }
 
-async fn poll_for_new_messages() -> String {
+async fn poll_for_new_messages() -> impl IntoResponse {
     let db = get_db_instance().await;
-    let msgs = db.fetch_data().await;
-    msgs.unwrap()
+    match db.fetch_data().await {
+        Ok(messages) => {
+            Json(messages).into_response()
+        }
+        Err(_) => {
+            (StatusCode::BAD_REQUEST, "Failed to fetch messages").into_response()
+        }
+    }
 }
 
 async fn scroll_chat_timeline() -> &'static str {

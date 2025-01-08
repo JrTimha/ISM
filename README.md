@@ -1,29 +1,30 @@
-# ISM - Instant Messenger für SaaS-Backends
+# ISM - Instant Messenger for SaaS Backends
 
-ISM (Instant SaaS Messenger) ist eine hochperformante, skalierbare Messaging-Lösung, die speziell für SaaS-Backends entwickelt wurde. Die Anwendung ist in **Rust** geschrieben und nutzt **Tokio** und **Axum**, um eine asynchrone, stabile und effiziente Infrastruktur bereitzustellen. 
+**ISM (Instant SaaS Messenger)** is a high-performance, scalable messaging solution specifically designed for SaaS backends. Written in Rust, it leverages Tokio and Axum to provide an asynchronous, stable, and efficient infrastructure.
 
-## Supported
+## Supported Features
 
-## Features
+- **Scalability**: Handles millions of simultaneous connections using the asynchronous Tokio runtime.
+- **Secure Communication**: Includes TLS support and JWT-based authentication.
+- **Easy Integration**: Seamlessly integrates with existing SaaS architectures.
+- **Modularity**: Easily extensible system with a clear modular architecture.
+- **WebSocket Support**: Real-time message delivery with minimal latency.
+- **Persistent Storage**: Supports both relational and NoSQL databases.
 
-- **Skalierbarkeit**: Unterstützt Millionen gleichzeitiger Verbindungen dank der asynchronen Tokio-Laufzeit.
-- **Sichere Kommunikation**: TLS-Unterstützung und JWT-basierte Authentifizierung.
-- **Einfach integrierbar**: Nahtlose Integration in bestehende SaaS-Architekturen.
-- **Modularität**: Einfach erweiterbares System durch klare Modularchitektur.
-- **WebSocket-Unterstützung**: Echtzeit-Nachrichtenübertragung mit minimaler Latenz.
-- **Persistente Speicherung**: Unterstützung für relationale und NoSQL-Datenbanken.
+## Supported Database
+- **ScyllaDB**: Saving all your messages in your ScyllaDB Cluster
+- **Apache Cassandra**: Saving all your messages in your Apache Cassandra Cluster
+- **MySQL || PostgreSQL**: Getting your user data from one of these databases
 
-## Technologien
+## Technologies
 
-- **Rust**: Für Sicherheit, Geschwindigkeit und Zuverlässigkeit.
-- **Tokio**: Asynchrone Laufzeit für hochperformante Netzwerkanwendungen.
-- **Axum**: Web-Framework für einfache und flexible API-Entwicklung.
-- **Serde**: Für effiziente Serialisierung/Deserialisierung von JSON-Daten.
-- **PostgreSQL/Redis**: Optionale Backend-Unterstützung für Datenpersistenz und Cache.
+- **Rust**: For security, speed, and reliability.
+- **Tokio**: Asynchronous runtime for high-performance network applications.
+- **Axum**: Web framework for simple and flexible API development.
+- **PostgreSQL/Redis**: Optional backend support for data persistence and caching.
 
-## Installation
 
-### Voraussetzungen
+### Prerequisites
 
-- **Rust**: Version 1.80 oder höher
-- **Datenbank**: PostgreSQL und Apache Cassandra ODER ScyllaDB
+- **Rust**: Version 1.80 or higher
+- **Database**: PostgreSQL and either Apache Cassandra or ScyllaDB

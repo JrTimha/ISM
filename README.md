@@ -2,6 +2,8 @@
 
 ISM (Instant SaaS Messenger) ist eine hochperformante, skalierbare Messaging-Lösung, die speziell für SaaS-Backends entwickelt wurde. Die Anwendung ist in **Rust** geschrieben und nutzt **Tokio** und **Axum**, um eine asynchrone, stabile und effiziente Infrastruktur bereitzustellen. 
 
+## Supported
+
 ## Features
 
 - **Skalierbarkeit**: Unterstützt Millionen gleichzeitiger Verbindungen dank der asynchronen Tokio-Laufzeit.
@@ -24,5 +26,4 @@ ISM (Instant SaaS Messenger) ist eine hochperformante, skalierbare Messaging-Lö
 ### Voraussetzungen
 
 - **Rust**: Version 1.80 oder höher
-- **Datenbank**: PostgreSQL und MongoDB
-- **OpenSSL**: Für TLS-Unterstützung
+- **Datenbank**: PostgreSQL und Apache Cassandra ODER ScyllaDB

@@ -14,3 +14,10 @@ pub struct Message {
     pub has_read: bool,
     pub created_at: DateTime<Utc>
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NewMessage {
+    pub receiver_id: Uuid,
+    pub msg_body: String,
+    pub msg_type: String
+}

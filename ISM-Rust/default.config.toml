@@ -1,8 +1,21 @@
 ism_url = "localhost"
 ism_port= 5403
+log_level = "info"
+cors_origin = "localhost:4200"
+
+[message_db_config]
 db_url = "localhost:9042"
 db_user = "cassandra"
 db_password = "cassandra"
-log_level = "info"
 db_keyspace = "messaging"
-cors_origin = "localhost:4200"
+
+[user_db_config]
+db_host = "localhost"
+db_port = "32768"
+db_user = "postgres"
+db_password = "meventure1234"
+db_name = "postgres"
+
+[token_issuer]
+iss_host = "http://localhost:8180/"
+iss_realm = "meventure"

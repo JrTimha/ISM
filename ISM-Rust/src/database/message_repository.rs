@@ -2,17 +2,27 @@ use std::sync::Arc;
 use scylla::{Session, SessionBuilder};
 use scylla::transport::ClusterData;
 use scylla::transport::errors::NewSessionError;
-use crate::core::ISMConfig;
+use crate::core::{MessageDbConfig};
 use tokio::sync::OnceCell;
 use futures::TryStreamExt;
+use log::{error, info};
 use crate::database::message::Message;
 
 static DB_INSTANCE: OnceCell<Arc<MessageRepository>> = OnceCell::const_new();
 
-pub async fn init_message_db(config: &ISMConfig) {
+pub async fn init_message_db(config: &MessageDbConfig) {
     DB_INSTANCE
         .get_or_init(|| async {
-        let db = MessageRepository::new(config).await.expect("Failed to initialize CassandraDb");
+        let db = match MessageRepository::new(config).await {
+            Ok(db) => {
+                info!("Initialized MessageRepository.");
+                db
+            }
+            Err(err) => {
+                error!("Failed to initialize MessageRepository: {:?}", err);
+                std::process::exit(1);
+            }
+        };
         Arc::new(db)
     }).await;
 }
@@ -27,7 +37,7 @@ pub struct MessageRepository {
 
 impl MessageRepository {
 
-    async fn new(config: &ISMConfig) -> Result<Self, NewSessionError> {
+    async fn new(config: &MessageDbConfig) -> Result<Self, NewSessionError> {
         let session = SessionBuilder::new()
             .known_node(&config.db_url)
             .use_keyspace(&config.db_keyspace, true)

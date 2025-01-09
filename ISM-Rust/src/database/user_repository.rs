@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::error;
+use log::{error, info};
 use sqlx::{Error, Pool, Postgres};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
@@ -49,11 +49,11 @@ pub async fn init_user_db(_config: &ISMConfig) -> UserDbClient {
         .await
     {
         Ok(pool) => {
-            println!("✅Connection to the database is successful!");
+            info!("Established connection to the user database.");
             pool
         }
         Err(err) => {
-            error!("🔥 Failed to connect to the database: {:?}", err);
+            error!("Failed to connect to the user database: {:?}", err);
             std::process::exit(1);
         }
     };

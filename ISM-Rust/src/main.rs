@@ -1,6 +1,6 @@
 use std::env;
 use axum::Router;
-use log::{error, info};
+use log::{info};
 use tokio::net::TcpListener;
 use ism::core::ISMConfig;
 use ism::api::init_router;

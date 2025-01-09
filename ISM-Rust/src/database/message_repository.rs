@@ -7,25 +7,25 @@ use tokio::sync::OnceCell;
 use futures::TryStreamExt;
 use crate::database::message::Message;
 
-static DB_INSTANCE: OnceCell<Arc<DatabaseRepository>> = OnceCell::const_new();
+static DB_INSTANCE: OnceCell<Arc<MessageRepository>> = OnceCell::const_new();
 
-pub async fn init_db(config: &ISMConfig) {
+pub async fn init_message_db(config: &ISMConfig) {
     DB_INSTANCE
         .get_or_init(|| async {
-        let db = DatabaseRepository::new(config).await.expect("Failed to initialize CassandraDb");
+        let db = MessageRepository::new(config).await.expect("Failed to initialize CassandraDb");
         Arc::new(db)
     }).await;
 }
 
-pub async fn get_db_instance() -> Arc<DatabaseRepository> {
-    DB_INSTANCE.get().expect("DB instance not initialized. Please call init_db first.").clone()
+pub async fn get_message_repository_instance() -> Arc<MessageRepository> {
+    DB_INSTANCE.get().expect("Message-DB instance not initialized. Please call init_message_db() first!").clone()
 }
 
-pub struct DatabaseRepository {
+pub struct MessageRepository {
     session: Arc<Session>,
 }
 
-impl DatabaseRepository {
+impl MessageRepository {
 
     async fn new(config: &ISMConfig) -> Result<Self, NewSessionError> {
         let session = SessionBuilder::new()
@@ -34,7 +34,7 @@ impl DatabaseRepository {
             .user(&config.db_user, &config.db_password)
             .build()
             .await?;
-        Ok(DatabaseRepository { session: Arc::new(session) })
+        Ok(MessageRepository { session: Arc::new(session) })
     }
 
     pub async fn fetch_data(&self) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {

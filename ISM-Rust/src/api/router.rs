@@ -5,7 +5,7 @@ use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::routing::get;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use crate::database::get_db_instance;
+use crate::database::get_message_repository_instance;
 
 /**
  * Initializing the api routes.
@@ -28,7 +28,7 @@ pub async fn init_router() -> Router {
 }
 
 async fn poll_for_new_messages() -> impl IntoResponse {
-    let db = get_db_instance().await;
+    let db = get_message_repository_instance().await;
     match db.fetch_data().await {
         Ok(messages) => {
             Json(messages).into_response()

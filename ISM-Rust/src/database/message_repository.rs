@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use scylla::{Session, SessionBuilder};
+use scylla::{QueryResult, Session, SessionBuilder};
 use scylla::transport::ClusterData;
-use scylla::transport::errors::NewSessionError;
+use scylla::transport::errors::{NewSessionError, QueryError};
 use crate::core::{MessageDbConfig};
 use tokio::sync::OnceCell;
 use futures::TryStreamExt;
@@ -56,8 +56,12 @@ impl MessageRepository {
         Ok(messages)
     }
 
-    pub async fn insert_data(&self) -> Result<String, scylla::transport::errors::QueryError> {
-        Ok("Data inserted successfully".to_string())
+    pub async fn insert_data(&self, message: Message) -> Result<QueryResult, QueryError> {
+        let session = self.session.clone();
+       session.query_unpaged(
+            "INSERT INTO messages (message_id, sender_id, receiver_id, msg_body, created_at, msg_type, has_read) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (message.message_id, message.sender_id, message.receiver_id, message.msg_body, message.created_at, message.msg_type, message.has_read)
+        ).await
     }
 
     pub async fn test_connection(&self) -> Result<Arc<ClusterData>, scylla::transport::errors::RequestError> {

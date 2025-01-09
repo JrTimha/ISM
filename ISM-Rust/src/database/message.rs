@@ -3,7 +3,7 @@ use scylla::DeserializeRow;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(DeserializeRow, Debug, Deserialize, Serialize)]
+#[derive(DeserializeRow, Debug, Deserialize, Serialize, Clone)]
 #[allow(unused)]
 pub struct Message {
     pub message_id: Uuid,

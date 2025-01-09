@@ -4,15 +4,17 @@ use axum::response::IntoResponse;
 use axum::{Extension, Json, Router};
 use axum::extract::Path;
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum_keycloak_auth::{Url, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, PassthroughMode};
 use axum_keycloak_auth::decode::KeycloakToken;
+use chrono::Utc;
+use log::{error, info};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 use crate::api::errors::{ErrorMessage, HttpError};
 use crate::core::{ISMConfig, TokenIssuer};
-use crate::database::{get_message_repository_instance, UserDbClient, UserRepository};
+use crate::database::{get_message_repository_instance, Message, NewMessage, UserDbClient, UserRepository};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -34,7 +36,7 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
         .route("/notify", get(poll_for_new_messages))
         .route("/timeline", get(scroll_chat_timeline))
-        .route("/send-msg", get(send_message))
+        .route("/send-msg", post(send_message))
         .route("/users/{user_id}", get(user_test))
         .route("/users/get-me", get(get_me))
         .layer(TraceLayer::new_for_http())
@@ -84,8 +86,33 @@ async fn scroll_chat_timeline() -> &'static str {
     "Not Implemented"
 }
 
-async fn send_message() -> &'static str {
-    "Not Implemented"
+async fn send_message(
+    Extension(token): Extension<KeycloakToken<String>>,
+    Json(payload): Json<NewMessage>
+) -> impl IntoResponse {
+    let db = get_message_repository_instance().await;
+    let id = match Uuid::try_parse(&token.subject) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return HttpError::bad_request("Invalid token subject").into_response();
+        }
+    };
+    let msg = Message {
+        message_id: Uuid::new_v4(),
+        sender_id: id,
+        receiver_id: payload.receiver_id,
+        msg_body: payload.msg_body,
+        msg_type: payload.msg_type,
+        has_read: false,
+        created_at: Utc::now(),
+    };
+    match db.insert_data(msg.clone()).await {
+        Ok(_) => {(StatusCode::CREATED, Json(msg)).into_response()},
+        Err(err) => {
+            error!("{}", err.to_string());
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
 }
 
 async fn user_test(

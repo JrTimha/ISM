@@ -8,6 +8,7 @@ db_url = "localhost:9042"
 db_user = "cassandra"
 db_password = "cassandra"
 db_keyspace = "messaging"
+with_db_init = true
 
 [user_db_config]
 db_host = "localhost"

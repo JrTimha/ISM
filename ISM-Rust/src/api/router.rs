@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum_keycloak_auth::{Url, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, PassthroughMode};
 use axum_keycloak_auth::decode::KeycloakToken;
 use chrono::Utc;
-use log::{error, info};
+use log::{error};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
@@ -98,12 +98,11 @@ async fn send_message(
         }
     };
     let msg = Message {
+        chat_room_id: payload.chat_room_id,
         message_id: Uuid::new_v4(),
         sender_id: id,
-        receiver_id: payload.receiver_id,
         msg_body: payload.msg_body,
         msg_type: payload.msg_type,
-        has_read: false,
         created_at: Utc::now(),
     };
     match db.insert_data(msg.clone()).await {

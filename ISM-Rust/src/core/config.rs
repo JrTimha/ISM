@@ -20,6 +20,7 @@ pub struct MessageDbConfig {
     pub db_user: String,
     pub db_password: String,
     pub db_keyspace: String,
+    pub with_db_init: bool
 }
 
 #[derive(Deserialize, Debug, Clone)]

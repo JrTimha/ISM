@@ -22,3 +22,34 @@ pub enum NotificationEvent {
     ChatMessage,
     SystemMessage
 }
+
+pub async fn init_notify_cache() -> NotificationCache {
+    let notifications: NotificationCache = Arc::new(RwLock::new(HashMap::new()));
+    let cache_clone = Arc::clone(&notifications);
+    tokio::spawn(async move {
+        cleanup_old_notifications(cache_clone).await;
+    });
+    notifications
+}
+
+async fn cleanup_old_notifications(cache: NotificationCache) {
+    loop {
+        // 5 Minuten = 300 Sekunden
+        let expiration_duration = chrono::Duration::seconds(10);
+        let now = Utc::now();
+        // Zugriff auf die gesamte HashMap
+        let map = cache.read().await;
+        for (user_id, notifications) in map.iter() {
+            let mut user_notifications = notifications.write().await;
+            // Entferne alte Notifications
+            user_notifications.retain(|notification| {
+                (now - notification.created_at) < expiration_duration
+            });
+
+            if user_notifications.is_empty() {
+                println!("Notifications for user {user_id} have been cleared.");
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+    }
+}

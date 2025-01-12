@@ -1,6 +1,8 @@
 use std::env;
 use std::sync::Arc;
-use axum::Router;
+use axum::body::Body;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use dotenv::dotenv;
 use log::{info};
 use tokio::net::TcpListener;
@@ -32,15 +34,10 @@ async fn main() {
     };
 
     //init api router:
-    let app: Router = init_router(Arc::new(app_state.clone())).await;
+    let app = init_router(Arc::new(app_state.clone())).await;
     let url = format!("{}:{}", config.ism_url, config.ism_port);
     let listener = TcpListener::bind(url.clone()).await.unwrap();
     info!("ISM-Server up and is listening on: http://{url}");
     axum::serve(listener, app).await.unwrap();
     info!("Stopping ISM...");
 }
-
-//fn init_logging(log_level: &str) {
-//    let env = env_logger::Env::default().default_filter_or(log_level);
-//    env_logger::Builder::from_env(env).init();
-//}

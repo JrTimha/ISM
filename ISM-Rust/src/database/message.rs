@@ -1,5 +1,6 @@
+use std::fmt;
 use chrono::{DateTime, Utc};
-use scylla::DeserializeRow;
+use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -19,7 +20,7 @@ pub struct NewMessage {
     pub chat_room_id: Uuid,
     pub sender_id: Uuid,
     pub msg_body: String,
-    pub msg_type: String
+    pub msg_type: MsgType
 }
 
 #[derive(DeserializeRow, Debug)]
@@ -37,12 +38,26 @@ pub struct ChatRoomParticipant {
     pub joined_at: DateTime<Utc>
 }
 
-#[derive(DeserializeRow, Debug)]
-pub struct Notification {
-    pub notification_id: Uuid,
-    pub user_id: Uuid,
-    pub notification_type: String,
-    pub body: String,
-    pub created_at: DateTime<Utc>,
-    pub is_read: bool
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum MsgType {
+    Text,
+    Image,
+    Video,
+    System,
+    Reply,
+    Reaction
 }
+
+impl fmt::Display for MsgType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MsgType::Text => write!(f, "Text"),
+            MsgType::Image => write!(f, "Image"),
+            MsgType::Video => write!(f, "Video"),
+            MsgType::System => write!(f, "System"),
+            MsgType::Reply => write!(f, "Reply"),
+            MsgType::Reaction => write!(f, "Reaction")
+        }
+    }
+}
+

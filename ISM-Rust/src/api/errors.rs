@@ -20,12 +20,9 @@ impl fmt::Display for ErrorResponse {
 
 #[derive(Debug, PartialEq)]
 pub enum ErrorMessage {
-    InvalidToken,
     ServerError,
     UserNoLongerExist,
-    TokenNotProvided,
     PermissionDenied,
-    UserNotAuthenticated,
 }
 
 impl ErrorMessage {
@@ -33,10 +30,7 @@ impl ErrorMessage {
         match self {
             ErrorMessage::ServerError => "Server Error. Please try again later".to_string(),
             ErrorMessage::UserNoLongerExist => "User belonging to this token no longer exists".to_string(),
-            ErrorMessage::InvalidToken => "Authentication token is invalid or expired".to_string(),
-            ErrorMessage::TokenNotProvided => "You are not logged in, please provide a token".to_string(),
             ErrorMessage::PermissionDenied => "You are not allowed to perform this action".to_string(),
-            ErrorMessage::UserNotAuthenticated => "Authentication required. Please log in.".to_string(),
         }
     }
 }

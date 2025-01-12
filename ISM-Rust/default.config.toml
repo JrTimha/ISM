@@ -1,7 +1,7 @@
 ism_url = "localhost"
 ism_port= 5403
 log_level = "info"
-cors_origin = "localhost:4200"
+cors_origin = "http://localhost:4200"
 
 [message_db_config]
 db_url = "localhost:9042"

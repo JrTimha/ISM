@@ -9,8 +9,8 @@ use log::{error};
 use uuid::Uuid;
 use crate::api::errors::{ErrorMessage, HttpError};
 use crate::api::{AppState, NotificationCache};
-use crate::database::{get_message_repository_instance, UserRepository};
-use crate::model::{Message, MsgType, NewMessage, NewRoom};
+use crate::database::{get_message_repository_instance, RoomRepository};
+use crate::model::{Message, NewMessage, NewRoom, RoomType};
 
 pub async fn poll_for_new_notifications(
     Extension(token): Extension<KeycloakToken<String>>,
@@ -59,7 +59,7 @@ pub async fn user_test(
     Path(user_id): Path<Uuid>,
     Extension(state): Extension<Arc<AppState>>
 ) -> impl IntoResponse {
-    match state.user_repository.get_user(user_id).await {
+    match state.social_repository.get_user(user_id).await {
         Ok(Some(user)) => Json(user).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, "User not found").into_response(),
         Err(_) => (StatusCode::BAD_REQUEST, "Failed to fetch user").into_response()
@@ -72,7 +72,7 @@ pub async fn get_me(
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
 
-    match state.user_repository.get_user(id).await {
+    match state.social_repository.get_user(id).await {
         Ok(Some(user)) => Json(user).into_response(),
         Ok(None) => HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string()).into_response(),
         Err(_) => HttpError::bad_request(ErrorMessage::ServerError.to_string()).into_response()
@@ -86,6 +86,27 @@ pub async fn create_room(
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
 
+    if !payload.invited_users.contains(&id) {
+        return HttpError::bad_request("Sender ID is not in the list of invited users.".to_string()).into_response();
+    }
+
+    match payload.room_type {
+        RoomType::Single => {
+            if payload.invited_users.len() != 2 {
+                return HttpError::bad_request("Personal rooms must have exactly two IDs (sender + one other).".to_string()).into_response();
+            }
+        }
+        RoomType::Group => {
+            if payload.invited_users.len() <= 2 {
+                return HttpError::bad_request("Groups must have more than two users.".to_string()).into_response();
+            }
+        }
+    }
+
+    match state.social_repository.insert_room(payload).await {
+        Ok(room) => Json(room).into_response(),
+        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+    }
 }
 
 

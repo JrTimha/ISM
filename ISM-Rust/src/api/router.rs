@@ -11,13 +11,13 @@ use tower::ServiceBuilder;
 use crate::api::notification::init_notify_cache;
 use crate::api::request_handler::{create_room, get_me, poll_for_new_notifications, scroll_chat_timeline, send_message, user_test};
 use crate::core::{ISMConfig, TokenIssuer};
-use crate::database::{UserDbClient};
+use crate::database::{PgDbClient};
 
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub env: ISMConfig,
-    pub user_repository: UserDbClient,
+    pub social_repository: PgDbClient,
 }
 
 /**

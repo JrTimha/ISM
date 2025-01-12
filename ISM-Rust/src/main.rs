@@ -5,7 +5,7 @@ use log::{info};
 use tokio::net::TcpListener;
 use ism::core::ISMConfig;
 use ism::api::{init_router, AppState};
-use ism::database::{init_message_db, init_user_db};
+use ism::database::{init_message_db, init_room_db};
 use tracing_subscriber::filter::LevelFilter;
 
 
@@ -23,11 +23,11 @@ async fn main() {
     info!("Starting ISM in {run_mode} mode.");
     //init both database connections, exit application if failing
     init_message_db(&config.message_db_config).await;
-    let user_db = init_user_db(&config.user_db_config).await;
+    let user_db = init_room_db(&config.user_db_config).await;
 
     let app_state = AppState {
         env: config.clone(),
-        user_repository: user_db,
+        social_repository: user_db,
     };
 
     //init api router:

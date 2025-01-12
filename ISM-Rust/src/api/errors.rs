@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
 use axum::http::StatusCode;
-use axum::Json;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
@@ -84,12 +83,7 @@ impl HttpError {
     }
 
     pub fn into_http_response(self) -> Response {
-        let json_response = Json(ErrorResponse {
-            status: "fail".to_string(),
-            message: self.message.clone(),
-        });
-
-        (self.status, json_response).into_response()
+        (self.status, self.message).into_response()
     }
 }
 

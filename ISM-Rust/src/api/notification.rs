@@ -20,7 +20,8 @@ pub struct Notification {
 pub enum NotificationEvent {
     FriendRequest,
     ChatMessage,
-    SystemMessage
+    SystemMessage,
+    NewRoom
 }
 
 pub async fn init_notify_cache() -> NotificationCache {

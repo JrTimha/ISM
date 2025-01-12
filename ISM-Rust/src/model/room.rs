@@ -1,23 +1,22 @@
-use std::fmt;
-use chrono::{DateTime, Utc};
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
+use sqlx::Type;
 use uuid::Uuid;
-use crate::database::User;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatRoom {
-    pub room_id: Uuid,
+pub struct ChatRoomEntity {
+    pub id: Uuid,
     pub room_type: RoomType,
     pub room_name: String,
-    pub created_at: DateTime<Utc>,
-    pub users: Vec<ChatRoomParticipant>,
+    pub created_at: DateTime<Utc>
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(sqlx::FromRow, Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatRoomParticipant {
-    pub user: User,
+pub struct ChatRoomParticipantEntity {
+    pub user_id: Uuid,
+    pub room_id: Uuid,
     pub joined_at: DateTime<Utc>
 }
 
@@ -30,18 +29,36 @@ pub struct NewRoom {
 }
 
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Type)]
+#[sqlx(type_name = "room_type")]
 pub enum RoomType {
     Single,
     Group
 }
 
-impl fmt::Display for RoomType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl RoomType {
+    pub fn to_str(&self) -> &str {
         match self {
-            RoomType::Single => write!(f, "Single"),
-            RoomType::Group => write!(f, "Group")
-
+            RoomType::Single => "Single",
+            RoomType::Group => "Group"
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            RoomType::Single => String::from("Single"),
+            RoomType::Group => String::from("Group")
+        }
+    }
+
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRoomDetails {
+    pub id: Uuid,
+    pub room_type: RoomType,
+    pub room_name: String,
+    pub created_at: DateTime<Utc>,
+    pub users: Vec<Uuid>
 }

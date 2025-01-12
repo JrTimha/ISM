@@ -5,22 +5,18 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum_keycloak_auth::decode::KeycloakToken;
 use chrono::Utc;
-use log::error;
+use log::{error};
 use uuid::Uuid;
 use crate::api::errors::{ErrorMessage, HttpError};
 use crate::api::{AppState, NotificationCache};
-use crate::database::{get_message_repository_instance, Message, NewMessage, UserRepository};
+use crate::database::{get_message_repository_instance, UserRepository};
+use crate::model::{Message, MsgType, NewMessage, NewRoom};
 
-pub async fn poll_for_new_messages(
+pub async fn poll_for_new_notifications(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(notifications): Extension<NotificationCache>
 ) -> impl IntoResponse {
-    let id = match Uuid::try_parse(&token.subject) {
-        Ok(uuid) => uuid,
-        Err(_) => {
-            return HttpError::bad_request("Invalid token subject").into_response();
-        }
-    };
+    let id = parse_uuid(&token.subject).unwrap();
     let reader = notifications.read().await;
     if let Some(notes) = reader.get(&id){
         let notification = notes.read().await.clone();
@@ -39,12 +35,8 @@ pub async fn send_message(
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
     let db = get_message_repository_instance().await;
-    let id = match Uuid::try_parse(&token.subject) {
-        Ok(uuid) => uuid,
-        Err(_) => {
-            return HttpError::bad_request("Invalid token subject").into_response();
-        }
-    };
+    let id = parse_uuid(&token.subject).unwrap();
+
     let msg = Message {
         chat_room_id: payload.chat_room_id,
         message_id: Uuid::new_v4(),
@@ -78,15 +70,25 @@ pub async fn get_me(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(state): Extension<Arc<AppState>>
 ) -> impl IntoResponse {
-    let id = match Uuid::try_parse(&token.subject) {
-        Ok(uuid) => uuid,
-        Err(_) => {
-            return HttpError::bad_request("Invalid token subject").into_response();
-        }
-    };
+    let id = parse_uuid(&token.subject).unwrap();
+
     match state.user_repository.get_user(id).await {
         Ok(Some(user)) => Json(user).into_response(),
         Ok(None) => HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string()).into_response(),
         Err(_) => HttpError::bad_request(ErrorMessage::ServerError.to_string()).into_response()
     }
+}
+
+pub async fn create_room(
+    Extension(token): Extension<KeycloakToken<String>>,
+    Extension(state): Extension<Arc<AppState>>,
+    Json(payload): Json<NewRoom>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+
+}
+
+
+fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
+    Uuid::try_parse(subject).map_err(|_| HttpError::bad_request("Invalid token subject".to_string()))
 }

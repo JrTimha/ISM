@@ -9,7 +9,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use crate::api::notification::init_notify_cache;
-use crate::api::request_handler::{get_me, poll_for_new_messages, scroll_chat_timeline, send_message, user_test};
+use crate::api::request_handler::{create_room, get_me, poll_for_new_notifications, scroll_chat_timeline, send_message, user_test};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{UserDbClient};
 
@@ -37,11 +37,12 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/health", get(|| async { (StatusCode::OK, "Healthy").into_response() }));
 
     let protected_routing = Router::new() //add new routes here
-        .route("/api/notify", get(poll_for_new_messages))
+        .route("/api/notify", get(poll_for_new_notifications))
         .route("/api/timeline", get(scroll_chat_timeline))
         .route("/api/send-msg", post(send_message))
         .route("/api/users/{user_id}", get(user_test))
         .route("/api/users/get-me", get(get_me))
+        .route("/api/create-room", post(create_room))
         //layering bottom to top middleware
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware

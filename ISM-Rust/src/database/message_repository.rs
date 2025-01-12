@@ -6,7 +6,7 @@ use crate::core::{MessageDbConfig};
 use tokio::sync::OnceCell;
 use futures::TryStreamExt;
 use log::{debug, error, info};
-use crate::database::message::Message;
+use crate::model::Message;
 
 static DB_INSTANCE: OnceCell<Arc<MessageRepository>> = OnceCell::const_new();
 
@@ -38,15 +38,6 @@ pub struct MessageRepository {
 pub async fn create_keyspace_with_tables(session: &Session) {
     let queries = [
         "CREATE KEYSPACE IF NOT EXISTS messaging WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}",
-        "CREATE TABLE IF NOT EXISTS messaging.notifications (
-            user_id UUID,
-            notification_id UUID,
-            notification_type TEXT,
-            body TEXT,
-            created_at TIMESTAMP,
-            is_read BOOLEAN,
-            PRIMARY KEY ((user_id), created_at, notification_id)
-        )",
         "CREATE TABLE IF NOT EXISTS messaging.chat_messages (
             chat_room_id UUID,
             message_id UUID,
@@ -55,19 +46,6 @@ pub async fn create_keyspace_with_tables(session: &Session) {
             msg_type TEXT,
             created_at TIMESTAMP,
             PRIMARY KEY ((chat_room_id), created_at, message_id)
-        )",
-        "CREATE TABLE IF NOT EXISTS messaging.chat_rooms (
-            chat_room_id UUID PRIMARY KEY,
-            room_type TEXT,
-            room_name TEXT,
-            created_at TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS messaging.chat_room_participants (
-            chat_room_id UUID,
-            user_id UUID,
-            joined_at TIMESTAMP,
-            last_message_read UUID,
-            PRIMARY KEY (chat_room_id, user_id),
         )"
     ];
     for query in queries.iter() {

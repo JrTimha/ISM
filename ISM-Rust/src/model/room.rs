@@ -17,7 +17,8 @@ pub struct ChatRoomEntity {
 pub struct ChatRoomParticipantEntity {
     pub user_id: Uuid,
     pub room_id: Uuid,
-    pub joined_at: DateTime<Utc>
+    pub joined_at: DateTime<Utc>,
+    pub last_message_read_at: Option<DateTime<Utc>>
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -55,7 +56,7 @@ impl RoomType {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatRoomDetails {
+pub struct ChatRoomDTO {
     pub id: Uuid,
     pub room_type: RoomType,
     pub room_name: String,

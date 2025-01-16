@@ -7,7 +7,7 @@ use axum_keycloak_auth::decode::KeycloakToken;
 use chrono::Utc;
 use log::{error};
 use uuid::Uuid;
-use crate::api::errors::{ErrorMessage, HttpError};
+use crate::api::errors::{HttpError};
 use crate::api::{AppState, NotificationCache};
 use crate::database::{get_message_repository_instance, RoomRepository};
 use crate::model::{Message, NewMessage, NewRoom, RoomType};
@@ -54,28 +54,24 @@ pub async fn send_message(
     }
 }
 
-
-pub async fn user_test(
-    Path(user_id): Path<Uuid>,
-    Extension(state): Extension<Arc<AppState>>
+pub async fn get_users_in_room(
+    Extension(state): Extension<Arc<AppState>>,
+    Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    match state.social_repository.get_user(user_id).await {
-        Ok(Some(user)) => Json(user).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "User not found").into_response(),
-        Err(_) => (StatusCode::BAD_REQUEST, "Failed to fetch user").into_response()
+    match state.social_repository.select_all_user_in_room(room_id).await {
+        Ok(users) => Json(users).into_response(),
+        Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
 }
 
-pub async fn get_me(
+pub async fn get_joined_rooms(
+    Extension(state): Extension<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(state): Extension<Arc<AppState>>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-
-    match state.social_repository.get_user(id).await {
-        Ok(Some(user)) => Json(user).into_response(),
-        Ok(None) => HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string()).into_response(),
-        Err(_) => HttpError::bad_request(ErrorMessage::ServerError.to_string()).into_response()
+    match state.social_repository.get_joined_rooms(id).await {
+        Ok(rooms) => Json(rooms).into_response(),
+        Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
 }
 

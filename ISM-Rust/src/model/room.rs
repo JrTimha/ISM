@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
+use crate::database::User;
 
 #[derive(Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -12,8 +13,7 @@ pub struct ChatRoomEntity {
     pub created_at: DateTime<Utc>
 }
 
-#[derive(sqlx::FromRow, Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(sqlx::FromRow, Debug)]
 pub struct ChatRoomParticipantEntity {
     pub user_id: Uuid,
     pub room_id: Uuid,
@@ -61,5 +61,5 @@ pub struct ChatRoomDTO {
     pub room_type: RoomType,
     pub room_name: String,
     pub created_at: DateTime<Utc>,
-    pub users: Vec<Uuid>
+    pub users: Vec<User>
 }

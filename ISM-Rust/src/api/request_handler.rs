@@ -8,34 +8,55 @@ use chrono::Utc;
 use log::{error};
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
-use crate::api::{AppState, NotificationCache};
+use crate::api::{AppState, Notification, NotificationEvent};
+use crate::api::notification::CacheService;
 use crate::database::{get_message_repository_instance, RoomRepository};
-use crate::model::{Message, NewMessage, NewRoom, RoomType};
+use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
 
 pub async fn poll_for_new_notifications(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(notifications): Extension<NotificationCache>
+    Extension(notifications): Extension<Arc<CacheService>>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    let reader = notifications.read().await;
-    if let Some(notes) = reader.get(&id){
-        let notification = notes.read().await.clone();
-        Json(notification).into_response()
+    if let Some(notifications) = notifications.get_notifications(id).await {
+        Json(notifications).into_response()
     } else {
         Json::<Vec<String>>(vec![]).into_response()
     }
 }
 
-pub async fn scroll_chat_timeline() -> &'static str {
-    "Not Implemented"
+pub async fn scroll_chat_timeline(
+    Extension(token): Extension<KeycloakToken<String>>,
+    Extension(state): Extension<Arc<AppState>>,
+    Path(room_id): Path<Uuid>
+) -> impl IntoResponse {
+    let db = get_message_repository_instance().await;
+    let id = parse_uuid(&token.subject).unwrap();
+    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+        return err.into_response();
+    }
+    match db.fetch_data().await {
+        Ok(data) => { Json(data).into_response() },
+        Err(err) => {
+            error!("{}", err.to_string());
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
 }
+
 
 pub async fn send_message(
     Extension(token): Extension<KeycloakToken<String>>,
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(notifications): Extension<Arc<CacheService>>,
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
     let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
+
+    if let Err(err) = check_user_in_room(&state, &id, &payload.chat_room_id).await {
+        return err.into_response();
+    }
 
     let msg = Message {
         chat_room_id: payload.chat_room_id,
@@ -46,7 +67,16 @@ pub async fn send_message(
         created_at: Utc::now(),
     };
     match db.insert_data(msg.clone()).await {
-        Ok(_) => {(StatusCode::CREATED, Json(msg)).into_response()},
+        Ok(_) => {
+            let note = Notification {
+                notification_id: msg.message_id.clone(),
+                notification_event: NotificationEvent::ChatMessage,
+                body: msg.msg_body.to_string(),
+                created_at: msg.created_at,
+            };
+            notifications.add_notification(id, note).await;
+            (StatusCode::CREATED, Json(msg)).into_response()
+        },
         Err(err) => {
             error!("{}", err.to_string());
             StatusCode::BAD_REQUEST.into_response()
@@ -58,7 +88,7 @@ pub async fn get_users_in_room(
     Extension(state): Extension<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    match state.social_repository.select_all_user_in_room(room_id).await {
+    match state.social_repository.select_all_user_in_room(&room_id).await {
         Ok(users) => Json(users).into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
@@ -69,11 +99,45 @@ pub async fn get_joined_rooms(
     Extension(token): Extension<KeycloakToken<String>>,
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    match state.social_repository.get_joined_rooms(id).await {
+    match state.social_repository.get_joined_rooms(&id).await {
         Ok(rooms) => Json(rooms).into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
 }
+
+pub async fn get_room_with_details(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(token): Extension<KeycloakToken<String>>,
+    Path(room_id): Path<Uuid>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+        return err.into_response();
+    }
+
+    let res = tokio::try_join!( //executing 2 queries async
+        state.social_repository.select_room(&room_id),
+        state.social_repository.select_all_user_in_room(&room_id)
+    );
+
+    match res {
+        Ok((room, user)) => {
+            let room_details = ChatRoomDTO {
+                id: room.id,
+                room_type: room.room_type,
+                room_name: room.room_name,
+                created_at: room.created_at,
+                users: user,
+            };
+            Json(room_details).into_response()
+        }
+        Err(err) => {
+            HttpError::bad_request(err.to_string()).into_response()
+        }
+    }
+
+}
+
 
 pub async fn create_room(
     Extension(token): Extension<KeycloakToken<String>>,
@@ -108,4 +172,22 @@ pub async fn create_room(
 
 fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
     Uuid::try_parse(subject).map_err(|_| HttpError::bad_request("Invalid token subject".to_string()))
+}
+
+async fn check_user_in_room(
+    state: &Arc<AppState>,
+    user_id: &Uuid,
+    room_id: &Uuid,
+) -> Result<(), HttpError> {
+    let is_in = state
+        .social_repository
+        .is_user_in_room(user_id, room_id)
+        .await
+        .map_err(|_| HttpError::bad_request("Failed to check room access."))?;
+
+    if is_in {
+        Ok(())
+    } else {
+        Err(HttpError::unauthorized("Room not found or access denied."))
+    }
 }

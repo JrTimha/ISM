@@ -8,8 +8,8 @@ use axum_keycloak_auth::{Url, instance::KeycloakConfig, instance::KeycloakAuthIn
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
-use crate::api::notification::init_notify_cache;
-use crate::api::request_handler::{create_room, get_joined_rooms, get_users_in_room, poll_for_new_notifications, scroll_chat_timeline, send_message};
+use crate::api::notification::{CacheService};
+use crate::api::request_handler::{create_room, get_joined_rooms, get_room_with_details, get_users_in_room, poll_for_new_notifications, scroll_chat_timeline, send_message};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
 
@@ -30,7 +30,9 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE])
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS]);
-    let notify_cache = init_notify_cache().await;
+
+    let notify_cache = Arc::new(CacheService::new());
+    notify_cache.start_cleanup_task(300);
 
     let public_routing = Router::new()
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
@@ -42,6 +44,8 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/api/send-msg", post(send_message))
         .route("/api/rooms/create-room", post(create_room))
         .route("/api/rooms/{room_id}/users", get(get_users_in_room))
+        .route("/api/rooms/{room_id}/detailed", get(get_room_with_details))
+        .route("/api/rooms/{room_id}/timeline", get(scroll_chat_timeline))
         .route("/api/rooms", get(get_joined_rooms))
         //layering bottom to top middleware
         .layer(

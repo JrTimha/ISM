@@ -77,7 +77,7 @@ impl MessageRepository {
 
     pub async fn fetch_data(&self) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
         let session = self.session.clone();
-        let mut iter = session.query_iter("SELECT message_id, sender_id, receiver_id, msg_body, created_at, msg_type, has_read FROM messages", &[])
+        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages", &[])
             .await?.rows_stream::<Message>()?;
         let mut messages: Vec<Message> = Vec::new();
         while let Some(next) = iter.try_next().await? { messages.push(next) }
@@ -85,11 +85,11 @@ impl MessageRepository {
     }
 
     pub async fn insert_data(&self, message: Message) -> Result<QueryResult, QueryError> {
-        let session = self.session.clone();
+       let session = self.session.clone();
        session.query_unpaged(
-            "INSERT INTO messages (chat_room_id, message_id, sender_id, msg_body, msg_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (message.message_id, message.sender_id, message.msg_body, message.msg_type, message.created_at)
-        ).await
+            "INSERT INTO chat_messages (chat_room_id, message_id, sender_id, msg_body, msg_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (message.chat_room_id, message.message_id, message.sender_id, message.msg_body, message.msg_type, message.created_at)
+       ).await
     }
 
     pub async fn test_connection(&self) -> Result<Arc<ClusterData>, scylla::transport::errors::RequestError> {

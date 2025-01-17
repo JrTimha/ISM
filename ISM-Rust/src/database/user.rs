@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: Uuid,
     pub display_name: String,

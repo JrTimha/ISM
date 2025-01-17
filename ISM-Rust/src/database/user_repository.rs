@@ -6,7 +6,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
 use crate::database::user::User;
-use crate::model::{ChatRoomEntity, ChatRoomParticipantEntity, NewRoom, RoomType};
+use crate::model::{ChatRoomEntity, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
 pub struct PgDbClient {
@@ -22,19 +22,18 @@ impl PgDbClient {
 #[async_trait]
 pub trait RoomRepository {
 
-    async fn select_all_user_in_room(&self, room_id: Uuid) -> Result<Vec<User>, sqlx::Error>;
-    async fn get_joined_rooms(&self, user_id: Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error>;
-
-    async fn insert_room(&self, room: NewRoom) -> Result<(ChatRoomEntity, Vec<ChatRoomParticipantEntity>), sqlx::Error>;
-
-
+    async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
+    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error>;
+    async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
+    async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
+    async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
 }
 
 #[async_trait]
 impl RoomRepository for PgDbClient {
 
 
-    async fn select_all_user_in_room(&self, room_id: Uuid) -> Result<Vec<User>, sqlx::Error> {
+    async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
         let users = sqlx::query_as!(User,
             r#"
             SELECT users.id, users.display_name, users.profile_picture,
@@ -46,7 +45,7 @@ impl RoomRepository for PgDbClient {
         Ok(users)
     }
 
-    async fn get_joined_rooms(&self, user_id: Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
+    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
         let rooms = sqlx::query_as!(ChatRoomEntity,
             r#"
                 SELECT room.id, room.room_type as "room_type: RoomType", room.room_name, room.created_at
@@ -57,22 +56,14 @@ impl RoomRepository for PgDbClient {
         Ok(rooms)
     }
 
-    async fn insert_room(&self, room: NewRoom) -> Result<(ChatRoomEntity, Vec<ChatRoomParticipantEntity>), sqlx::Error> {
+    async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
-            room_type: room.room_type,
-            room_name: room.room_name.unwrap_or_else(|| String::from("Neuer Chat")),
+            room_type: new_room.room_type,
+            room_name: new_room.room_name.unwrap_or_else(|| String::from("Neuer Chat")),
             created_at: Utc::now()
         };
-        let participants_entities: Vec<ChatRoomParticipantEntity> = room.invited_users
-            .into_iter()
-            .map(|user_id| ChatRoomParticipantEntity {
-                user_id,
-                room_id: room_entity.id,
-                joined_at: Utc::now(),
-                last_message_read_at: None,
-            })
-            .collect();
+
         //https://docs.rs/sqlx/latest/sqlx/struct.Transaction.html
         let mut tx = self.pool.begin().await?;
 
@@ -83,23 +74,47 @@ impl RoomRepository for PgDbClient {
             VALUES ($1, $2, $3, $4)
             RETURNING id, room_name, created_at, room_type as "room_type: RoomType"
             "#,
-            room_entity.id,
-            room_entity.room_type.to_string(),
-            room_entity.room_name,
-            room_entity.created_at
+            &room_entity.id,
+            &room_entity.room_type.to_string(),
+            &room_entity.room_name,
+            &room_entity.created_at
         ).fetch_one(&mut *tx).await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
         let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(
             "INSERT INTO chat_room_participant (user_id, room_id, joined_at) "
         );
-        builder.push_values(&participants_entities, |mut db, user| {
-            db.push_bind(user.user_id)
-              .push_bind(user.room_id)
-              .push_bind(user.joined_at);
+        builder.push_values(&new_room.invited_users, |mut db, user| {
+            db.push_bind(user)
+              .push_bind(&room.id)
+              .push_bind(Utc::now());
         }).build().fetch_all(&mut *tx).await?;
+
         tx.commit().await?;
-        Ok((room, participants_entities))
+        Ok(room)
+    }
+
+    async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error> {
+        let room_details = sqlx::query_as!(
+            ChatRoomEntity,
+            r#"
+            SELECT id, room_type as "room_type: RoomType", room_name, created_at
+            FROM chat_room
+            WHERE id = $1
+            "#, room_id).fetch_one(&self.pool).await?;
+        Ok(room_details)
+    }
+
+    async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error> {
+        let exists = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                FROM chat_room_participant
+                WHERE user_id = $1 AND room_id = $2
+                )
+        "#, user_id, room_id).fetch_one(&self.pool).await?;
+        Ok(exists.unwrap_or(false))
     }
 
 }

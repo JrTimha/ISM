@@ -27,6 +27,7 @@ pub trait RoomRepository {
     async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
+    async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
 }
 
 #[async_trait]
@@ -115,6 +116,12 @@ impl RoomRepository for PgDbClient {
                 )
         "#, user_id, room_id).fetch_one(&self.pool).await?;
         Ok(exists.unwrap_or(false))
+    }
+
+    async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+        let result = sqlx::query!(r#"SELECT user_id FROM chat_room_participant WHERE room_id = $1"#, room_id).fetch_all(&self.pool).await?;
+        let user: Vec<Uuid> = result.iter().map(|id| id.user_id).collect();
+        Ok(user)
     }
 
 }

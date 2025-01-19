@@ -24,7 +24,7 @@ pub enum NotificationEvent {
     NewRoom
 }
 
-type NotificationCache = Arc<RwLock<HashMap<Uuid, Arc<RwLock<Vec<Notification>>>>>>;
+type NotificationCache = Arc<RwLock<HashMap<Uuid, RwLock<Vec<Notification>>>>>;
 
 #[derive(Clone)]
 pub struct CacheService {
@@ -39,18 +39,38 @@ impl CacheService {
     }
 
     pub async fn add_notification(&self, user_id: Uuid, notification: Notification) {
+        let cache = self.cache.read().await;
+        if let Some(notifications) = cache.get(&user_id) { //first expect he is in the map
+            let mut notifications = notifications.write().await;
+            notifications.push(notification);
+        } else { //if user doesn't exist, add him to the map
+            drop(cache); //we need write access
+            let mut cache = self.cache.write().await;
+            let notifications = cache.entry(user_id).or_insert_with(|| RwLock::new(Vec::new()));
+            let mut notifications = notifications.write().await;
+            notifications.push(notification);
+        }
+    }
+
+    pub async fn add_notifications_to_all(&self, user_ids: Vec<Uuid>, notification: Notification) {
         let mut cache = self.cache.write().await;
-        let notifications = cache.entry(user_id).or_insert_with(|| Arc::new(RwLock::new(Vec::new())));
-        let mut notifications = notifications.write().await;
-        notifications.push(notification);
+        for user_id in user_ids {
+            if let Some(notifications) = cache.get_mut(&user_id) {
+                let mut notifications = notifications.write().await;
+                notifications.push(notification.clone());
+            } else {
+                let notifications = cache.entry(user_id).or_insert_with(|| RwLock::new(Vec::new()));
+                let mut notifications = notifications.write().await;
+                notifications.push(notification.clone());
+            }
+        }
     }
 
     pub async fn get_notifications(&self, user_id: Uuid) -> Option<Vec<Notification>> {
         let cache = self.cache.read().await;
         if let Some(notifications) = cache.get(&user_id) {
             let mut notifications = notifications.write().await;
-            let messages = notifications.clone();
-            notifications.clear();
+            let messages = notifications.drain(..).collect();
             Some(messages)
         } else {
             None
@@ -95,5 +115,6 @@ impl CacheService {
             }
         });
     }
+
 
 }

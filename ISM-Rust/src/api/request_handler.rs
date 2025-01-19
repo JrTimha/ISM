@@ -54,9 +54,20 @@ pub async fn send_message(
     let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
 
-    if let Err(err) = check_user_in_room(&state, &id, &payload.chat_room_id).await {
-        return err.into_response();
+    let mut users = match state.social_repository.select_room_participants_ids(&payload.chat_room_id).await {
+        Ok(ids) => ids,
+        Err(error) => {
+            error!("{}", error.to_string());
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
+    if !users.contains(&id) {
+        return HttpError::unauthorized("Room not found or access denied.").into_response();
     }
+
+    users.retain(|&user| {
+        user != id
+    });
 
     let msg = Message {
         chat_room_id: payload.chat_room_id,
@@ -69,12 +80,12 @@ pub async fn send_message(
     match db.insert_data(msg.clone()).await {
         Ok(_) => {
             let note = Notification {
-                notification_id: msg.message_id.clone(),
+                notification_id: msg.message_id,
                 notification_event: NotificationEvent::ChatMessage,
                 body: msg.msg_body.to_string(),
                 created_at: msg.created_at,
             };
-            notifications.add_notification(id, note).await;
+            notifications.add_notifications_to_all(users, note).await;
             (StatusCode::CREATED, Json(msg)).into_response()
         },
         Err(err) => {

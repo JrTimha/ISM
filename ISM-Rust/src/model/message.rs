@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(DeserializeRow, Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 #[allow(unused)]
 pub struct Message {
     pub chat_room_id: Uuid,
@@ -16,6 +17,7 @@ pub struct Message {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct NewMessage {
     pub chat_room_id: Uuid,
     pub msg_body: String,

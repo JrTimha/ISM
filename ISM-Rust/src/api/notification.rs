@@ -10,9 +10,8 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Notification {
-    pub notification_id: Uuid,
     pub notification_event: NotificationEvent,
-    pub body: String, //json
+    pub body: serde_json::Value, //json
     pub created_at: DateTime<Utc>
 }
 

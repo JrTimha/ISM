@@ -77,12 +77,16 @@ pub async fn send_message(
         msg_type: payload.msg_type.to_string(),
         created_at: Utc::now(),
     };
+    let json = match serde_json::to_value(&msg) {
+        Ok(json) => json,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response()
+    };
+
     match db.insert_data(msg.clone()).await {
         Ok(_) => {
             let note = Notification {
-                notification_id: msg.message_id,
                 notification_event: NotificationEvent::ChatMessage,
-                body: msg.msg_body.to_string(),
+                body: json,
                 created_at: msg.created_at,
             };
             notifications.add_notifications_to_all(users, note).await;

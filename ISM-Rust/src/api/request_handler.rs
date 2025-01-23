@@ -1,11 +1,12 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum_keycloak_auth::decode::KeycloakToken;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::{error};
+use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
 use crate::api::{AppState, Notification, NotificationEvent};
@@ -25,18 +26,27 @@ pub async fn poll_for_new_notifications(
     }
 }
 
+#[derive(Deserialize)]
+pub struct TimelineQuery {
+    timestamp: DateTime<Utc>
+}
+
 pub async fn scroll_chat_timeline(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(state): Extension<Arc<AppState>>,
-    Path(room_id): Path<Uuid>
+    Path(room_id): Path<Uuid>,
+    Query(params): Query<TimelineQuery>
 ) -> impl IntoResponse {
     let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
     if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
         return err.into_response();
     }
-    match db.fetch_data().await {
-        Ok(data) => { Json(data).into_response() },
+    match db.fetch_data(params.timestamp, room_id).await {
+        Ok(mut data) => {
+            data.reverse();
+            Json(data).into_response()
+        },
         Err(err) => {
             error!("{}", err.to_string());
             StatusCode::BAD_REQUEST.into_response()

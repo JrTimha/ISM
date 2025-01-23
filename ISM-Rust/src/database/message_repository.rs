@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use scylla::{QueryResult, Session, SessionBuilder};
 use scylla::transport::ClusterData;
 use scylla::transport::errors::{NewSessionError, QueryError};
@@ -6,6 +7,7 @@ use crate::core::{MessageDbConfig};
 use tokio::sync::OnceCell;
 use futures::TryStreamExt;
 use log::{debug, error, info};
+use uuid::Uuid;
 use crate::model::Message;
 
 static DB_INSTANCE: OnceCell<Arc<MessageRepository>> = OnceCell::const_new();
@@ -75,9 +77,9 @@ impl MessageRepository {
         Ok(MessageRepository { session: Arc::new(session) })
     }
 
-    pub async fn fetch_data(&self) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
+    pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
         let session = self.session.clone();
-        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages", &[])
+        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
             .await?.rows_stream::<Message>()?;
         let mut messages: Vec<Message> = Vec::new();
         while let Some(next) = iter.try_next().await? { messages.push(next) }

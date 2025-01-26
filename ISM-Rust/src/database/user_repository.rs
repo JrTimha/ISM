@@ -6,7 +6,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
 use crate::database::user::User;
-use crate::model::{ChatRoomEntity, NewRoom, RoomType};
+use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
 pub struct PgDbClient {
@@ -23,11 +23,13 @@ impl PgDbClient {
 pub trait RoomRepository {
 
     async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
-    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error>;
+    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error>;
     async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
     async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
+    async fn update_last_room_message(&self, room_id: &Uuid) -> Result<(), sqlx::Error>;
+    async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
 }
 
 #[async_trait]
@@ -46,14 +48,39 @@ impl RoomRepository for PgDbClient {
         Ok(users)
     }
 
-    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
-        let rooms = sqlx::query_as!(ChatRoomEntity,
-            r#"
-                SELECT room.id, room.room_type as "room_type: RoomType", room.room_name, room.created_at
-                FROM chat_room_participant AS participants
-                JOIN chat_room AS room ON participants.room_id = room.id
-                WHERE participants.user_id = $1
-            "#, user_id).fetch_all(&self.pool).await?;
+    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error> {
+        let rooms = sqlx::query_as!(
+        ChatRoomListItemDTO,
+        r#"
+        SELECT
+            room.id,
+            room.room_type AS "room_type: RoomType",
+            room.created_at,
+            room.latest_message,
+            CASE
+                WHEN room.room_type = 'Single' THEN u.display_name
+                ELSE room.room_name
+            END AS room_name,
+            CASE
+                WHEN room.room_type = 'Single' THEN u.profile_picture
+                ELSE room.room_image_url
+            END AS room_image_url,
+            CASE
+                WHEN participants.last_message_read_at < room.latest_message THEN TRUE
+                ELSE FALSE
+            END AS unread
+        FROM chat_room_participant AS participants
+        JOIN chat_room AS room ON participants.room_id = room.id
+        LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
+        LEFT JOIN app_user u ON u.id = crp.user_id
+        WHERE participants.user_id = $1
+        ORDER BY room.latest_message DESC
+        "#,
+        user_id
+    )
+            .fetch_all(&self.pool)
+            .await?;
+
         Ok(rooms)
     }
 
@@ -62,7 +89,8 @@ impl RoomRepository for PgDbClient {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
             room_name: new_room.room_name.unwrap_or_else(|| String::from("Neuer Chat")),
-            created_at: Utc::now()
+            created_at: Utc::now(),
+            latest_message: None
         };
 
         //https://docs.rs/sqlx/latest/sqlx/struct.Transaction.html
@@ -71,14 +99,15 @@ impl RoomRepository for PgDbClient {
         let room = sqlx::query_as!(
             ChatRoomEntity,
             r#"
-            INSERT INTO chat_room (id, room_type, room_name, created_at)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, room_name, created_at, room_type as "room_type: RoomType"
+            INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message
             "#,
             &room_entity.id,
             &room_entity.room_type.to_string(),
             &room_entity.room_name,
-            &room_entity.created_at
+            &room_entity.created_at,
+            room_entity.latest_message
         ).fetch_one(&mut *tx).await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
@@ -99,7 +128,7 @@ impl RoomRepository for PgDbClient {
         let room_details = sqlx::query_as!(
             ChatRoomEntity,
             r#"
-            SELECT id, room_type as "room_type: RoomType", room_name, created_at
+            SELECT id, room_type as "room_type: RoomType", room_name, created_at, latest_message
             FROM chat_room
             WHERE id = $1
             "#, room_id).fetch_one(&self.pool).await?;
@@ -122,6 +151,19 @@ impl RoomRepository for PgDbClient {
         let result = sqlx::query!(r#"SELECT user_id FROM chat_room_participant WHERE room_id = $1"#, room_id).fetch_all(&self.pool).await?;
         let user: Vec<Uuid> = result.iter().map(|id| id.user_id).collect();
         Ok(user)
+    }
+
+    async fn update_last_room_message(&self, room_id: &Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE chat_room SET latest_message = NOW() WHERE id = $1",
+            room_id
+        ).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query!("Update chat_room_participant SET last_message_read_at = NOW() WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&self.pool).await?;
+        Ok(())
     }
 
 }

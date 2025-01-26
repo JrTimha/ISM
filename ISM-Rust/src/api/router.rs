@@ -9,7 +9,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use crate::api::notification::{CacheService};
-use crate::api::request_handler::{create_room, get_joined_rooms, get_room_with_details, get_users_in_room, poll_for_new_notifications, scroll_chat_timeline, send_message};
+use crate::api::request_handler::{create_room, get_joined_rooms, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
 
@@ -46,6 +46,7 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/api/rooms/{room_id}/users", get(get_users_in_room))
         .route("/api/rooms/{room_id}/detailed", get(get_room_with_details))
         .route("/api/rooms/{room_id}/timeline", get(scroll_chat_timeline))
+        .route("/api/rooms/{room_id}/mark-read", get(mark_room_as_read))
         .route("/api/rooms", get(get_joined_rooms))
         //layering bottom to top middleware
         .layer(

@@ -43,8 +43,7 @@ pub async fn scroll_chat_timeline(
         return err.into_response();
     }
     match db.fetch_data(params.timestamp, room_id).await {
-        Ok(mut data) => {
-            data.reverse();
+        Ok(data) => {
             Json(data).into_response()
         },
         Err(err) => {
@@ -94,6 +93,9 @@ pub async fn send_message(
 
     match db.insert_data(msg.clone()).await {
         Ok(_) => {
+            if let _error = state.social_repository.update_last_room_message(&payload.chat_room_id).await {
+                return HttpError::bad_request("Can't write chat room.").into_response();
+            }
             let note = Notification {
                 notification_event: NotificationEvent::ChatMessage,
                 body: json,
@@ -161,6 +163,20 @@ pub async fn get_room_with_details(
         }
     }
 
+}
+
+pub async fn mark_room_as_read(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(token): Extension<KeycloakToken<String>>,
+    Path(room_id): Path<Uuid>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    match state.social_repository.update_user_read_status(&room_id, &id).await {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(_) => {
+            HttpError::bad_request("Can't update user read status.").into_response()
+        }
+    }
 }
 
 

@@ -10,7 +10,8 @@ pub struct ChatRoomEntity {
     pub id: Uuid,
     pub room_type: RoomType,
     pub room_name: String,
-    pub created_at: DateTime<Utc>
+    pub created_at: DateTime<Utc>,
+    pub latest_message: Option<DateTime<Utc>>
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -62,4 +63,16 @@ pub struct ChatRoomDTO {
     pub room_name: String,
     pub created_at: DateTime<Utc>,
     pub users: Vec<User>
+}
+
+#[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRoomListItemDTO {
+    pub id: Uuid,
+    pub room_type: RoomType,
+    pub room_image_url: Option<String>,
+    pub room_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub latest_message: Option<DateTime<Utc>>,
+    pub unread: Option<bool>
 }

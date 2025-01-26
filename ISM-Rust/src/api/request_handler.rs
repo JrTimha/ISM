@@ -91,24 +91,26 @@ pub async fn send_message(
         Err(_) => return StatusCode::BAD_REQUEST.into_response()
     };
 
-    match db.insert_data(msg.clone()).await {
-        Ok(_) => {
-            if let _error = state.social_repository.update_last_room_message(&payload.chat_room_id).await {
-                return HttpError::bad_request("Can't write chat room.").into_response();
-            }
-            let note = Notification {
-                notification_event: NotificationEvent::ChatMessage,
-                body: json,
-                created_at: msg.created_at,
-            };
-            notifications.add_notifications_to_all(users, note).await;
-            (StatusCode::CREATED, Json(msg)).into_response()
-        },
-        Err(err) => {
-            error!("{}", err.to_string());
-            StatusCode::BAD_REQUEST.into_response()
-        }
+    if let Err(err) = db.insert_data(msg.clone()).await {
+        error!("{}", err.to_string());
+        return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
+    if let Err(err) = state.social_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
+        error!("{}", err);
+        return HttpError::bad_request("Can't update the state of the chat room.").into_response();
+    }
+    if let Err(err) = state.social_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
+        error!("{}", err);
+        return HttpError::bad_request("Can't update user read status.").into_response();
+    }
+
+    let note = Notification {
+        notification_event: NotificationEvent::ChatMessage,
+        body: json,
+        created_at: msg.created_at,
+    };
+    notifications.add_notifications_to_all(users, note).await;
+    (StatusCode::CREATED, Json(msg)).into_response()
 }
 
 pub async fn get_users_in_room(

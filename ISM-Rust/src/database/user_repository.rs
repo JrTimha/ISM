@@ -6,7 +6,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
 use crate::database::user::User;
-use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, NewRoom, RoomType};
+use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, Message, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
 pub struct PgDbClient {
@@ -28,7 +28,7 @@ pub trait RoomRepository {
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
     async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
-    async fn update_last_room_message(&self, room_id: &Uuid) -> Result<(), sqlx::Error>;
+    async fn update_last_room_message(&self, room_id: &Uuid, text: &Message) -> Result<(), sqlx::Error>;
     async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
 }
 
@@ -57,6 +57,7 @@ impl RoomRepository for PgDbClient {
             room.room_type AS "room_type: RoomType",
             room.created_at,
             room.latest_message,
+            room.latest_message_preview_text,
             CASE
                 WHEN room.room_type = 'Single' THEN u.display_name
                 ELSE room.room_name
@@ -153,10 +154,13 @@ impl RoomRepository for PgDbClient {
         Ok(user)
     }
 
-    async fn update_last_room_message(&self, room_id: &Uuid) -> Result<(), sqlx::Error> {
+    async fn update_last_room_message(&self, room_id: &Uuid, msg: &Message) -> Result<(), sqlx::Error> {
+        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", &msg.sender_id).fetch_one(&self.pool).await?;
+        let preview_text = format!("{}: {}", name.display_name, msg.msg_body);
         sqlx::query!(
-            "UPDATE chat_room SET latest_message = NOW() WHERE id = $1",
-            room_id
+            "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
+            room_id,
+            preview_text
         ).execute(&self.pool).await?;
         Ok(())
     }

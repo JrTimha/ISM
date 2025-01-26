@@ -74,5 +74,6 @@ pub struct ChatRoomListItemDTO {
     pub room_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub latest_message: Option<DateTime<Utc>>,
-    pub unread: Option<bool>
+    pub unread: Option<bool>,
+    pub latest_message_preview_text: Option<String>
 }

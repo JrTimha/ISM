@@ -27,7 +27,7 @@ async fn main() {
 
     let app_state = AppState {
         env: config.clone(),
-        social_repository: user_db,
+        room_repository: user_db,
     };
 
     //init api router:

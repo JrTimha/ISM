@@ -63,7 +63,7 @@ pub async fn send_message(
     let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
 
-    let mut users = match state.social_repository.select_room_participants_ids(&payload.chat_room_id).await {
+    let mut users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
         Ok(ids) => ids,
         Err(error) => {
             error!("{}", error.to_string());
@@ -95,11 +95,11 @@ pub async fn send_message(
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
-    if let Err(err) = state.social_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
+    if let Err(err) = state.room_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
         error!("{}", err);
         return HttpError::bad_request("Can't update the state of the chat room.").into_response();
     }
-    if let Err(err) = state.social_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
+    if let Err(err) = state.room_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
         error!("{}", err);
         return HttpError::bad_request("Can't update user read status.").into_response();
     }
@@ -117,7 +117,7 @@ pub async fn get_users_in_room(
     Extension(state): Extension<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    match state.social_repository.select_all_user_in_room(&room_id).await {
+    match state.room_repository.select_all_user_in_room(&room_id).await {
         Ok(users) => Json(users).into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
@@ -128,7 +128,7 @@ pub async fn get_joined_rooms(
     Extension(token): Extension<KeycloakToken<String>>,
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    match state.social_repository.get_joined_rooms(&id).await {
+    match state.room_repository.get_joined_rooms(&id).await {
         Ok(rooms) => Json(rooms).into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
@@ -145,8 +145,8 @@ pub async fn get_room_with_details(
     }
 
     let res = tokio::try_join!( //executing 2 queries async
-        state.social_repository.select_room(&room_id),
-        state.social_repository.select_all_user_in_room(&room_id)
+        state.room_repository.select_room(&room_id),
+        state.room_repository.select_all_user_in_room(&room_id)
     );
 
     match res {
@@ -173,7 +173,7 @@ pub async fn mark_room_as_read(
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    match state.social_repository.update_user_read_status(&room_id, &id).await {
+    match state.room_repository.update_user_read_status(&room_id, &id).await {
         Ok(()) => StatusCode::OK.into_response(),
         Err(_) => {
             HttpError::bad_request("Can't update user read status.").into_response()
@@ -206,7 +206,7 @@ pub async fn create_room(
         }
     }
 
-    match state.social_repository.insert_room(payload).await {
+    match state.room_repository.insert_room(payload).await {
         Ok(room) => Json(room).into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
@@ -223,7 +223,7 @@ async fn check_user_in_room(
     room_id: &Uuid,
 ) -> Result<(), HttpError> {
     let is_in = state
-        .social_repository
+        .room_repository
         .is_user_in_room(user_id, room_id)
         .await
         .map_err(|_| HttpError::bad_request("Failed to check room access."))?;

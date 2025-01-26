@@ -17,7 +17,7 @@ use crate::database::{PgDbClient};
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub env: ISMConfig,
-    pub social_repository: PgDbClient,
+    pub room_repository: PgDbClient,
 }
 
 /**

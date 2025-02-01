@@ -9,7 +9,7 @@ use crate::database::User;
 pub struct ChatRoomEntity {
     pub id: Uuid,
     pub room_type: RoomType,
-    pub room_name: String,
+    pub room_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub latest_message: Option<DateTime<Utc>>
 }
@@ -60,7 +60,7 @@ impl RoomType {
 pub struct ChatRoomDTO {
     pub id: Uuid,
     pub room_type: RoomType,
-    pub room_name: String,
+    pub room_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub users: Vec<User>
 }

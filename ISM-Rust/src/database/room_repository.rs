@@ -89,7 +89,7 @@ impl RoomRepository for PgDbClient {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
-            room_name: new_room.room_name.unwrap_or_else(|| String::from("Neuer Chat")),
+            room_name: Option::from(new_room.room_name.unwrap_or_else(|| String::from("Neuer Chat"))),
             created_at: Utc::now(),
             latest_message: None
         };
@@ -106,7 +106,7 @@ impl RoomRepository for PgDbClient {
             "#,
             &room_entity.id,
             &room_entity.room_type.to_string(),
-            &room_entity.room_name,
+            room_entity.room_name,
             &room_entity.created_at,
             room_entity.latest_message
         ).fetch_one(&mut *tx).await?;

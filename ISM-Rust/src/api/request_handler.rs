@@ -3,7 +3,6 @@ use axum::{Extension, Json};
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum_keycloak_auth::decode::KeycloakToken;
 use chrono::{DateTime, Utc};
 use log::{error};
 use serde::Deserialize;
@@ -12,6 +11,7 @@ use crate::api::errors::{HttpError};
 use crate::api::{AppState, Notification, NotificationEvent};
 use crate::api::notification::CacheService;
 use crate::database::{get_message_repository_instance, RoomRepository};
+use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
 
 pub async fn poll_for_new_notifications(

@@ -1,2 +1,2 @@
-ism_url = "localhost"
+ism_url = "127.0.0.1"
 ism_port= 7800

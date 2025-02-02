@@ -9,7 +9,7 @@ use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
 use crate::api::notification::{CacheService};
-use crate::api::request_handler::{create_room, get_joined_rooms, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message};
+use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
@@ -42,6 +42,7 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
 
     let protected_routing = Router::new() //add new routes here
         .route("/api/notify", get(poll_for_new_notifications))
+        .route("/api/notify", post(add_notification))
         .route("/api/timeline", get(scroll_chat_timeline))
         .route("/api/send-msg", post(send_message))
         .route("/api/rooms/create-room", post(create_room))

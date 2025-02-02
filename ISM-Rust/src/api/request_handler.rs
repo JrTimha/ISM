@@ -53,6 +53,13 @@ pub async fn scroll_chat_timeline(
     }
 }
 
+pub async fn add_notification(
+    Extension(token): Extension<KeycloakToken<String>>,
+    Extension(notifications): Extension<Arc<CacheService>>,
+    Json(payload): Json<NewMessage>
+) -> impl IntoResponse {
+
+}
 
 pub async fn send_message(
     Extension(token): Extension<KeycloakToken<String>>,

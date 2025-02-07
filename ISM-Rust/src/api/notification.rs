@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio::time;
 use uuid::Uuid;
-
+use crate::model::UserDTO;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Notification {
     pub notification_event: NotificationEvent,
     pub body: serde_json::Value, //json
@@ -17,10 +18,20 @@ pub struct Notification {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum NotificationEvent {
-    FriendRequest,
+    FriendRequestReceived,
+    FriendRequestAccepted,
     ChatMessage,
     SystemMessage,
     NewRoom
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NewNotification {
+    pub event_type: NotificationEvent,
+    pub to_user: Uuid,
+    pub body: serde_json::Value,
+    pub created_at: DateTime<Utc>,
 }
 
 type NotificationCache = Arc<RwLock<HashMap<Uuid, RwLock<Vec<Notification>>>>>;

@@ -31,7 +31,7 @@ pub struct NewRoom {
 }
 
 
-#[derive(Debug, Deserialize, Serialize, Clone, Type)]
+#[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq)]
 #[sqlx(type_name = "room_type")]
 pub enum RoomType {
     Single,

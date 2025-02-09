@@ -24,6 +24,7 @@ pub trait RoomRepository {
 
     async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
     async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error>;
+    async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error>;
     async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
@@ -50,39 +51,70 @@ impl RoomRepository for PgDbClient {
 
     async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-        ChatRoomListItemDTO,
-        r#"
-        SELECT
-            room.id,
-            room.room_type AS "room_type: RoomType",
-            room.created_at,
-            room.latest_message,
-            room.latest_message_preview_text,
-            CASE
-                WHEN room.room_type = 'Single' THEN u.display_name
-                ELSE room.room_name
-            END AS room_name,
-            CASE
-                WHEN room.room_type = 'Single' THEN u.profile_picture
-                ELSE room.room_image_url
-            END AS room_image_url,
-            CASE
-                WHEN participants.last_message_read_at < room.latest_message THEN TRUE
-                ELSE FALSE
-            END AS unread
-        FROM chat_room_participant AS participants
-        JOIN chat_room AS room ON participants.room_id = room.id
-        LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
-        LEFT JOIN app_user u ON u.id = crp.user_id
-        WHERE participants.user_id = $1
-        ORDER BY room.latest_message DESC
-        "#,
-        user_id
-    )
-            .fetch_all(&self.pool)
-            .await?;
-
+            ChatRoomListItemDTO,
+            r#"
+            SELECT
+                room.id,
+                room.room_type AS "room_type: RoomType",
+                room.created_at,
+                room.latest_message,
+                room.latest_message_preview_text,
+                CASE
+                    WHEN room.room_type = 'Single' THEN u.display_name
+                    ELSE room.room_name
+                END AS room_name,
+                CASE
+                    WHEN room.room_type = 'Single' THEN u.profile_picture
+                    ELSE room.room_image_url
+                END AS room_image_url,
+                CASE
+                    WHEN participants.last_message_read_at < room.latest_message THEN TRUE
+                    ELSE FALSE
+                END AS unread
+            FROM chat_room_participant AS participants
+            JOIN chat_room AS room ON participants.room_id = room.id
+            LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
+            LEFT JOIN app_user u ON u.id = crp.user_id
+            WHERE participants.user_id = $1
+            ORDER BY room.latest_message DESC
+            "#,
+            user_id
+        ).fetch_all(&self.pool).await?;
         Ok(rooms)
+    }
+
+    async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error> {
+        let room = sqlx::query_as!(
+            ChatRoomListItemDTO,
+            r#"
+            SELECT
+                room.id,
+                room.room_type AS "room_type: RoomType",
+                room.created_at,
+                room.latest_message,
+                room.latest_message_preview_text,
+                CASE
+                    WHEN room.room_type = 'Single' THEN u.display_name
+                    ELSE room.room_name
+                END AS room_name,
+                CASE
+                    WHEN room.room_type = 'Single' THEN u.profile_picture
+                    ELSE room.room_image_url
+                END AS room_image_url,
+                CASE
+                    WHEN participants.last_message_read_at < room.latest_message THEN TRUE
+                    ELSE FALSE
+                END AS unread
+            FROM chat_room_participant AS participants
+            JOIN chat_room AS room ON participants.room_id = room.id
+            LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
+            LEFT JOIN app_user u ON u.id = crp.user_id
+            WHERE participants.user_id = $1 AND room.id = $2
+            "#,
+            user_id,
+            room_id
+        ).fetch_optional(&self.pool).await?;
+        Ok(room)
     }
 
     async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {

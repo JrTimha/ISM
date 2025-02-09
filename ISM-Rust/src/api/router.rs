@@ -9,7 +9,7 @@ use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
 use crate::api::notification::{CacheService};
-use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message};
+use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
@@ -50,7 +50,9 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/api/rooms/{room_id}/detailed", get(get_room_with_details))
         .route("/api/rooms/{room_id}/timeline", get(scroll_chat_timeline))
         .route("/api/rooms/{room_id}/mark-read", get(mark_room_as_read))
+        .route("/api/rooms/{room_id}", get(get_room_list_item_by_id))
         .route("/api/rooms", get(get_joined_rooms))
+
         //layering bottom to top middleware
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware

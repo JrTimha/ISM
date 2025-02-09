@@ -12,11 +12,13 @@ use crate::api::{AppState, Notification, NotificationEvent};
 use crate::api::notification::{CacheService, NewNotification};
 use crate::database::{get_message_repository_instance, RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
+use crate::model::{ChatRoomDTO, ChatRoomEntity, ChatRoomListItemDTO, Message, NewMessage, NewRoom, RoomType};
+
+
 
 pub async fn poll_for_new_notifications(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(notifications): Extension<Arc<CacheService>>
+    Extension(notifications): Extension<Arc<CacheService>>,
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
     if let Some(notifications) = notifications.get_notifications(id).await {
@@ -200,6 +202,7 @@ pub async fn mark_room_as_read(
 pub async fn create_room(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(state): Extension<Arc<AppState>>,
+    Extension(notifications): Extension<Arc<CacheService>>,
     Json(payload): Json<NewRoom>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
@@ -221,12 +224,92 @@ pub async fn create_room(
         }
     }
 
-    match state.room_repository.insert_room(payload).await {
-        Ok(room) => Json(room).into_response(),
-        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+    let room_entity = match state.room_repository.insert_room(payload.clone()).await {
+        Ok(room) => room,
+        Err(error) => {
+            error!("{}", error);
+            return HttpError::bad_request("Unable to persist the room.").into_response()
+        }
+    };
+
+
+
+    let mut users = payload.invited_users.clone();
+    users.retain(|&user| user != id); //don't send to the creator, he will get it from the http response
+
+    if room_entity.room_type == RoomType::Single {
+        let other_user = match users.first() {
+            Some(other_user) => other_user,
+            None => return HttpError::bad_request("Can't find other user.").into_response(),
+        };
+
+        let res = tokio::try_join!( //executing 2 queries async
+        state.room_repository.find_specific_joined_room(&room_entity.id, &id),
+        state.room_repository.find_specific_joined_room(&room_entity.id, &other_user)
+        );
+        match res {
+            Ok((room_creator, room_participator)) => {
+                if let (Some(creator_dto), Some(participator_dto)) = (room_creator, room_participator) {
+                    let json = match serde_json::to_value(&participator_dto) {
+                        Ok(json) => json,
+                        Err(_) => return StatusCode::BAD_REQUEST.into_response()
+                    };
+                    let note = Notification {
+                        notification_event: NotificationEvent::NewRoom,
+                        body: json,
+                        created_at: Utc::now(),
+                    };
+                    notifications.add_notification(*other_user, note).await;
+
+                    Json(creator_dto).into_response()
+                } else {
+                    HttpError::bad_request("Room for participator is null.").into_response()
+                }
+            }
+            Err(error) => {
+                error!("{}", error);
+                HttpError::bad_request("Can't find the room.").into_response()
+            }
+        }
+
+    } else { //is group room
+
+        let room = match state.room_repository.find_specific_joined_room(&room_entity.id, &id).await {
+            Ok(Some(room)) => room,
+            Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
+            Err(error) => {
+                error!("{}", error);
+                return HttpError::bad_request("Room not found after creation.").into_response()
+            }
+        };
+
+        let json = match serde_json::to_value(&room) {
+            Ok(json) => json,
+            Err(_) => return StatusCode::BAD_REQUEST.into_response()
+        };
+        let note = Notification {
+            notification_event: NotificationEvent::NewRoom,
+            body: json,
+            created_at: Utc::now(),
+        };
+        notifications.add_notifications_to_all(users, note).await;
+        Json(room).into_response()
     }
 }
 
+
+pub async fn get_room_list_item_by_id(
+    Extension(token): Extension<KeycloakToken<String>>,
+    Extension(state): Extension<Arc<AppState>>,
+    Path(room_id): Path<Uuid>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    match state.room_repository.find_specific_joined_room(&id, &room_id).await {
+        Ok(Some(room)) => Json(room).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+    }
+}
 
 fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
     Uuid::try_parse(subject).map_err(|_| HttpError::bad_request("Invalid token subject".to_string()))

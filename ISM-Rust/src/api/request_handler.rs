@@ -218,8 +218,8 @@ pub async fn create_room(
             }
         }
         RoomType::Group => {
-            if payload.invited_users.len() <= 2 {
-                return HttpError::bad_request("Groups must have more than two users.".to_string()).into_response();
+            if payload.invited_users.len() < 2 {
+                return HttpError::bad_request("Groups must have more than one user.".to_string()).into_response();
             }
         }
     }

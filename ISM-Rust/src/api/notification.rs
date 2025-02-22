@@ -36,6 +36,7 @@ pub struct NewNotification {
 
 type NotificationCache = Arc<RwLock<HashMap<Uuid, RwLock<Vec<Notification>>>>>;
 
+
 #[derive(Clone)]
 pub struct CacheService {
     cache: NotificationCache,

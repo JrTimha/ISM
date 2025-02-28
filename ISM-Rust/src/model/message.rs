@@ -16,7 +16,7 @@ pub struct Message {
     pub created_at: DateTime<Utc>
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NewMessage {
     pub chat_room_id: Uuid,

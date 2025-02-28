@@ -3,8 +3,9 @@ use std::sync::Arc;
 use dotenv::dotenv;
 use log::{info};
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 use ism::core::ISMConfig;
-use ism::api::{init_router, AppState};
+use ism::api::{init_router, AppState, NewNotification};
 use ism::database::{init_message_db, init_room_db};
 use tracing_subscriber::filter::LevelFilter;
 
@@ -25,9 +26,12 @@ async fn main() {
     init_message_db(&config.message_db_config).await;
     let user_db = init_room_db(&config.user_db_config).await;
 
+    let (tx, _) = broadcast::channel::<NewNotification>(100);
+
     let app_state = AppState {
         env: config.clone(),
         room_repository: user_db,
+        broadcast: tx
     };
 
     //init api router:

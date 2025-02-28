@@ -1,9 +1,12 @@
 use std::sync::Arc;
+use std::time::Duration;
 use axum::{Extension, Json};
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Sse};
+use axum::response::sse::Event;
 use chrono::{DateTime, Utc};
+use futures::{Stream};
 use log::{error};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -12,8 +15,39 @@ use crate::api::{AppState, Notification, NotificationEvent};
 use crate::api::notification::{CacheService, NewNotification};
 use crate::database::{get_message_repository_instance, RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomDTO, ChatRoomEntity, ChatRoomListItemDTO, Message, NewMessage, NewRoom, RoomType};
+use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
+use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
+use crate::api::event_broadcast::get_broadcast_channel;
 
+
+pub async fn stream_server_events(
+    Extension(token): Extension<KeycloakToken<String>>
+) -> Sse<impl Stream<Item = Result<Event, BroadcastStreamRecvError>>> {
+
+    use futures::StreamExt;
+    let id = parse_uuid(&token.subject).unwrap();
+
+    let receiver = get_broadcast_channel().await.subscribe_to_user_events(id.clone()).await;
+
+    let stream = BroadcastStream::new(receiver).filter_map(move |x| async move {
+        match x {
+            Ok(event) => {
+                let sse = Event::default().data(serde_json::to_string(&event).unwrap());
+                Some(Ok(sse))
+            }
+            Err(error) => {
+                error!("{}", error);
+                None
+            }
+        }
+    });
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(10))
+            .text("keep-alive-text")
+    )
+}
 
 
 pub async fn poll_for_new_notifications(
@@ -57,17 +91,18 @@ pub async fn scroll_chat_timeline(
 
 pub async fn add_notification(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(notifications): Extension<Arc<CacheService>>,
     Json(payload): Json<NewNotification>
 ) -> impl IntoResponse {
     println!("{:#?}", token.roles);
     println!("{:#?}", payload);
-    let note = Notification {
+
+    let test = Notification {
         notification_event: payload.event_type,
         body: payload.body,
         created_at: payload.created_at,
     };
-    notifications.add_notification(payload.to_user, note).await;
+
+    get_broadcast_channel().await.send_event(test, &payload.to_user).await;
     StatusCode::OK.into_response()
 }
 
@@ -126,7 +161,7 @@ pub async fn send_message(
         body: json,
         created_at: msg.created_at,
     };
-    notifications.add_notifications_to_all(users, note).await;
+    get_broadcast_channel().await.send_event_to_all(users, note).await;
     (StatusCode::CREATED, Json(msg)).into_response()
 }
 
@@ -259,8 +294,7 @@ pub async fn create_room(
                         body: json,
                         created_at: Utc::now(),
                     };
-                    notifications.add_notification(*other_user, note).await;
-
+                    get_broadcast_channel().await.send_event(note, other_user).await;
                     Json(creator_dto).into_response()
                 } else {
                     HttpError::bad_request("Room for participator is null.").into_response()
@@ -292,7 +326,7 @@ pub async fn create_room(
             body: json,
             created_at: Utc::now(),
         };
-        notifications.add_notifications_to_all(users, note).await;
+        get_broadcast_channel().await.send_event_to_all(users, note).await;
         Json(room).into_response()
     }
 }

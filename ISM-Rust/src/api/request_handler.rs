@@ -100,6 +100,7 @@ pub async fn add_notification(
         notification_event: payload.event_type,
         body: payload.body,
         created_at: payload.created_at,
+        display_value: None
     };
 
     get_broadcast_channel().await.send_event(test, &payload.to_user).await;
@@ -109,7 +110,6 @@ pub async fn add_notification(
 pub async fn send_message(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(state): Extension<Arc<AppState>>,
-    Extension(notifications): Extension<Arc<CacheService>>,
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
     let db = get_message_repository_instance().await;
@@ -147,19 +147,23 @@ pub async fn send_message(
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
-    if let Err(err) = state.room_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
-        error!("{}", err);
-        return HttpError::bad_request("Can't update the state of the chat room.").into_response();
-    }
     if let Err(err) = state.room_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
         error!("{}", err);
         return HttpError::bad_request("Can't update user read status.").into_response();
     }
+    let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
+        Ok(displayed) => displayed,
+        Err(error) => {
+            error!("{}", error);
+            return HttpError::bad_request("Can't update the state of the chat room.").into_response();
+        }
+    };
 
     let note = Notification {
         notification_event: NotificationEvent::ChatMessage,
         body: json,
         created_at: msg.created_at,
+        display_value: Option::from(displayed)
     };
     get_broadcast_channel().await.send_event_to_all(users, note).await;
     (StatusCode::CREATED, Json(msg)).into_response()
@@ -237,7 +241,6 @@ pub async fn mark_room_as_read(
 pub async fn create_room(
     Extension(token): Extension<KeycloakToken<String>>,
     Extension(state): Extension<Arc<AppState>>,
-    Extension(notifications): Extension<Arc<CacheService>>,
     Json(payload): Json<NewRoom>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
@@ -293,6 +296,7 @@ pub async fn create_room(
                         notification_event: NotificationEvent::NewRoom,
                         body: json,
                         created_at: Utc::now(),
+                        display_value: None
                     };
                     get_broadcast_channel().await.send_event(note, other_user).await;
                     Json(creator_dto).into_response()
@@ -325,6 +329,7 @@ pub async fn create_room(
             notification_event: NotificationEvent::NewRoom,
             body: json,
             created_at: Utc::now(),
+            display_value: None
         };
         get_broadcast_channel().await.send_event_to_all(users, note).await;
         Json(room).into_response()

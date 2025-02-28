@@ -13,7 +13,8 @@ use uuid::Uuid;
 pub struct Notification {
     pub notification_event: NotificationEvent,
     pub body: serde_json::Value, //json
-    pub created_at: DateTime<Utc>
+    pub created_at: DateTime<Utc>,
+    pub display_value: Option<String>
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

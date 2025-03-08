@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use scylla::{QueryResult, Session, SessionBuilder};
-use scylla::transport::ClusterData;
-use scylla::transport::errors::{NewSessionError, QueryError};
 use crate::core::{MessageDbConfig};
 use tokio::sync::OnceCell;
 use futures::TryStreamExt;
 use log::{debug, error, info};
+use scylla::client::session::Session;
+use scylla::client::session_builder::SessionBuilder;
+use scylla::errors::{ExecutionError, NewSessionError};
+use scylla::response::query_result::QueryResult;
 use uuid::Uuid;
 use crate::model::Message;
 
@@ -86,18 +87,12 @@ impl MessageRepository {
         Ok(messages)
     }
 
-    pub async fn insert_data(&self, message: Message) -> Result<QueryResult, QueryError> {
+    pub async fn insert_data(&self, message: Message) -> Result<QueryResult, ExecutionError> {
        let session = self.session.clone();
        session.query_unpaged(
             "INSERT INTO chat_messages (chat_room_id, message_id, sender_id, msg_body, msg_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (message.chat_room_id, message.message_id, message.sender_id, message.msg_body, message.msg_type, message.created_at)
        ).await
-    }
-
-    pub async fn test_connection(&self) -> Result<Arc<ClusterData>, scylla::transport::errors::RequestError> {
-        let session = self.session.clone();
-        let data = session.get_cluster_data();
-        Ok(data)
     }
 
 }

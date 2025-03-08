@@ -33,9 +33,9 @@ pub trait RoomRepository {
     async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
 }
 
+
 #[async_trait]
 impl RoomRepository for PgDbClient {
-
 
     async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
         let users = sqlx::query_as!(User,
@@ -217,11 +217,11 @@ pub async fn init_room_db(config: &UserDbConfig) -> PgDbClient {
         .await
     {
         Ok(pool) => {
-            info!("Established connection to the user database.");
+            info!("Established connection to the room database.");
             pool
         }
         Err(err) => {
-            error!("Failed to connect to the user database: {:?}", err);
+            error!("Failed to connect to the room database: {:?}", err);
             std::process::exit(1);
         }
     };

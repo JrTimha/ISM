@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "Update chat_room_participant SET last_message_read_at = NOW() WHERE user_id = $1 AND room_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5bd3f404de7ee2ed09daee854bfff0cfc15703c65efbba340235e742e116e31d"
+}

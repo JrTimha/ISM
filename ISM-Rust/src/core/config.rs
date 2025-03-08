@@ -45,7 +45,7 @@ impl ISMConfig {
         let config = Config::builder()
             .add_source(File::with_name("default.config.toml"))
             .add_source(File::with_name(&format!("{mode}.config.toml")).required(false))
-            .add_source(Environment::default())
+            .add_source(Environment::default().separator("__"))
             .build()?;
         config.try_deserialize()
     }

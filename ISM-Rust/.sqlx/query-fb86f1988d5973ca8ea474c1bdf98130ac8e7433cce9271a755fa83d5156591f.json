@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT users.id, users.display_name, users.profile_picture,\n            participants.room_id, participants.joined_at, participants.last_message_read_at\n            FROM chat_room_participant AS participants\n            JOIN app_user AS users ON participants.user_id = users.id\n            WHERE participants.room_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "profile_picture",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "room_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "joined_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_message_read_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fb86f1988d5973ca8ea474c1bdf98130ac8e7433cce9271a755fa83d5156591f"
+}

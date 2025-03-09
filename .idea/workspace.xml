@@ -7,70 +7,8 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="added dockerfile">
-      <change beforePath="$PROJECT_DIR$/.idea/ISM.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ISM.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="change pipeline">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/compose.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/api/init_api.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/config/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/config/logger.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/go.mod" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/go.sum" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/main.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/model/message.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/repository/chat_repository.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/repository/db_client.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.env" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-1f9ff856156af4f6580b95a98c1d68f571468f2190cd6ecdf8694afda0aea0f3.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-2ea8a3008bd6e52e81dda3ffd723a97f499c2298a7c71b960070f066d90ea5bd.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-37785004b8ab6c15debbf8e3753b54217983997e932bbfdaf95695deebe342f9.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-3c4584419aec1c0fdeebb63306c1c7e153b617a86d7c0bd5c32d5d69a11b0e2e.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-5bd3f404de7ee2ed09daee854bfff0cfc15703c65efbba340235e742e116e31d.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-661f8c7e625cf453e9db0328031391f8641fbdd94e2b27090762b0461748f979.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-671cf49d8284c3cd4b18f2b672f2f34b5dff2c5cad02fa93f3631aedb83b68da.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-d0779c2f67e104b4387537026a1f6aba2f314490466d6994d515699cafd2ca2f.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-ef0bc634db8d7352ddcc7304d33aab794c368c2a413278f15d0be93492a08a11.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-fb86f1988d5973ca8ea474c1bdf98130ac8e7433cce9271a755fa83d5156591f.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/Cargo.lock" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/Cargo.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/compose.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/default.config.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/development.config.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/errors.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/event_broadcast.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/notification.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/request_handler.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/router.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/core/config.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/core/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/message.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/message_repository.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/room_repository.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/user.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/LICENSE-MIT" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/action.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/decode.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/error.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/extract.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/instance.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/layer.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/oidc.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/oidc_discovery.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/role.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/service.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/lib.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/main.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/message.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/room.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/user.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/sql/import.sql" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -275,7 +213,7 @@
       <workItem from="1741364892164" duration="2605000" />
       <workItem from="1741395584162" duration="47000" />
       <workItem from="1741545200529" duration="90000" />
-      <workItem from="1741545409756" duration="53000" />
+      <workItem from="1741545409756" duration="3465000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -533,7 +471,23 @@
       <option name="project" value="LOCAL" />
       <updated>1741395611427</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="added dockerfile">
+      <option name="closed" value="true" />
+      <created>1741545558184</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1741545558184</updated>
+    </task>
+    <task id="LOCAL-00034" summary="change pipeline">
+      <option name="closed" value="true" />
+      <created>1741545941772</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1741545941772</updated>
+    </task>
+    <option name="localTasksCounter" value="35" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -551,7 +505,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="prod/dev mode" />
     <MESSAGE value="added database layer for scyllaDB and CassandraDB" />
     <MESSAGE value="added database repository singleton" />
     <MESSAGE value="Better Logs and Cors Config" />
@@ -576,6 +529,7 @@
     <MESSAGE value="big one: support for server side events with broadcast events for realtime notifications" />
     <MESSAGE value="Sending notifications with optional display value" />
     <MESSAGE value="added dockerfile" />
-    <option name="LAST_COMMIT_MESSAGE" value="added dockerfile" />
+    <MESSAGE value="change pipeline" />
+    <option name="LAST_COMMIT_MESSAGE" value="change pipeline" />
   </component>
 </project>

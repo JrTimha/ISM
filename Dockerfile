@@ -18,7 +18,8 @@ RUN cargo build --release --target x86_64-unknown-linux-gnu
 FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config
+RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config ca-certificates
+
 COPY default.config.toml ./
 
 COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/ism ./

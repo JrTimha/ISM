@@ -3,14 +3,89 @@
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="ALL" />
   </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="7a97a6a9-8b52-413d-affe-1a9e1c0034e8" name="Changes" comment="Updated to Golang Vs Rust Development" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="added dockerfile">
+      <change beforePath="$PROJECT_DIR$/.idea/ISM.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ISM.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/compose.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/api/init_api.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/config/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/config/logger.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/go.mod" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/go.sum" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/main.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/model/message.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/repository/chat_repository.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Golang/src/repository/db_client.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-1f9ff856156af4f6580b95a98c1d68f571468f2190cd6ecdf8694afda0aea0f3.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-2ea8a3008bd6e52e81dda3ffd723a97f499c2298a7c71b960070f066d90ea5bd.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-37785004b8ab6c15debbf8e3753b54217983997e932bbfdaf95695deebe342f9.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-3c4584419aec1c0fdeebb63306c1c7e153b617a86d7c0bd5c32d5d69a11b0e2e.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-5bd3f404de7ee2ed09daee854bfff0cfc15703c65efbba340235e742e116e31d.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-661f8c7e625cf453e9db0328031391f8641fbdd94e2b27090762b0461748f979.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-671cf49d8284c3cd4b18f2b672f2f34b5dff2c5cad02fa93f3631aedb83b68da.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-d0779c2f67e104b4387537026a1f6aba2f314490466d6994d515699cafd2ca2f.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-ef0bc634db8d7352ddcc7304d33aab794c368c2a413278f15d0be93492a08a11.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/.sqlx/query-fb86f1988d5973ca8ea474c1bdf98130ac8e7433cce9271a755fa83d5156591f.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/Cargo.lock" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/Cargo.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/compose.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/default.config.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/development.config.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/errors.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/event_broadcast.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/notification.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/request_handler.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/api/router.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/core/config.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/core/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/message.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/message_repository.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/room_repository.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/database/user.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/LICENSE-MIT" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/action.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/decode.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/error.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/extract.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/instance.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/layer.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/oidc.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/oidc_discovery.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/role.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/keycloak/service.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/lib.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/main.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/message.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/room.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/model/user.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ISM-Rust/src/sql/import.sql" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="GOROOT" url="file://$USER_HOME$/golang/go1.23.4" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Rust File" />
+        <option value="Dockerfile" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -20,90 +95,487 @@
     &quot;assignee&quot;: &quot;JrTimha&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/JrTimha/ISM.git",
-    "accountId": "7e42ddce-4e81-4a2a-b5df-e0b46b7da343"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/JrTimha/ISM.git&quot;,
+    &quot;accountId&quot;: &quot;a0cdf11b-08b2-491e-bf68-df1e7391a072&quot;
   }
-}]]></component>
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 4
 }</component>
-  <component name="ProjectId" id="2rJH13DgnCpKGJAFwDujDbafFFD" />
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="dNDGtvHU" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="2rDme50QN1JqbjJoDv5p1kqz8fG" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Go Build.go build ISM-Golang.executor": "Run",
-    "Go Build.go build ISM.executor": "Run",
+    "Cargo.Run ISM.executor": "Run",
+    "Cargo.Run.executor": "Run",
+    "Docker.Dockerfile runtime.executor": "Run",
+    "Docker.Dockerfile.executor": "Run",
+    "Docker.compose.yaml: Compose Deployment.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
     "git-widget-placeholder": "master",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
     "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/Tim/IdeaProjects/ISM/ISM-Golang",
+    "last_opened_file_path": "C:/Users/Tim/IdeaProjects/ISM",
     "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
     "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "settings.editor.selected.configurable": "configurable.group.appearance",
+    "org.rust.first.attach.projects": "true",
+    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
     "vue.rearranger.settings.migration": "true"
+  },
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "postgresql"
+    ]
   }
 }]]></component>
-  <component name="RunManager">
-    <configuration name="go build ISM-Golang" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
-      <module name="ISM" />
-      <working_directory value="$PROJECT_DIR$/ISM-Golang/src" />
-      <kind value="DIRECTORY" />
-      <package value="ISM-Golang" />
-      <directory value="$PROJECT_DIR$/ISM-Golang" />
-      <filePath value="$PROJECT_DIR$/ISM-Golang/src/main.go" />
-      <method v="2" />
-    </configuration>
-    <configuration name="go build ISM-Golang" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
-      <module name="ISM" />
-      <working_directory value="$PROJECT_DIR$/ISM-Golang" />
-      <kind value="FILE" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/ISM-Golang" />
-      <method v="2" />
-    </configuration>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
+      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
+    </key>
   </component>
-  <component name="SharedIndexes">
-    <attachedChunks>
-      <set>
-        <option value="bundled-gosdk-d297c17c1fbd-d82d926f19eb-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-243.22562.186" />
-        <option value="bundled-js-predefined-d6986cc7102b-deb605915726-JavaScript-GO-243.22562.186" />
-      </set>
-    </attachedChunks>
+  <component name="RunManager" selected="Cargo.Run ISM">
+    <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="buildProfileId" value="dev" />
+      <option name="command" value="run --package ism --bin ism" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Dockerfile runtime" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
+      <deployment type="dockerfile">
+        <settings>
+          <option name="imageTag" value="debianbookworm-slim_runtime" />
+          <option name="buildCliOptions" value="--target runtime" />
+          <option name="buildOnly" value="true" />
+          <option name="sourceFilePath" value="Dockerfile" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="Dockerfile" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
+      <deployment type="dockerfile">
+        <settings>
+          <option name="sourceFilePath" value="Dockerfile" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
+      <deployment type="docker-compose.yml">
+        <settings />
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="docker-deploy" factoryName="dockerfile" temporary="true">
+      <deployment type="dockerfile">
+        <settings />
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="compose.yaml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="compose.yaml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.Dockerfile runtime" />
+        <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Docker.Dockerfile" />
+        <item itemvalue="Docker.compose.yaml: Compose Deployment" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="7a97a6a9-8b52-413d-affe-1a9e1c0034e8" name="Changes" comment="Updated to Golang Vs Rust Development" />
-      <created>1737413612447</created>
+      <changelist id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="" />
+      <created>1736102111592</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1737413612447</updated>
-      <workItem from="1737413613559" duration="67000" />
+      <updated>1736102111592</updated>
+      <workItem from="1736102113038" duration="8008000" />
+      <workItem from="1736113555918" duration="10922000" />
+      <workItem from="1736154838844" duration="3874000" />
+      <workItem from="1736184402289" duration="7268000" />
+      <workItem from="1736206498883" duration="44000" />
+      <workItem from="1736206781774" duration="1971000" />
+      <workItem from="1736344512834" duration="12591000" />
+      <workItem from="1736377389479" duration="9798000" />
+      <workItem from="1736416123781" duration="24585000" />
+      <workItem from="1736520115930" duration="10327000" />
+      <workItem from="1736613433160" duration="45467000" />
+      <workItem from="1736950052202" duration="8431000" />
+      <workItem from="1737061333581" duration="6914000" />
+      <workItem from="1737115878448" duration="20872000" />
+      <workItem from="1737234769264" duration="18116000" />
+      <workItem from="1737542634493" duration="4917000" />
+      <workItem from="1737586416854" duration="8750000" />
+      <workItem from="1737624459845" duration="1918000" />
+      <workItem from="1737912009818" duration="14270000" />
+      <workItem from="1738003949130" duration="1516000" />
+      <workItem from="1738022681341" duration="1360000" />
+      <workItem from="1738360912607" duration="5929000" />
+      <workItem from="1738864006382" duration="2626000" />
+      <workItem from="1738930946558" duration="6517000" />
+      <workItem from="1738961536204" duration="2373000" />
+      <workItem from="1738968273798" duration="8000" />
+      <workItem from="1739110520176" duration="9000" />
+      <workItem from="1739315801285" duration="923000" />
+      <workItem from="1740219033220" duration="1941000" />
+      <workItem from="1740324588467" duration="799000" />
+      <workItem from="1740501495432" duration="1815000" />
+      <workItem from="1740674982457" duration="6134000" />
+      <workItem from="1740699039414" duration="4002000" />
+      <workItem from="1740703076675" duration="236000" />
+      <workItem from="1740775045691" duration="12642000" />
+      <workItem from="1740919379158" duration="770000" />
+      <workItem from="1740946426206" duration="895000" />
+      <workItem from="1741107701719" duration="1326000" />
+      <workItem from="1741177886360" duration="1021000" />
+      <workItem from="1741213006390" duration="1251000" />
+      <workItem from="1741261030356" duration="5179000" />
+      <workItem from="1741346919782" duration="14479000" />
+      <workItem from="1741364892164" duration="2605000" />
+      <workItem from="1741395584162" duration="47000" />
+      <workItem from="1741545200529" duration="90000" />
+      <workItem from="1741545409756" duration="53000" />
     </task>
+    <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
+      <option name="closed" value="true" />
+      <created>1736106078149</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1736106078149</updated>
+    </task>
+    <task id="LOCAL-00002" summary="new endpoints">
+      <option name="closed" value="true" />
+      <created>1736109511794</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1736109511794</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Added env config loader">
+      <option name="closed" value="true" />
+      <created>1736121492712</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1736121492712</updated>
+    </task>
+    <task id="LOCAL-00004" summary="prod/dev mode">
+      <option name="closed" value="true" />
+      <created>1736122773491</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1736122773491</updated>
+    </task>
+    <task id="LOCAL-00005" summary="added database layer for scyllaDB and CassandraDB">
+      <option name="closed" value="true" />
+      <created>1736184472754</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1736184472754</updated>
+    </task>
+    <task id="LOCAL-00006" summary="added database repository singleton">
+      <option name="closed" value="true" />
+      <created>1736191637113</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1736191637113</updated>
+    </task>
+    <task id="LOCAL-00007" summary="added database repository singleton">
+      <option name="closed" value="true" />
+      <created>1736357178069</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1736357178069</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Better Logs and Cors Config">
+      <option name="closed" value="true" />
+      <created>1736383582128</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1736383582128</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Added postgres user database">
+      <option name="closed" value="true" />
+      <created>1736386983789</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1736386983789</updated>
+    </task>
+    <task id="LOCAL-00010" summary="Added postgres user database">
+      <option name="closed" value="true" />
+      <created>1736387173261</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1736387173261</updated>
+    </task>
+    <task id="LOCAL-00011" summary="Added protected routes with jwt keycloak auth">
+      <option name="closed" value="true" />
+      <created>1736441201234</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1736441201234</updated>
+    </task>
+    <task id="LOCAL-00012" summary="msg post endpoint">
+      <option name="closed" value="true" />
+      <created>1736443922456</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1736443922456</updated>
+    </task>
+    <task id="LOCAL-00013" summary="automated table creation">
+      <option name="closed" value="true" />
+      <created>1736613829484</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1736613829484</updated>
+    </task>
+    <task id="LOCAL-00014" summary="Working on notification cache">
+      <option name="closed" value="true" />
+      <created>1736687707352</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1736687707352</updated>
+    </task>
+    <task id="LOCAL-00015" summary="cleanup">
+      <option name="closed" value="true" />
+      <created>1736688244759</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1736688244759</updated>
+    </task>
+    <task id="LOCAL-00016" summary="fix cors options behind auth">
+      <option name="closed" value="true" />
+      <created>1736693531056</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1736693531056</updated>
+    </task>
+    <task id="LOCAL-00017" summary="Improving data modelling">
+      <option name="closed" value="true" />
+      <created>1736700445060</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1736700445060</updated>
+    </task>
+    <task id="LOCAL-00018" summary="implemented room creation">
+      <option name="closed" value="true" />
+      <created>1736718858397</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1736718858398</updated>
+    </task>
+    <task id="LOCAL-00019" summary="new endpoints implemented">
+      <option name="closed" value="true" />
+      <created>1737066631060</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1737066631060</updated>
+    </task>
+    <task id="LOCAL-00020" summary="new endpoints implemented">
+      <option name="closed" value="true" />
+      <created>1737138602880</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1737138602880</updated>
+    </task>
+    <task id="LOCAL-00021" summary="new endpoints implemented">
+      <option name="closed" value="true" />
+      <created>1737248851133</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1737248851133</updated>
+    </task>
+    <task id="LOCAL-00022" summary="notify body as json">
+      <option name="closed" value="true" />
+      <created>1737255728846</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1737255728846</updated>
+    </task>
+    <task id="LOCAL-00023" summary="Timeline Query with timestamp">
+      <option name="closed" value="true" />
+      <created>1737591883993</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1737591883993</updated>
+    </task>
+    <task id="LOCAL-00024" summary="Room read support, room list dto endpoint with more details">
+      <option name="closed" value="true" />
+      <created>1737918648975</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1737918648975</updated>
+    </task>
+    <task id="LOCAL-00025" summary="Room read fix, room set read on send message">
+      <option name="closed" value="true" />
+      <created>1737922424303</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1737922424303</updated>
+    </task>
+    <task id="LOCAL-00026" summary="rename refactor">
+      <option name="closed" value="true" />
+      <created>1737935471753</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1737935471753</updated>
+    </task>
+    <task id="LOCAL-00027" summary="Entity updates">
+      <option name="closed" value="true" />
+      <created>1738377946432</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1738377946432</updated>
+    </task>
+    <task id="LOCAL-00028" summary="Implementation of a custom notification endpoint">
+      <option name="closed" value="true" />
+      <created>1738952779271</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1738952779271</updated>
+    </task>
+    <task id="LOCAL-00029" summary="fixed read-endpoint from get to post">
+      <option name="closed" value="true" />
+      <created>1740226371859</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1740226371859</updated>
+    </task>
+    <task id="LOCAL-00030" summary="big one: support for server side events with broadcast events for realtime notifications">
+      <option name="closed" value="true" />
+      <created>1740785180676</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1740785180676</updated>
+    </task>
+    <task id="LOCAL-00031" summary="Sending notifications with optional display value">
+      <option name="closed" value="true" />
+      <created>1740786299930</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1740786299930</updated>
+    </task>
+    <task id="LOCAL-00032" summary="added dockerfile">
+      <option name="closed" value="true" />
+      <created>1741395611427</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1741395611427</updated>
+    </task>
+    <option name="localTasksCounter" value="33" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
-  <component name="VcsManagerConfiguration">
-    <MESSAGE value="Updated to Golang Vs Rust Development" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated to Golang Vs Rust Development" />
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
-  <component name="VgoProject">
-    <settings-migrated>true</settings-migrated>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="prod/dev mode" />
+    <MESSAGE value="added database layer for scyllaDB and CassandraDB" />
+    <MESSAGE value="added database repository singleton" />
+    <MESSAGE value="Better Logs and Cors Config" />
+    <MESSAGE value="Added postgres user database" />
+    <MESSAGE value="Added protected routes with jwt keycloak auth" />
+    <MESSAGE value="msg post endpoint" />
+    <MESSAGE value="automated table creation" />
+    <MESSAGE value="Working on notification cache" />
+    <MESSAGE value="cleanup" />
+    <MESSAGE value="fix cors options behind auth" />
+    <MESSAGE value="Improving data modelling" />
+    <MESSAGE value="implemented room creation" />
+    <MESSAGE value="new endpoints implemented" />
+    <MESSAGE value="notify body as json" />
+    <MESSAGE value="Timeline Query with timestamp" />
+    <MESSAGE value="Room read support, room list dto endpoint with more details" />
+    <MESSAGE value="Room read fix, room set read on send message" />
+    <MESSAGE value="rename refactor" />
+    <MESSAGE value="Entity updates" />
+    <MESSAGE value="Implementation of a custom notification endpoint" />
+    <MESSAGE value="fixed read-endpoint from get to post" />
+    <MESSAGE value="big one: support for server side events with broadcast events for realtime notifications" />
+    <MESSAGE value="Sending notifications with optional display value" />
+    <MESSAGE value="added dockerfile" />
+    <option name="LAST_COMMIT_MESSAGE" value="added dockerfile" />
   </component>
 </project>

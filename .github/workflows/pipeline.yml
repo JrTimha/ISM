@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/jrtimha/meventure_api
+          images: ghcr.io/jrtimha/ism
           tags: type=ref,event=tag
 
       - name: Build the Docker image
@@ -40,5 +40,5 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags != '' && steps.meta.outputs.tags || 'ghcr.io/jrtimha/meventure_api:latest' }}
+          tags: ${{ steps.meta.outputs.tags != '' && steps.meta.outputs.tags || 'ghcr.io/jrtimha/ism:latest' }}
           labels: ${{ steps.meta.outputs.labels }}

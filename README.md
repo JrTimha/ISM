@@ -8,8 +8,8 @@
 - **Secure Communication**: Includes TLS support and JWT-based authentication.
 - **Easy Integration**: Seamlessly integrates with existing SaaS architectures.
 - **Modularity**: Easily extensible system with a clear modular architecture.
-- **WebSocket Support**: Real-time message delivery with minimal latency.
-- **Persistent Storage**: Supports both relational and NoSQL databases.
+- **Realtime Notification Support**: Real-time message delivery with minimal latency achieved with Server-Sent-Events (SSE).
+- **Persistent Storage**:Persists users and chat rooms in a relational db and room messages to a NoSQL databases.
 
 ## Supported Database
 - **ScyllaDB**: Saving all your messages in your ScyllaDB Cluster
@@ -21,10 +21,9 @@
 - **Rust**: For security, speed, and reliability.
 - **Tokio**: Asynchronous runtime for high-performance network applications.
 - **Axum**: Web framework for simple and flexible API development.
-- **PostgreSQL/Redis**: Optional backend support for data persistence and caching.
 
 
 ### Prerequisites
 
 - **Rust**: Version 1.80 or higher
-- **Database**: PostgreSQL and either Apache Cassandra or ScyllaDB
+- **Databases**: PostgreSQL for user / room relations and either Apache Cassandra or ScyllaDB to store messages

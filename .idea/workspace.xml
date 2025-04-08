@@ -7,8 +7,16 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="change pipeline">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="dockerfile updated">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/keycloak/decode.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/keycloak/decode.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/keycloak/instance.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/keycloak/instance.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,36 +62,36 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run ISM.executor": "Run",
-    "Cargo.Run.executor": "Run",
-    "Docker.Dockerfile runtime.executor": "Run",
-    "Docker.Dockerfile.executor": "Run",
-    "Docker.compose.yaml: Compose Deployment.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/Tim/IdeaProjects/ISM",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Tim/IdeaProjects/ISM&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;project.propVCSSupport.DirectoryMappings&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
@@ -150,8 +158,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Docker.Dockerfile runtime" />
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Docker.Dockerfile runtime" />
         <item itemvalue="Docker.Dockerfile" />
         <item itemvalue="Docker.compose.yaml: Compose Deployment" />
       </list>
@@ -213,7 +221,22 @@
       <workItem from="1741364892164" duration="2605000" />
       <workItem from="1741395584162" duration="47000" />
       <workItem from="1741545200529" duration="90000" />
-      <workItem from="1741545409756" duration="3465000" />
+      <workItem from="1741545409756" duration="5431000" />
+      <workItem from="1741767234185" duration="2312000" />
+      <workItem from="1741905354553" duration="633000" />
+      <workItem from="1741912081074" duration="1134000" />
+      <workItem from="1742065276104" duration="1623000" />
+      <workItem from="1742652414479" duration="1646000" />
+      <workItem from="1743186788131" duration="836000" />
+      <workItem from="1743201994821" duration="1000" />
+      <workItem from="1743459773689" duration="1204000" />
+      <workItem from="1743543074667" duration="1593000" />
+      <workItem from="1743598154631" duration="1291000" />
+      <workItem from="1744061147984" duration="1286000" />
+      <workItem from="1744108721127" duration="1691000" />
+      <workItem from="1744124255224" duration="4164000" />
+      <workItem from="1744151470767" duration="1108000" />
+      <workItem from="1744152596395" duration="1377000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -487,7 +510,15 @@
       <option name="project" value="LOCAL" />
       <updated>1741545941772</updated>
     </task>
-    <option name="localTasksCounter" value="35" />
+    <task id="LOCAL-00035" summary="dockerfile updated">
+      <option name="closed" value="true" />
+      <created>1741549344541</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1741549344541</updated>
+    </task>
+    <option name="localTasksCounter" value="36" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -505,7 +536,9 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="added database layer for scyllaDB and CassandraDB" />
+    <ignored-roots>
+      <path value="$PROJECT_DIR$/.." />
+    </ignored-roots>
     <MESSAGE value="added database repository singleton" />
     <MESSAGE value="Better Logs and Cors Config" />
     <MESSAGE value="Added postgres user database" />
@@ -530,6 +563,7 @@
     <MESSAGE value="Sending notifications with optional display value" />
     <MESSAGE value="added dockerfile" />
     <MESSAGE value="change pipeline" />
-    <option name="LAST_COMMIT_MESSAGE" value="change pipeline" />
+    <MESSAGE value="dockerfile updated" />
+    <option name="LAST_COMMIT_MESSAGE" value="dockerfile updated" />
   </component>
 </project>

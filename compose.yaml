@@ -10,6 +10,18 @@ services:
     volumes:
       - cassandra-data:/var/lib/cassandra
 
+  ism:
+    image: ghcr.io/jrtimha/ism:latest
+    container_name: cassandra-container
+    ports:
+      - "5403:5403"
+    environment:
+      ISM_MODE: production
+    volumes:
+      - ./production.config.toml:/app/production.config.toml
+
+
+
 volumes:
   cassandra-data:
     driver: local

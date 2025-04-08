@@ -4,12 +4,11 @@ use axum::{Extension, Router};
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
-use crate::api::notification::{CacheService, NewNotification};
+use crate::api::notification::{CacheService};
 use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message, stream_server_events};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
@@ -22,8 +21,7 @@ use crate::keycloak::PassthroughMode;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub env: ISMConfig,
-    pub room_repository: PgDbClient,
-    pub broadcast: broadcast::Sender<NewNotification>
+    pub room_repository: PgDbClient
 }
 
 /**

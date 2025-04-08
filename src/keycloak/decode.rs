@@ -18,7 +18,7 @@ pub type RawClaims = HashMap<String, serde_json::Value>;
 
 pub(crate) struct RawToken<'a>(pub(crate) &'a str);
 
-impl<'a> RawToken<'a> {
+impl RawToken<'_> {
     pub(crate) fn decode_header(&self) -> Result<Header, AuthError> {
         let jwt_header = jsonwebtoken::decode_header(self.0).context(DecodeHeaderSnafu {})?;
         debug!(?jwt_header, "Decoded JWT header");
@@ -214,6 +214,42 @@ impl<R: Role> ExtractRoles<R> for ResourceAccess {
     }
 }
 
+/// Token data parsed from the request and added as an `axum::Extension` through our middleware.
+///
+/// This only exists if the `KeycloakAuthLayer` is configured to use `PassthroughMode::Block`.
+///
+/// If you want to manually check whether a request was authenticated, configure
+/// `PassthroughMode::Pass` (potentially on a separate `axum::Router`) and inject
+/// `KeycloakAuthState` instead of `KeycloakToken`!
+///
+/// Can be extracted like this:
+/// ```
+/// use axum::{Extension, Json};
+/// use axum::response::{IntoResponse, Response};
+/// use http::StatusCode;
+/// use serde::Serialize;///
+/// use ism::keycloak::decode::KeycloakToken;
+///
+///
+/// pub async fn who_am_i(Extension(token): Extension<KeycloakToken<String>>) -> Response {
+///     #[derive(Debug, Serialize)]
+///     struct Response {
+///         name: String,
+///         keycloak_uuid: uuid::Uuid,
+///         token_valid_for_whole_seconds: i64,
+///     }
+///
+///     (
+///         StatusCode::OK,
+///         Json(Response {
+///             name: token.extra.profile.preferred_username,
+///             keycloak_uuid: uuid::Uuid::try_parse(&token.subject).expect("uuid"),
+///             token_valid_for_whole_seconds: (token.expires_at - time::OffsetDateTime::now_utc())
+///                 .whole_seconds(),
+///         }),
+///     ).into_response()
+/// }
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct KeycloakToken<R, Extra = ProfileAndEmail>
 where

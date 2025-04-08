@@ -44,7 +44,7 @@ db_name = "postgres"
 
 [token_issuer]
 iss_host = "http://localhost:8180/" #Keycloak Root URL
-iss_realm = "meventure" #Keycloak Realm
+iss_realm = "my-realm" #Keycloak Realm
 ```
 An example Docker Compose:
 

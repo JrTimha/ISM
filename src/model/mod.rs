@@ -1,7 +1,7 @@
 mod room;
-mod user;
 mod message;
 
+pub mod user;
+
 pub use room::*;
-pub use user::*;
 pub use message::*;

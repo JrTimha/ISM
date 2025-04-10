@@ -8,7 +8,6 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
-use crate::api::notification::{CacheService};
 use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message, stream_server_events};
 use crate::core::{ISMConfig, TokenIssuer};
 use crate::database::{PgDbClient};
@@ -35,9 +34,6 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS]);
 
-    let notify_cache = Arc::new(CacheService::new());
-    notify_cache.start_cleanup_task(300);
-
     let public_routing = Router::new()
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
         .route("/health", get(|| async { (StatusCode::OK, "Healthy").into_response() }));
@@ -46,7 +42,6 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
         .route("/api/notify", get(poll_for_new_notifications))
         .route("/api/sse", get(stream_server_events))
         .route("/api/notify", post(add_notification))
-        .route("/api/timeline", get(scroll_chat_timeline))
         .route("/api/send-msg", post(send_message))
         .route("/api/rooms/create-room", post(create_room))
         .route("/api/rooms/{room_id}/users", get(get_users_in_room))
@@ -63,7 +58,6 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
                 .layer(cors)//2
                 .layer(init_auth(app_state.env.token_issuer.clone())) //3..
                 .layer(Extension(app_state))
-                .layer(Extension(notify_cache))
         );
     public_routing.merge(protected_routing)
 }

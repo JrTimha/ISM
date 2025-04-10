@@ -7,11 +7,13 @@ use serde::Deserialize;
 pub struct ISMConfig {
     pub ism_port: u16,
     pub ism_url: String,
+    pub use_kafka: bool,
     pub log_level: String,
     pub cors_origin: String,
     pub user_db_config: UserDbConfig,
     pub message_db_config: MessageDbConfig,
-    pub token_issuer: TokenIssuer
+    pub token_issuer: TokenIssuer,
+    pub kafka_config: KafkaConfig
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -36,6 +38,16 @@ pub struct UserDbConfig {
 pub struct TokenIssuer {
     pub iss_host: String,
     pub iss_realm: String
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct KafkaConfig {
+    pub bootstrap_host: String,
+    pub bootstrap_port: u16,
+    pub topic: String,
+    pub client_id: String,
+    pub partition: Vec<i32>,
+    pub consumer_group: String
 }
 
 //examples: https://github.com/rust-cli/config-rs/blob/main/examples/hierarchical-env/settings.rs

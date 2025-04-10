@@ -1,13 +1,14 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct UserDTO {
+pub struct User {
     pub id: Uuid,
     pub display_name: String,
-    pub street_credits: u32,
     pub profile_picture: Option<String>,
-    pub friends_count: u32,
-    pub description: Option<String>
+    pub room_id: Uuid,
+    pub joined_at: DateTime<Utc>,
+    pub last_message_read_at: Option<DateTime<Utc>>
 }

@@ -4,9 +4,9 @@ use std::time::Duration;
 use log::{debug, error, info};
 use tokio::sync::{OnceCell, RwLock};
 use uuid::Uuid;
-use crate::api::Notification;
 use tokio::sync::broadcast::{Sender, channel, Receiver};
 use tokio::time::interval;
+use crate::broadcast::Notification;
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 

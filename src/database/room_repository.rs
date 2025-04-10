@@ -5,7 +5,7 @@ use sqlx::{Pool, Postgres, QueryBuilder};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
-use crate::database::user::User;
+use crate::model::user::User;
 use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, Message, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]

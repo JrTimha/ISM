@@ -2,7 +2,7 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
-use crate::database::User;
+use crate::model::user::User;
 
 #[derive(Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Debug)]
 #[serde(rename_all = "camelCase")]

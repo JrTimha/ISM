@@ -11,14 +11,12 @@ use log::{error};
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
-use crate::api::{AppState, Notification, NotificationEvent};
-use crate::api::notification::{CacheService, NewNotification};
 use crate::database::{get_message_repository_instance, RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
 use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
-use crate::api::event_broadcast::get_broadcast_channel;
-
+use crate::api::AppState;
+use crate::broadcast::{get_broadcast_channel, NewNotification, Notification, NotificationEvent};
 
 pub async fn stream_server_events(
     Extension(token): Extension<KeycloakToken<String>>
@@ -49,17 +47,10 @@ pub async fn stream_server_events(
     )
 }
 
-
-pub async fn poll_for_new_notifications(
-    Extension(token): Extension<KeycloakToken<String>>,
-    Extension(notifications): Extension<Arc<CacheService>>,
-) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    if let Some(notifications) = notifications.get_notifications(id).await {
-        Json(notifications).into_response()
-    } else {
-        Json::<Vec<String>>(vec![]).into_response()
-    }
+//todo: query latest events
+pub async fn poll_for_new_notifications() -> impl IntoResponse {
+    //placeholder
+    Json::<Vec<String>>(vec![]).into_response()
 }
 
 #[derive(Deserialize)]
@@ -147,10 +138,6 @@ pub async fn send_message(
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
-    if let Err(err) = state.room_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
-        error!("{}", err);
-        return HttpError::bad_request("Can't update user read status.").into_response();
-    }
     let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
         Ok(displayed) => displayed,
         Err(error) => {
@@ -158,6 +145,10 @@ pub async fn send_message(
             return HttpError::bad_request("Can't update the state of the chat room.").into_response();
         }
     };
+    if let Err(err) = state.room_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
+        error!("{}", err);
+        return HttpError::bad_request("Can't update user read status.").into_response();
+    }
 
     let note = Notification {
         notification_event: NotificationEvent::ChatMessage,

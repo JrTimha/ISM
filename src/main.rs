@@ -7,7 +7,7 @@ use ism::core::ISMConfig;
 use ism::api::{init_router, AppState};
 use ism::database::{init_message_db, init_room_db};
 use tracing_subscriber::filter::LevelFilter;
-
+use ism::kafka::start_consumer;
 
 //learn it here: https://github.com/AarambhDevHub/rust-backend-axum
 #[tokio::main(flavor = "multi_thread")]
@@ -29,6 +29,10 @@ async fn main() {
         env: config.clone(),
         room_repository: user_db
     };
+
+    if app_state.env.use_kafka == true {
+        start_consumer(app_state.env.kafka_config.clone()).await;
+    }
 
     //init api router:
     let app = init_router(Arc::new(app_state.clone())).await;

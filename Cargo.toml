@@ -22,6 +22,8 @@ async-trait = "0.1.88"
 dotenv = "0.15.0"
 serde_json = "1.0.140"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
+samsa = "0.1.7"
+
 
 #keycloak:
 atomic-time = "0.1.5"

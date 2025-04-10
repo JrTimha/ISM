@@ -3,6 +3,7 @@ use std::sync::Arc;
 use dotenv::dotenv;
 use log::{info};
 use tokio::net::TcpListener;
+use tokio::task;
 use ism::core::ISMConfig;
 use ism::api::{init_router, AppState};
 use ism::database::{init_message_db, init_room_db};
@@ -31,7 +32,10 @@ async fn main() {
     };
 
     if app_state.env.use_kafka == true {
-        start_consumer(app_state.env.kafka_config.clone()).await;
+        let kafka_config = app_state.env.kafka_config.clone();
+        task::spawn(async move {
+            start_consumer(kafka_config).await;
+        });
     }
 
     //init api router:

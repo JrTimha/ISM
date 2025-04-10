@@ -65,7 +65,7 @@ services:
             enabled: true
             urls: ["http://redpanda-0:9644"]
     ports:
-      - 8080:8080
+      - "18080:8080"
     depends_on:
       - redpanda-0
 

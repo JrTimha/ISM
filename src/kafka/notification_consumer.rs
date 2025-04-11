@@ -1,10 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
-use samsa::prelude::{BrokerAddress, ConsumeMessage, ConsumerGroupBuilder, TcpConnection, TopicPartitionsBuilder};
-use log::{error, info};
+use samsa::prelude::{BrokerAddress, ConsumeMessage, ConsumerGroup, ConsumerGroupBuilder, TcpConnection, TopicPartitionsBuilder};
+use log::{error};
 use tokio_stream::StreamExt;
-use tracing_subscriber::filter::combinator::Not;
-use crate::broadcast::{get_broadcast_channel, BroadcastChannel, NewNotification, Notification, NotificationEvent};
+use crate::broadcast::{BroadcastChannel, NewNotification, Notification};
 use crate::core::KafkaConfig;
 
 
@@ -20,7 +19,7 @@ pub async fn start_consumer(config: KafkaConfig) {
         .assign(topic_name, partitions)
         .build();
 
-    let consumer = ConsumerGroupBuilder::<TcpConnection>::new(
+    let consumer: ConsumerGroup<TcpConnection> = ConsumerGroupBuilder::<TcpConnection>::new(
         bootstrap_address,
         config.consumer_group,
         assignment,
@@ -32,16 +31,17 @@ pub async fn start_consumer(config: KafkaConfig) {
         .expect("Could not create consumer.");
 
     let stream = consumer.into_stream().throttle(Duration::from_secs(5));
+    let broadcast = BroadcastChannel::get();
+
     // have to pin streams before iterating
     tokio::pin!(stream);
-    let broadcast = get_broadcast_channel().await;
 
     // Stream will do nothing unless consumed.
     while let Some(message_stream) = stream.next().await {
         match message_stream {
             Ok(messages) => {
                 for entry in messages {
-                    process_message_entry(entry, &broadcast).await;
+                    process_message_entry(entry, broadcast).await;
                 }
             },
             Err(e) => {

@@ -9,13 +9,34 @@ use crate::model::user::User;
 use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, Message, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
-pub struct PgDbClient {
+pub struct RoomDatabaseClient {
     pool: Pool<Postgres>,
 }
 
-impl PgDbClient {
-    pub fn new(pool: Pool<Postgres>) -> Self {
-        PgDbClient { pool }
+impl RoomDatabaseClient {
+
+    pub async fn new(config: &UserDbConfig) -> Self {
+        let opt = PgConnectOptions::new()
+            .host(&config.db_host)
+            .port(config.db_port)
+            .database(&config.db_name)
+            .username(&config.db_user)
+            .password(&config.db_password);
+        let pool = match PgPoolOptions::new()
+            .max_connections(10)
+            .connect_with(opt)
+            .await
+        {
+            Ok(pool) => {
+                info!("Established connection to the room database.");
+                pool
+            }
+            Err(err) => {
+                error!("Failed to connect to the room database: {:?}", err);
+                std::process::exit(1);
+            }
+        };
+        RoomDatabaseClient { pool }
     }
 }
 
@@ -35,7 +56,7 @@ pub trait RoomRepository {
 
 
 #[async_trait]
-impl RoomRepository for PgDbClient {
+impl RoomRepository for RoomDatabaseClient {
 
     async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
         let users = sqlx::query_as!(User,
@@ -53,7 +74,7 @@ impl RoomRepository for PgDbClient {
         let rooms = sqlx::query_as!(
             ChatRoomListItemDTO,
             r#"
-            SELECT
+            SELECT DISTINCT ON (room.id)
                 room.id,
                 room.room_type AS "room_type: RoomType",
                 room.created_at,
@@ -76,7 +97,6 @@ impl RoomRepository for PgDbClient {
             LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
             LEFT JOIN app_user u ON u.id = crp.user_id
             WHERE participants.user_id = $1
-            ORDER BY room.latest_message DESC
             "#,
             user_id
         ).fetch_all(&self.pool).await?;
@@ -202,28 +222,4 @@ impl RoomRepository for PgDbClient {
         Ok(())
     }
 
-}
-
-pub async fn init_room_db(config: &UserDbConfig) -> PgDbClient {
-    let opt = PgConnectOptions::new()
-        .host(&config.db_host)
-        .port(config.db_port)
-        .database(&config.db_name)
-        .username(&config.db_user)
-        .password(&config.db_password);
-    let pool = match PgPoolOptions::new()
-        .max_connections(10)
-        .connect_with(opt)
-        .await
-    {
-        Ok(pool) => {
-            info!("Established connection to the room database.");
-            pool
-        }
-        Err(err) => {
-            error!("Failed to connect to the room database: {:?}", err);
-            std::process::exit(1);
-        }
-    };
-    PgDbClient::new(pool)
 }

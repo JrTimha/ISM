@@ -52,7 +52,8 @@ pub struct KafkaConfig {
 
 //examples: https://github.com/rust-cli/config-rs/blob/main/examples/hierarchical-env/settings.rs
 impl ISMConfig {
-    pub fn new_config(mode: &str) -> Result<Self, ConfigError> {
+
+    pub fn new(mode: &str) -> Result<Self, ConfigError> {
         //layering the different environment variables, default values first, overwritten by config files and env-vars
         let config = Config::builder()
             .add_source(File::with_name("default.config.toml"))

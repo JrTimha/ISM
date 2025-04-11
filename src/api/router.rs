@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use axum::http::{HeaderValue, Method, StatusCode};
-use axum::{Extension, Router};
+use axum::{Router};
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -9,24 +9,17 @@ use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
 use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message, stream_server_events};
-use crate::core::{ISMConfig, TokenIssuer};
-use crate::database::{PgDbClient};
+use crate::core::{AppState, TokenIssuer};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
 use crate::keycloak::layer::KeycloakAuthLayer;
 use crate::keycloak::PassthroughMode;
 
 
 
-#[derive(Debug, Clone)]
-pub struct AppState {
-    pub env: ISMConfig,
-    pub room_repository: PgDbClient
-}
-
 /**
  * Initializing the api routes.
  */
-pub async fn init_router(app_state: Arc<AppState>) -> Router {
+pub async fn init_router(app_state: AppState) -> Router {
     let origin = app_state.env.cors_origin.clone();
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<HeaderValue>().unwrap())
@@ -57,8 +50,8 @@ pub async fn init_router(app_state: Arc<AppState>) -> Router {
                 .layer(TraceLayer::new_for_http()) //1
                 .layer(cors)//2
                 .layer(init_auth(app_state.env.token_issuer.clone())) //3..
-                .layer(Extension(app_state))
-        );
+        )
+        .with_state(Arc::new(app_state));
     public_routing.merge(protected_routing)
 }
 

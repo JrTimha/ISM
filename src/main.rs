@@ -1,34 +1,40 @@
 use std::env;
-use std::sync::Arc;
 use dotenv::dotenv;
 use log::{info};
 use tokio::net::TcpListener;
 use tokio::task;
-use ism::core::ISMConfig;
-use ism::api::{init_router, AppState};
-use ism::database::{init_message_db, init_room_db};
+use ism::core::{AppState, ISMConfig};
+use ism::api::{init_router};
+use ism::database::{MessageRepository, RoomDatabaseClient};
 use tracing_subscriber::filter::LevelFilter;
+use ism::broadcast::BroadcastChannel;
 use ism::kafka::start_consumer;
+
 
 //learn it here: https://github.com/AarambhDevHub/rust-backend-axum
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
     dotenv().ok();
-
-    let config = ISMConfig::new_config(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));
+    let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
+    let config = ISMConfig::new(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));
     tracing_subscriber::fmt()
-        .with_max_level(LevelFilter::DEBUG)
+        .with_max_level(LevelFilter::INFO)
         .init();
 
-    info!("Starting ISM in {run_mode} mode.");
+    info!("Starting up ISM in {run_mode} mode.");
+
+    //init broadcaster channel
+    BroadcastChannel::init().await;
+
     //init both database connections, exit application if failing
-    init_message_db(&config.message_db_config).await;
-    let user_db = init_room_db(&config.user_db_config).await;
+    let message_repository = MessageRepository::new(&config.message_db_config).await.unwrap_or_else(|err|{
+        panic!("Failed to initialize message repository: {}", err);
+    });
 
     let app_state = AppState {
         env: config.clone(),
-        room_repository: user_db
+        room_repository: RoomDatabaseClient::new(&config.user_db_config).await,
+        message_repository
     };
 
     if app_state.env.use_kafka == true {
@@ -39,7 +45,7 @@ async fn main() {
     }
 
     //init api router:
-    let app = init_router(Arc::new(app_state.clone())).await;
+    let app = init_router(app_state.clone()).await;
     let url = format!("{}:{}", config.ism_url, config.ism_port);
     let listener = TcpListener::bind(url.clone()).await.unwrap();
     info!("ISM-Server up and is listening on: http://{url}");

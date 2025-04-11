@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use axum::{Extension, Json};
-use axum::extract::{Path, Query};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Sse};
 use axum::response::sse::Event;
@@ -11,12 +11,12 @@ use log::{error};
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
-use crate::database::{get_message_repository_instance, RoomRepository};
+use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomDTO, Message, NewMessage, NewRoom, RoomType};
 use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
-use crate::api::AppState;
-use crate::broadcast::{get_broadcast_channel, NewNotification, Notification, NotificationEvent};
+use crate::broadcast::{BroadcastChannel, NewNotification, Notification, NotificationEvent};
+use crate::core::AppState;
 
 pub async fn stream_server_events(
     Extension(token): Extension<KeycloakToken<String>>
@@ -25,7 +25,7 @@ pub async fn stream_server_events(
     use futures::StreamExt;
     let id = parse_uuid(&token.subject).unwrap();
 
-    let receiver = get_broadcast_channel().await.subscribe_to_user_events(id.clone()).await;
+    let receiver = BroadcastChannel::get().subscribe_to_user_events(id.clone()).await;
 
     let stream = BroadcastStream::new(receiver).filter_map(move |x| async move {
         match x {
@@ -42,7 +42,7 @@ pub async fn stream_server_events(
 
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
-            .interval(Duration::from_secs(10))
+            .interval(Duration::from_secs(4))
             .text("keep-alive-text")
     )
 }
@@ -60,16 +60,15 @@ pub struct TimelineQuery {
 
 pub async fn scroll_chat_timeline(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
     Query(params): Query<TimelineQuery>
 ) -> impl IntoResponse {
-    let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
     if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
         return err.into_response();
     }
-    match db.fetch_data(params.timestamp, room_id).await {
+    match state.message_repository.fetch_data(params.timestamp, room_id).await {
         Ok(data) => {
             Json(data).into_response()
         },
@@ -94,16 +93,15 @@ pub async fn add_notification(
         display_value: None
     };
 
-    get_broadcast_channel().await.send_event(test, &payload.to_user).await;
+    BroadcastChannel::get().send_event(test, &payload.to_user).await;
     StatusCode::OK.into_response()
 }
 
 pub async fn send_message(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
-    let db = get_message_repository_instance().await;
     let id = parse_uuid(&token.subject).unwrap();
 
     let mut users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
@@ -134,7 +132,7 @@ pub async fn send_message(
         Err(_) => return StatusCode::BAD_REQUEST.into_response()
     };
 
-    if let Err(err) = db.insert_data(msg.clone()).await {
+    if let Err(err) = state.message_repository.insert_data(msg.clone()).await {
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
@@ -156,12 +154,12 @@ pub async fn send_message(
         created_at: msg.created_at,
         display_value: Option::from(displayed)
     };
-    get_broadcast_channel().await.send_event_to_all(users, note).await;
+    BroadcastChannel::get().send_event_to_all(users, note).await;
     (StatusCode::CREATED, Json(msg)).into_response()
 }
 
 pub async fn get_users_in_room(
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
     match state.room_repository.select_all_user_in_room(&room_id).await {
@@ -171,7 +169,7 @@ pub async fn get_users_in_room(
 }
 
 pub async fn get_joined_rooms(
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
@@ -182,7 +180,7 @@ pub async fn get_joined_rooms(
 }
 
 pub async fn get_room_with_details(
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
@@ -215,7 +213,7 @@ pub async fn get_room_with_details(
 }
 
 pub async fn mark_room_as_read(
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
@@ -231,7 +229,7 @@ pub async fn mark_room_as_read(
 
 pub async fn create_room(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<NewRoom>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
@@ -261,8 +259,6 @@ pub async fn create_room(
         }
     };
 
-
-
     let mut users = payload.invited_users.clone();
     users.retain(|&user| user != id); //don't send to the creator, he will get it from the http response
 
@@ -289,7 +285,7 @@ pub async fn create_room(
                         created_at: Utc::now(),
                         display_value: None
                     };
-                    get_broadcast_channel().await.send_event(note, other_user).await;
+                    BroadcastChannel::get().send_event(note, other_user).await;
                     Json(creator_dto).into_response()
                 } else {
                     HttpError::bad_request("Room for participator is null.").into_response()
@@ -322,7 +318,7 @@ pub async fn create_room(
             created_at: Utc::now(),
             display_value: None
         };
-        get_broadcast_channel().await.send_event_to_all(users, note).await;
+        BroadcastChannel::get().send_event_to_all(users, note).await;
         Json(room).into_response()
     }
 }
@@ -330,7 +326,7 @@ pub async fn create_room(
 
 pub async fn get_room_list_item_by_id(
     Extension(token): Extension<KeycloakToken<String>>,
-    Extension(state): Extension<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();

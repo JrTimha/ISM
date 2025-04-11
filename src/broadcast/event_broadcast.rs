@@ -10,21 +10,30 @@ use crate::broadcast::Notification;
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
-pub async fn get_broadcast_channel() -> Arc<BroadcastChannel> {
-    BROADCAST_INSTANCE.get_or_init(|| async {
-        let channel = Arc::new(BroadcastChannel::new());
-        channel.clone().start_cleanup_task();
-        channel
-    }).await.clone()
-}
-
 pub struct BroadcastChannel {
-    pub channel: RwLock<HashMap<Uuid, Sender<Notification>>>
+    channel: RwLock<HashMap<Uuid, Sender<Notification>>>
 }
 
 impl BroadcastChannel {
 
-    pub fn new() -> Self {
+    pub async fn init() {
+        BROADCAST_INSTANCE.get_or_init(|| async {
+            let channel = Arc::new(BroadcastChannel::new());
+            channel.clone().start_cleanup_task();
+            channel
+        }).await;
+    }
+
+    pub fn get() -> &'static Arc<BroadcastChannel> {
+        match BROADCAST_INSTANCE.get() {
+            None => {
+                panic!("BroadcastChannel is not initialized! Call init()!");
+            }
+            Some(instance) => instance
+        }
+    }
+
+    fn new() -> Self {
         BroadcastChannel {
             channel: RwLock::new(HashMap::new()),
         }

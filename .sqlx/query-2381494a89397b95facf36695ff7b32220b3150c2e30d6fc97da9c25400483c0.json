@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT DISTINCT ON (room.id)\n                room.id,\n                room.room_type AS \"room_type: RoomType\",\n                room.created_at,\n                room.latest_message,\n                room.latest_message_preview_text,\n                CASE\n                    WHEN room.room_type = 'Single' THEN u.display_name\n                    ELSE room.room_name\n                END AS room_name,\n                CASE\n                    WHEN room.room_type = 'Single' THEN u.profile_picture\n                    ELSE room.room_image_url\n                END AS room_image_url,\n                CASE\n                    WHEN participants.last_message_read_at < room.latest_message THEN TRUE\n                    ELSE FALSE\n                END AS unread\n            FROM chat_room_participant AS participants\n            JOIN chat_room AS room ON participants.room_id = room.id\n            LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1\n            LEFT JOIN app_user u ON u.id = crp.user_id\n            WHERE participants.user_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "room_type: RoomType",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "latest_message",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "latest_message_preview_text",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "room_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "room_image_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "unread",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2381494a89397b95facf36695ff7b32220b3150c2e30d6fc97da9c25400483c0"
+}

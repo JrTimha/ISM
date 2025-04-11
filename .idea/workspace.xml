@@ -7,21 +7,8 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="refactoring &amp; kafka support">
-      <change afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="refactoring">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/request_handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/request_handler.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/message_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -280,7 +267,7 @@
       <workItem from="1744322089297" duration="4057000" />
       <workItem from="1744389989454" duration="9761000" />
       <workItem from="1744401899706" duration="88000" />
-      <workItem from="1744401994650" duration="4936000" />
+      <workItem from="1744401994650" duration="6315000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -586,7 +573,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744325574976</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="refactoring">
+      <option name="closed" value="true" />
+      <created>1744407383945</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1744407383945</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -607,7 +602,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Added postgres user database" />
     <MESSAGE value="Added protected routes with jwt keycloak auth" />
     <MESSAGE value="msg post endpoint" />
     <MESSAGE value="automated table creation" />
@@ -632,6 +626,7 @@
     <MESSAGE value="dockerfile updated" />
     <MESSAGE value="updating create dependencies" />
     <MESSAGE value="refactoring &amp; kafka support" />
-    <option name="LAST_COMMIT_MESSAGE" value="refactoring &amp; kafka support" />
+    <MESSAGE value="refactoring" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactoring" />
   </component>
 </project>

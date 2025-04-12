@@ -37,7 +37,8 @@ pub struct UserDbConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct TokenIssuer {
     pub iss_host: String,
-    pub iss_realm: String
+    pub iss_realm: String,
+    pub valid_admin_client: Option<String>
 }
 
 #[derive(Deserialize, Debug, Clone)]

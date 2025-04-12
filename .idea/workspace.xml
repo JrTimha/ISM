@@ -7,8 +7,20 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="refactoring">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="sqlx prepare exec">
+      <change afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/api/notifications.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/api/timeline.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/api/utils.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/default.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/default.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/request_handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -175,8 +187,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
+        <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
         <item itemvalue="Docker.Dockerfile runtime" />
         <item itemvalue="Docker.Dockerfile" />
@@ -267,7 +279,9 @@
       <workItem from="1744322089297" duration="4057000" />
       <workItem from="1744389989454" duration="9761000" />
       <workItem from="1744401899706" duration="88000" />
-      <workItem from="1744401994650" duration="6315000" />
+      <workItem from="1744401994650" duration="7876000" />
+      <workItem from="1744452493805" duration="2930000" />
+      <workItem from="1744455436975" duration="2523000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -581,7 +595,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744407383945</updated>
     </task>
-    <option name="localTasksCounter" value="40" />
+    <task id="LOCAL-00040" summary="sqlx prepare exec">
+      <option name="closed" value="true" />
+      <created>1744408871114</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1744408871114</updated>
+    </task>
+    <option name="localTasksCounter" value="41" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -602,7 +624,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Added protected routes with jwt keycloak auth" />
     <MESSAGE value="msg post endpoint" />
     <MESSAGE value="automated table creation" />
     <MESSAGE value="Working on notification cache" />
@@ -627,6 +648,7 @@
     <MESSAGE value="updating create dependencies" />
     <MESSAGE value="refactoring &amp; kafka support" />
     <MESSAGE value="refactoring" />
-    <option name="LAST_COMMIT_MESSAGE" value="refactoring" />
+    <MESSAGE value="sqlx prepare exec" />
+    <option name="LAST_COMMIT_MESSAGE" value="sqlx prepare exec" />
   </component>
 </project>

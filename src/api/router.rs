@@ -8,12 +8,14 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
-use crate::api::request_handler::{add_notification, create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read, poll_for_new_notifications, scroll_chat_timeline, send_message, stream_server_events};
+use crate::api::messages::send_message;
+use crate::api::notifications::{add_notification, poll_for_new_notifications, stream_server_events};
+use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read};
+use crate::api::timeline::scroll_chat_timeline;
 use crate::core::{AppState, TokenIssuer};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
 use crate::keycloak::layer::KeycloakAuthLayer;
 use crate::keycloak::PassthroughMode;
-
 
 
 /**

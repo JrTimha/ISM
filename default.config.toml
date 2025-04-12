@@ -24,7 +24,7 @@ iss_realm = "meventure"
 
 [kafka_config]
 bootstrap_host = "localhost"
-bootstrap_port = 19092
+bootstrap_port = 19192
 topic = "user-notification-events"
 client_id = "ism-1"
 partition = [0]

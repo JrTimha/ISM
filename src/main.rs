@@ -18,7 +18,7 @@ async fn main() {
     let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
     let config = ISMConfig::new(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));
     tracing_subscriber::fmt()
-        .with_max_level(LevelFilter::INFO)
+        .with_max_level(LevelFilter::DEBUG)
         .init();
 
     info!("Starting up ISM in {run_mode} mode.");

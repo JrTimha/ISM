@@ -10,8 +10,9 @@ use tracing_subscriber::filter::LevelFilter;
 use ism::broadcast::BroadcastChannel;
 use ism::kafka::start_consumer;
 
-
-//learn it here: https://github.com/AarambhDevHub/rust-backend-axum
+//learn to code rust axum here:
+//https://gitlab.com/famedly/conduit/-/tree/next?ref_type=heads
+//https://github.com/AarambhDevHub/rust-backend-axum
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     dotenv().ok();

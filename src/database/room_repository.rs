@@ -50,7 +50,7 @@ pub trait RoomRepository {
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
     async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
-    async fn update_last_room_message(&self, room_id: &Uuid, text: &Message) -> Result<String, sqlx::Error>;
+    async fn update_last_room_message(&self, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error>;
     async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
 }
 
@@ -206,15 +206,15 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(user)
     }
 
-    async fn update_last_room_message(&self, room_id: &Uuid, msg: &Message) -> Result<String, sqlx::Error> {
-        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", &msg.sender_id).fetch_one(&self.pool).await?;
-        let preview_text = format!("{}: {}", name.display_name, msg.msg_body);
+    async fn update_last_room_message(&self, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error> {
+        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", sender_id).fetch_one(&self.pool).await?;
+        let text = format!("{}{}", name.display_name, preview_text);
         sqlx::query!(
             "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
             room_id,
-            &preview_text
+            &text
         ).execute(&self.pool).await?;
-        Ok(preview_text)
+        Ok(text)
     }
 
     async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error> {

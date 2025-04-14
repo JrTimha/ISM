@@ -25,8 +25,8 @@ pub async fn stream_server_events(
 
     let receiver = BroadcastChannel::get().subscribe_to_user_events(id.clone()).await;
 
-    let stream = BroadcastStream::new(receiver).filter_map(move |x| async move {
-        match x {
+    let stream = BroadcastStream::new(receiver).filter_map(move |notification| async move {
+        match notification {
             Ok(event) => {
                 let sse = Event::default().data(serde_json::to_string(&event).unwrap());
                 Some(Ok(sse))
@@ -39,7 +39,7 @@ pub async fn stream_server_events(
     });
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
-            .interval(Duration::from_secs(4))
+            .interval(Duration::from_secs(5))
             .text("keep-alive-text")
     )
 }

@@ -7,12 +7,13 @@ use http::StatusCode;
 use log::error;
 use uuid::Uuid;
 use crate::api::errors::HttpError;
+use crate::api::timeline::msg_to_dto;
 use crate::api::utils::parse_uuid;
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;
 use crate::database::RoomRepository;
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{Message, NewMessage};
+use crate::model::{Message, NewMessage, NewMessageBody};
 
 
 pub async fn send_message(
@@ -33,28 +34,21 @@ pub async fn send_message(
         return HttpError::unauthorized("Room not found or access denied.").into_response();
     }
 
-    users.retain(|&user| {
-        user != id
-    });
-
     let msg = Message {
         chat_room_id: payload.chat_room_id,
         message_id: Uuid::new_v4(),
         sender_id: id,
-        msg_body: payload.msg_body,
+        msg_body: serde_json::to_string(&payload.msg_body).unwrap(),
         msg_type: payload.msg_type.to_string(),
         created_at: Utc::now(),
     };
-    let json = match serde_json::to_value(&msg) {
-        Ok(json) => json,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response()
-    };
+
 
     if let Err(err) = state.message_repository.insert_data(msg.clone()).await {
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
-    let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg).await {
+    let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg.sender_id, generate_room_preview_text(&payload)).await {
         Ok(displayed) => displayed,
         Err(error) => {
             error!("{}", error);
@@ -66,12 +60,38 @@ pub async fn send_message(
         return HttpError::bad_request("Can't update user read status.").into_response();
     }
 
+
+    let mapped_msg = match msg_to_dto(msg.clone()) {
+        Ok(msg) => msg,
+        Err(err) => {
+            return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
+        }
+    };
+    let json = match serde_json::to_value(&mapped_msg) {
+        Ok(json) => json,
+        Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
+    };
+
     let note = Notification {
         notification_event: NotificationEvent::ChatMessage,
         body: json,
-        created_at: msg.created_at,
+        created_at: mapped_msg.created_at,
         display_value: Option::from(displayed)
     };
     BroadcastChannel::get().send_event_to_all(users, note).await;
-    (StatusCode::CREATED, Json(msg)).into_response()
+    (StatusCode::CREATED, Json(mapped_msg)).into_response()
+}
+
+fn generate_room_preview_text(msg: &NewMessage) -> String {
+    match &msg.msg_body {
+        NewMessageBody::Text(body) => {
+            format!(": {}", body.text)
+        }
+        NewMessageBody::Media(_) => {
+            String::from(" hat etwas geteilt.")
+        }
+        NewMessageBody::Reply(_) => {
+            String::from(" hat auf eine Nachricht geantwortet.")
+        }
+    }
 }

@@ -132,8 +132,8 @@ impl FromStr for MsgType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Text" => Ok(MsgType::Text),
-            "Image" => Ok(MsgType::Media),
-            "Video" => Ok(MsgType::System),
+            "Media" => Ok(MsgType::Media),
+            "System" => Ok(MsgType::System),
             "Reply" => Ok(MsgType::Reply),
             _ => Err(ParseMessageTypeError),
         }

@@ -6,7 +6,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
 use crate::model::user::User;
-use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, Message, NewRoom, RoomType};
+use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
 pub struct RoomDatabaseClient {

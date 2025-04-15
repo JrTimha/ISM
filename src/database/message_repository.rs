@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use crate::core::{MessageDbConfig};
-use futures::TryStreamExt;
+use futures::{TryStreamExt};
 use log::{debug, error, info};
+use scylla::client::pager::TypedRowStream;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::errors::{ExecutionError, NewSessionError, UseKeyspaceError};
@@ -42,17 +43,26 @@ impl MessageRepository {
             error!("Failed to use keyspace {:?}", err);
             std::process::exit(1);
         }
-
         Ok(repository)
     }
 
     pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
         let session = self.session.clone();
-        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
+        let mut iter: TypedRowStream<Message> = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
             .await?.rows_stream::<Message>()?;
         let mut messages: Vec<Message> = Vec::new();
         while let Some(next) = iter.try_next().await? { messages.push(next) }
         Ok(messages)
+    }
+
+    pub async fn fetch_specific_message(&self, message_id: &Uuid, room_id: &Uuid, created: &DateTime<Utc>) -> Result<Message, Box<dyn std::error::Error>> {
+        let session = self.session.clone();
+        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at = ? AND message_id = ?", (room_id, created, message_id))
+            .await?.rows_stream::<Message>()?;
+        match iter.try_next().await? {
+            Some(message) => Ok(message),
+            None => Err("Message not found".into())
+        }
     }
 
     pub async fn insert_data(&self, message: Message) -> Result<QueryResult, ExecutionError> {

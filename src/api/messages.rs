@@ -1,9 +1,10 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use axum::{Extension, Json};
 use axum::extract::State;
 use axum::response::IntoResponse;
 use chrono::Utc;
-use http::StatusCode;
+use http::{StatusCode};
 use log::error;
 use uuid::Uuid;
 use crate::api::errors::HttpError;
@@ -13,7 +14,7 @@ use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;
 use crate::database::RoomRepository;
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{Message, NewMessage, NewMessageBody};
+use crate::model::{Message, MsgType, NewMessage, NewMessageBody, NewReplyBody, ReplyBody};
 
 
 pub async fn send_message(
@@ -23,27 +24,48 @@ pub async fn send_message(
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
 
-    let mut users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
+    //validate if user is in the room
+    let users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
         Ok(ids) => ids,
         Err(error) => {
             error!("{}", error.to_string());
-            return StatusCode::BAD_REQUEST.into_response();
+            return HttpError::bad_request("Can't fetch room participants.").into_response();
         }
     };
     if !users.contains(&id) {
         return HttpError::unauthorized("Room not found or access denied.").into_response();
     }
 
+
+    let body_json = match &payload.msg_body {
+        NewMessageBody::Text(text) => {
+            serde_json::to_string(text).unwrap()
+        }
+        NewMessageBody::Media(media) => {
+            serde_json::to_string(media).unwrap()
+        }
+        NewMessageBody::Reply(reply) => {
+            let reply = match handle_reply_message(reply, &state, &payload.chat_room_id).await {
+                Ok(reply) => reply,
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Can't handle reply message.").into_response();
+                }
+            };
+            serde_json::to_string(&reply).unwrap()
+        }
+    };
+
     let msg = Message {
         chat_room_id: payload.chat_room_id,
         message_id: Uuid::new_v4(),
         sender_id: id,
-        msg_body: serde_json::to_string(&payload.msg_body).unwrap(),
+        msg_body: body_json,
         msg_type: payload.msg_type.to_string(),
         created_at: Utc::now(),
     };
 
-
+    //todo: make this a transaction:
     if let Err(err) = state.message_repository.insert_data(msg.clone()).await {
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
@@ -80,6 +102,18 @@ pub async fn send_message(
     };
     BroadcastChannel::get().send_event_to_all(users, note).await;
     (StatusCode::CREATED, Json(mapped_msg)).into_response()
+}
+
+async fn handle_reply_message(msg: &NewReplyBody, state: &Arc<AppState>, room_id: &Uuid) -> Result<ReplyBody, Box<dyn std::error::Error>> {
+    let replied_to = state.message_repository.fetch_specific_message(&msg.reply_msg_id, room_id, &msg.reply_created_at).await?;
+    let new_body = ReplyBody {
+        reply_msg_id: replied_to.message_id,
+        reply_sender_id: replied_to.sender_id,
+        reply_msg_type: MsgType::from_str(&replied_to.msg_type)?,
+        reply_msg_body: serde_json::to_value(&replied_to.msg_body)?,
+        reply_text: msg.reply_text.clone(),
+    };
+    Ok(new_body)
 }
 
 fn generate_room_preview_text(msg: &NewMessage) -> String {

@@ -4,6 +4,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -16,7 +17,6 @@ pub enum MsgType {
 
 #[derive(DeserializeRow, Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[allow(unused)]
 pub struct Message {
     pub chat_room_id: Uuid,
     pub message_id: Uuid,
@@ -68,8 +68,8 @@ pub struct ReplyBody {
     pub reply_msg_id: Uuid,
     pub reply_sender_id: Uuid,
     pub reply_msg_type: MsgType,
-    pub reply_msg_body: Box<MessageBody>,
-    pub text: String
+    pub reply_msg_body: Value,
+    pub reply_text: String
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -99,8 +99,9 @@ pub enum NewMessageBody {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NewReplyBody {
-    pub text: String,
-    pub reply_msg_id: Uuid
+    pub reply_msg_id: Uuid,
+    pub reply_created_at: DateTime<Utc>,
+    pub reply_text: String
 }
 
 

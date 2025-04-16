@@ -4,7 +4,6 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -68,9 +67,19 @@ pub struct ReplyBody {
     pub reply_msg_id: Uuid,
     pub reply_sender_id: Uuid,
     pub reply_msg_type: MsgType,
-    pub reply_msg_body: Value,
+    pub reply_created_at: DateTime<Utc>,
+    pub reply_msg_details: RepliedMessageDetails,
     pub reply_text: String
 }
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum RepliedMessageDetails {
+    Text(TextBody),
+    Media(MediaBody),
+    Reply {reply_text: String}
+}
+
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

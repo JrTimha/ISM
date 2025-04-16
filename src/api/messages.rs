@@ -14,7 +14,7 @@ use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;
 use crate::database::RoomRepository;
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{Message, MsgType, NewMessage, NewMessageBody, NewReplyBody, ReplyBody};
+use crate::model::{Message, MessageBody, MsgType, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
 
 
 pub async fn send_message(
@@ -106,11 +106,30 @@ pub async fn send_message(
 
 async fn handle_reply_message(msg: &NewReplyBody, state: &Arc<AppState>, room_id: &Uuid) -> Result<ReplyBody, Box<dyn std::error::Error>> {
     let replied_to = state.message_repository.fetch_specific_message(&msg.reply_msg_id, room_id, &msg.reply_created_at).await?;
+
+    let replied_body: MessageBody = serde_json::from_str(&replied_to.msg_body)?;
+
+    let details = match replied_body {
+        MessageBody::Text(text) => {
+            RepliedMessageDetails::Text(text)
+        }
+        MessageBody::Media(media) => {
+            RepliedMessageDetails::Media(media)
+        }
+        MessageBody::Reply(reply) => {
+            RepliedMessageDetails::Reply {reply_text: reply.reply_text}
+        }
+        _ => {
+            return Err(Box::from("Unknown Reply body"))
+        }
+    };
+
     let new_body = ReplyBody {
         reply_msg_id: replied_to.message_id,
         reply_sender_id: replied_to.sender_id,
         reply_msg_type: MsgType::from_str(&replied_to.msg_type)?,
-        reply_msg_body: serde_json::to_value(&replied_to.msg_body)?,
+        reply_created_at: replied_to.created_at,
+        reply_msg_details: details,
         reply_text: msg.reply_text.clone(),
     };
     Ok(new_body)

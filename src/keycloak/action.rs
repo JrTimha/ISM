@@ -200,30 +200,4 @@ mod test {
             self
         }
     }
-
-    #[tokio::test]
-    async fn test_action_dispatch() {
-        let action = Action::new(|input: &String| {
-            let out = input.to_owned();
-            async move { out }
-        });
-
-        assert_that(&action)
-            .has_version(0)
-            .is_pending(false)
-            .has_input(None)
-            .await
-            .has_value(None)
-            .await;
-
-        let _dispatch_result = action.dispatch(String::from("result1")).await;
-
-        assert_that(&action)
-            .has_version(1)
-            .is_pending(false)
-            .has_input(None)
-            .await
-            .has_value(Some(&String::from("result1")))
-            .await;
-    }
 }

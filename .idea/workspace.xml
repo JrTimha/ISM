@@ -11,18 +11,7 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="readme change">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/message.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/message.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/room.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/room.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/user.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/user.rs" afterDir="false" />
-    </list>
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -299,7 +288,7 @@
       <workItem from="1744841633841" duration="362000" />
       <workItem from="1744852938487" duration="1045000" />
       <workItem from="1744900529015" duration="3263000" />
-      <workItem from="1745060613877" duration="10081000" />
+      <workItem from="1745060613877" duration="10681000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -669,7 +658,23 @@
       <option name="project" value="LOCAL" />
       <updated>1744902298496</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes.">
+      <option name="closed" value="true" />
+      <created>1745075319620</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1745075319620</updated>
+    </task>
+    <task id="LOCAL-00048" summary="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes.">
+      <option name="closed" value="true" />
+      <created>1745075381275</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1745075381275</updated>
+    </task>
+    <option name="localTasksCounter" value="49" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -690,8 +695,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Improving data modelling" />
-    <MESSAGE value="implemented room creation" />
     <MESSAGE value="new endpoints implemented" />
     <MESSAGE value="notify body as json" />
     <MESSAGE value="Timeline Query with timestamp" />
@@ -715,7 +718,9 @@
     <MESSAGE value="fix serde bug with msg type media" />
     <MESSAGE value="support for reply messages implemented" />
     <MESSAGE value="readme change" />
-    <option name="LAST_COMMIT_MESSAGE" value="readme change" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
+    <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1118e948abb60fa5092a96ac82a3d104679eb435d1d7be800151e9d4020ace26"
+}

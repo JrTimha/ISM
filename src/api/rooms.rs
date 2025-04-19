@@ -10,7 +10,7 @@ use crate::api::errors::{HttpError};
 use crate::api::timeline::msg_to_dto;
 use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom, RoomType, SystemBody, User};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom, RoomType, SystemBody};
 use crate::api::utils::{check_user_in_room, parse_uuid};
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT user_id FROM chat_room_participant WHERE room_id = $1",
+  "query": "SELECT user_id FROM chat_room_participant WHERE room_id = $1 AND participant_state = 'Joined'",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "661f8c7e625cf453e9db0328031391f8641fbdd94e2b27090762b0461748f979"
+  "hash": "2229866d81255653e5d64409839045bca87a71d0eac5d691d92331e5a2bb8e61"
 }

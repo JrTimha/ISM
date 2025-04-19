@@ -32,6 +32,7 @@ ism_url = "localhost" #Root URL
 ism_port= 5403 #ISM is listening at this port
 log_level = "info"
 cors_origin = "http://localhost:4200" #allowed origin, wildcards forbidden!
+use_kafka = false
 
 [message_db_config] #This is your cassandra db
 db_url = "localhost:9042"
@@ -50,6 +51,15 @@ db_name = "postgres"
 [token_issuer]
 iss_host = "http://localhost:8180/" #Keycloak Root URL
 iss_realm = "my-realm" #Keycloak Realm
+
+[kafka_config]
+bootstrap_host = "localhost"
+bootstrap_port = 19192
+topic = "user-notification-events"
+client_id = "ism-1"
+partition = [0]
+consumer_group = "ism"
+
 ```
 An example Docker Compose:
 

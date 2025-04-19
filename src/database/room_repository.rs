@@ -50,10 +50,11 @@ pub trait RoomRepository {
     async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
+    async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error>;
     async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
     async fn update_last_room_message(&self, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error>;
     async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
-    async fn remove_user_from_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
+    async fn remove_user_from_room(&self, room_id: &Uuid,  user: &User) -> Result<(), sqlx::Error>;
 }
 
 
@@ -66,7 +67,6 @@ impl RoomRepository for RoomDatabaseClient {
             SELECT users.id,
                    users.display_name,
                    users.profile_picture,
-                   participants.room_id,
                    participants.joined_at,
                    participants.last_message_read_at,
                    participants.participant_state AS "membership_status: MembershipStatus"
@@ -84,7 +84,6 @@ impl RoomRepository for RoomDatabaseClient {
                 users.id,
                 users.display_name,
                 users.profile_picture,
-                participants.room_id,
                 participants.joined_at,
                 participants.last_message_read_at,
                 participants.participant_state AS "membership_status: MembershipStatus"
@@ -121,7 +120,7 @@ impl RoomRepository for RoomDatabaseClient {
             JOIN chat_room AS room ON participants.room_id = room.id
             LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
             LEFT JOIN app_user u ON u.id = crp.user_id
-            WHERE participants.user_id = $1
+            WHERE participants.user_id = $1 AND participants.participant_state = 'Joined'
             "#,
             user_id
         ).fetch_all(&self.pool).await?;
@@ -154,7 +153,7 @@ impl RoomRepository for RoomDatabaseClient {
             JOIN chat_room AS room ON participants.room_id = room.id
             LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
             LEFT JOIN app_user u ON u.id = crp.user_id
-            WHERE participants.user_id = $1 AND room.id = $2
+            WHERE participants.user_id = $1 AND room.id = $2 AND participants.participant_state = 'Joined'
             "#,
             user_id,
             room_id
@@ -222,10 +221,34 @@ impl RoomRepository for RoomDatabaseClient {
             SELECT EXISTS(
                 SELECT 1
                 FROM chat_room_participant
-                WHERE user_id = $1 AND room_id = $2
-                )
+                WHERE user_id = $1 AND room_id = $2 AND participant_state = 'Joined'
+            )
         "#, user_id, room_id).fetch_one(&self.pool).await?;
         Ok(exists.unwrap_or(false))
+    }
+
+    async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!("INSERT INTO chat_room_participant (user_id, room_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, room_id) DO UPDATE SET joined_at = $3, participant_state = 'Joined'",
+            user_id, room_id, Utc::now()).execute(&mut *tx).await?;
+
+       let user = sqlx::query_as!(User,
+           r#"
+            SELECT
+                users.id,
+                users.display_name,
+                users.profile_picture,
+                participants.joined_at,
+                participants.last_message_read_at,
+                participants.participant_state AS "membership_status: MembershipStatus"
+            FROM chat_room_participant AS participants
+            JOIN app_user AS users ON participants.user_id = users.id
+            WHERE participants.user_id = $1 AND participants.room_id = $2
+            "#, user_id, room_id).fetch_one(&mut *tx).await?;
+        let text = format!("{}{}", user.display_name, String::from(" ist in den Chat eingetreten.")); //todo: think about a better latest msg logic
+        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(user)
     }
 
     async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
@@ -250,8 +273,12 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(())
     }
 
-    async fn remove_user_from_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&self.pool).await?;
+    async fn remove_user_from_room(&self, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *tx).await?;
+        let text = format!("{}{}", user.display_name, String::from(" ist in den Chat eingetreten.")); //todo: think about a better latest msg logic
+        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
+        tx.commit().await?;
         Ok(())
     }
 

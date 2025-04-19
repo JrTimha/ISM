@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse};
+use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
 use log::{error};
+use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
-use crate::api::timeline::msg_to_dto;
+use crate::api::timeline::{msg_to_dto};
 use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom, RoomType, SystemBody};
@@ -119,7 +120,7 @@ pub async fn create_room(
     };
 
     let mut users = payload.invited_users.clone();
-    users.retain(|&user| user != id); //don't send to the creator, he will get it from the http response
+    users.retain(|&user| user != id); //don't send it to the creator, he will get it from the http response
 
     if room_entity.room_type == RoomType::Single {
         let other_user = match users.first() {
@@ -204,28 +205,31 @@ pub async fn leave_room(
     let id = parse_uuid(&token.subject).unwrap();
     let res = tokio::try_join!( //executing 2 queries async
         state.room_repository.select_room(&room_id),
-        state.room_repository.select_all_user_in_room(&room_id)
+        state.room_repository.select_joined_user_in_room(&room_id)
     );
-    
+
     match res {
         Ok((room, users)) => {
             let mut leaving_user = match users.iter().find(|user| user.id == id) {
-              Some(user) => {user.clone()} 
+              Some(user) => {user.clone()}
               None => {
                   return HttpError::bad_request("User not found in this room.").into_response();
               }
             };
-            if let Err(err) = state.room_repository.remove_user_from_room(&room_id, &leaving_user.id).await {
+            if let Err(err) = state.room_repository.remove_user_from_room(&room_id, &leaving_user).await {
                 error!("{}", err.to_string());
-                return HttpError::bad_request("Unable to change room membership state in db.").into_response();           
+                return HttpError::bad_request("Unable to change room membership state in db.").into_response();
             }
             leaving_user.membership_status = MembershipStatus::Left;
-            
+
             let body_json = match serde_json::to_string(&SystemBody::UserLeft { related_user: leaving_user.clone() }) {
                 Ok(json) => json,
-                Err(_) => return StatusCode::BAD_REQUEST.into_response()           
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Can't serialize message").into_response()
+                }
             };
-            
+
             let message = Message {
                 chat_room_id: room.id,
                 message_id: Uuid::new_v4(),
@@ -234,39 +238,99 @@ pub async fn leave_room(
                 msg_type: MsgType::System.to_string(),
                 created_at: Utc::now(),
             };
-            if let Err(err) = state.message_repository.insert_data(message.clone()).await {
-                error!("{}", err.to_string());
-                return HttpError::bad_request("Unable to persist the message.").into_response();           
-            };
-            
-            let mapped_msg = match msg_to_dto(message) {
-                Ok(msg) => msg,
-                Err(err) => {
-                    return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
-                }
-            };
-            
-            let json = match serde_json::to_value(&mapped_msg) {
-                Ok(json) => json,
-                Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
-            };
-
-
-            let note = Notification {
-                notification_event: NotificationEvent::RoomChangeEvent,
-                body: json,
-                created_at: mapped_msg.created_at,
-                display_value: None
-            };
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-            
-            BroadcastChannel::get().send_event_to_all(send_to, note).await;
-            StatusCode::OK.into_response()
+            save_message_and_broadcast(message, &state, send_to).await
         }
         Err(error) => {
             error!("{}", error.to_string());
             HttpError::bad_request("Can't get room & user state.").into_response()
         }
     }
+
+}
+
+
+pub async fn invite_to_room(
+    Extension(token): Extension<KeycloakToken<String>>,
+    State(state): State<Arc<AppState>>,
+    Path(room_id): Path<Uuid>,
+    Path(user_id): Path<Uuid>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
     
+    match state.room_repository.select_joined_user_in_room(&room_id).await {
+        Ok(mut users) => {
+            let user_to_find = users.iter().find(|user| user.id == id);
+            let user_to_exclude = users.iter().find(|user| user.id == user_id);
+
+            match (user_to_find, user_to_exclude) {
+                (Some(_inviter), None) => {} //we have checked the invite rules and continue
+                _ => {
+                    return HttpError::bad_request("User conditions not met in this room.").into_response();
+                }
+            }
+            
+            let user = match state.room_repository.add_user_to_room(&room_id, &user_id).await {
+                Ok(user) => user,
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Unable to change room membership state in db.").into_response();
+                }
+            };
+            users.push(user.clone());
+
+            let body_json = match serde_json::to_string(&SystemBody::UserJoined { related_user: user.clone() }) {
+                Ok(json) => json,
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Can't serialize message").into_response()
+                } 
+            };
+            let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
+
+            let message = Message {
+                chat_room_id: room_id,
+                message_id: Uuid::new_v4(),
+                sender_id: user.id,
+                msg_body: body_json,
+                msg_type: MsgType::System.to_string(),
+                created_at: Utc::now(),
+            };
+
+            save_message_and_broadcast(message, &state, send_to).await
+        }
+        Err(error) => {
+            error!("{}", error.to_string());
+            HttpError::bad_request("Can't get room & user state.").into_response()
+        }
+    }
+}
+
+async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>) -> Response {
+    if let Err(err) = state.message_repository.insert_data(message.clone()).await {
+        error!("{}", err.to_string());
+        return HttpError::bad_request("Unable to persist the message.").into_response();
+    };
+
+    let mapped_msg = match msg_to_dto(message) {
+        Ok(msg) => msg,
+        Err(err) => {
+            return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
+        }
+    };
+
+    let json = match serde_json::to_value(&mapped_msg) {
+        Ok(json) => json,
+        Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
+    };
+    
+    let note = Notification {
+        notification_event: NotificationEvent::RoomChangeEvent,
+        body: json,
+        created_at: mapped_msg.created_at,
+        display_value: None
+    };
+
+    BroadcastChannel::get().send_event_to_all(to_users, note).await;
+    StatusCode::OK.into_response()
 }

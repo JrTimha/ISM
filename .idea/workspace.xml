@@ -11,13 +11,8 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="sqlx update">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/errors.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations.">
       <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/user.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/user.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -295,15 +290,7 @@
       <workItem from="1744841633841" duration="362000" />
       <workItem from="1744852938487" duration="1045000" />
       <workItem from="1744900529015" duration="3263000" />
-      <workItem from="1745060613877" duration="19953000" />
-    </task>
-    <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
-      <option name="closed" value="true" />
-      <created>1736106078149</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1736106078149</updated>
+      <workItem from="1745060613877" duration="20722000" />
     </task>
     <task id="LOCAL-00002" summary="new endpoints">
       <option name="closed" value="true" />
@@ -689,7 +676,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745076518007</updated>
     </task>
-    <option name="localTasksCounter" value="50" />
+    <task id="LOCAL-00050" summary="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations.">
+      <option name="closed" value="true" />
+      <created>1745089011569</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1745089011569</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -710,7 +705,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="notify body as json" />
     <MESSAGE value="Timeline Query with timestamp" />
     <MESSAGE value="Room read support, room list dto endpoint with more details" />
     <MESSAGE value="Room read fix, room set read on send message" />
@@ -735,7 +729,8 @@
     <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
     <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
     <MESSAGE value="sqlx update" />
-    <option name="LAST_COMMIT_MESSAGE" value="sqlx update" />
+    <MESSAGE value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

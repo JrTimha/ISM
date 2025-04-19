@@ -5,7 +5,6 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
 use log::{error};
-use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
 use crate::api::timeline::{msg_to_dto};
@@ -257,7 +256,7 @@ pub async fn invite_to_room(
     Path(user_id): Path<Uuid>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    
+
     match state.room_repository.select_joined_user_in_room(&room_id).await {
         Ok(mut users) => {
             let user_to_find = users.iter().find(|user| user.id == id);
@@ -269,7 +268,7 @@ pub async fn invite_to_room(
                     return HttpError::bad_request("User conditions not met in this room.").into_response();
                 }
             }
-            
+
             let user = match state.room_repository.add_user_to_room(&room_id, &user_id).await {
                 Ok(user) => user,
                 Err(err) => {
@@ -277,17 +276,38 @@ pub async fn invite_to_room(
                     return HttpError::bad_request("Unable to change room membership state in db.").into_response();
                 }
             };
-            users.push(user.clone());
 
             let body_json = match serde_json::to_string(&SystemBody::UserJoined { related_user: user.clone() }) {
                 Ok(json) => json,
                 Err(err) => {
                     error!("{}", err.to_string());
                     return HttpError::bad_request("Can't serialize message").into_response()
-                } 
+                }
             };
+            
+            //sending new room event to invited user
+            let room_for_user = match state.room_repository.find_specific_joined_room(&room_id, &user_id).await {
+                Ok(Some(room)) => room,
+                Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Room not found after creation.").into_response()
+                }
+            };
+            let json = match serde_json::to_value(&room_for_user) {
+                Ok(json) => json,
+                Err(_) => return StatusCode::BAD_REQUEST.into_response()
+            };
+            let note = Notification {
+                notification_event: NotificationEvent::NewRoom,
+                body: json,
+                created_at: Utc::now(),
+                display_value: None
+            };
+            BroadcastChannel::get().send_event(note, &user.id).await;
+            
+            //sending room change event to all previous users in the room
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-
             let message = Message {
                 chat_room_id: room_id,
                 message_id: Uuid::new_v4(),
@@ -323,7 +343,7 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
         Ok(json) => json,
         Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
     };
-    
+
     let note = Notification {
         notification_event: NotificationEvent::RoomChangeEvent,
         body: json,

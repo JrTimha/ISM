@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                users.id,\n                users.display_name,\n                users.profile_picture,\n                participants.room_id,\n                participants.joined_at,\n                participants.last_message_read_at,\n                participants.participant_state AS \"membership_status: MembershipStatus\"\n            FROM chat_room_participant AS participants\n            JOIN app_user AS users ON participants.user_id = users.id\n            WHERE participants.room_id = $1 AND participants.participant_state = 'Joined'\n            ",
+  "query": "\n            SELECT users.id,\n                   users.display_name,\n                   users.profile_picture,\n                   participants.joined_at,\n                   participants.last_message_read_at,\n                   participants.participant_state AS \"membership_status: MembershipStatus\"\n            FROM chat_room_participant AS participants\n            JOIN app_user AS users ON participants.user_id = users.id\n            WHERE participants.room_id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,16 @@
       },
       {
         "ordinal": 3,
-        "name": "room_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 4,
         "name": "joined_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "last_message_read_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "membership_status: MembershipStatus",
         "type_info": "Varchar"
       }
@@ -49,10 +44,9 @@
       false,
       true,
       false,
-      false,
       true,
       false
     ]
   },
-  "hash": "e899f3534f1f4f32a22bc37cb7d334c66356c35ead7f656cc57da28a59ebd629"
+  "hash": "21626f8b85b018fe7982b1628fdf0d9b5cec1b0fc8a3aaed7c40b190c8bccb8d"
 }

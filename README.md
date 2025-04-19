@@ -76,5 +76,7 @@ An example Docker Compose:
 ```
 
 
+## Development:
 
+Compiling the project: You need to execute 'cargo sqlx prepare' if you changed sql queries and to be able to compile the project on your own!
 

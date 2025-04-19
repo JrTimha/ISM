@@ -18,7 +18,8 @@ pub enum NotificationEvent {
     FriendRequestAccepted,
     ChatMessage,
     SystemMessage,
-    NewRoom
+    NewRoom,
+    RoomChangeEvent
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

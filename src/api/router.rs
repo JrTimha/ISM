@@ -10,7 +10,7 @@ use tower::ServiceBuilder;
 use url::Url;
 use crate::api::messages::send_message;
 use crate::api::notifications::{add_notification, poll_for_new_notifications, stream_server_events};
-use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, mark_room_as_read};
+use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, leave_room, mark_room_as_read};
 use crate::api::timeline::scroll_chat_timeline;
 use crate::core::{AppState, TokenIssuer};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
@@ -44,6 +44,7 @@ pub async fn init_router(app_state: AppState) -> Router {
         .route("/api/rooms/{room_id}/timeline", get(scroll_chat_timeline))
         .route("/api/rooms/{room_id}/mark-read", post(mark_room_as_read))
         .route("/api/rooms/{room_id}", get(get_room_list_item_by_id))
+        .route("/api/rooms/{room_id}/leave", post(leave_room))
         .route("/api/rooms", get(get_joined_rooms))
 
         //layering bottom to top middleware

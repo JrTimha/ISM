@@ -98,6 +98,7 @@ impl BroadcastChannel {
             }
         }
     }
+    
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
         let mut lock = self.channel.write().await;

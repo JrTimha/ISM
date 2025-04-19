@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use crate::model::User;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum MsgType {
@@ -82,12 +83,13 @@ pub enum RepliedMessageDetails {
 
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SystemBody {
-    pub message: String,
-    pub system_msg_type: String,
-    pub linked_to_user: Option<Uuid>
+#[serde(tag = "type")]
+pub enum SystemBody {
+    UserJoined {related_user: User},
+    UserLeft {related_user: User},
+    UserInvited {related_user: User}
 }
+
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

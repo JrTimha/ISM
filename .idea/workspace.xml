@@ -11,10 +11,17 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="support for reply messages implemented">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="readme change">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/keycloak/action.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/keycloak/action.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/message.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/message.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/room.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/room.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/user.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/user.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -97,6 +104,7 @@
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Tim\IdeaProjects\ISM\assets" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\model" />
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
@@ -290,7 +298,8 @@
       <workItem from="1744841343942" duration="278000" />
       <workItem from="1744841633841" duration="362000" />
       <workItem from="1744852938487" duration="1045000" />
-      <workItem from="1744900529015" duration="695000" />
+      <workItem from="1744900529015" duration="3263000" />
+      <workItem from="1745060613877" duration="10081000" />
     </task>
     <task id="LOCAL-00001" summary="Creation of ISM, the instant messaging microservice for SaaS">
       <option name="closed" value="true" />
@@ -652,7 +661,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744841502718</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="readme change">
+      <option name="closed" value="true" />
+      <created>1744902298496</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1744902298496</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -673,7 +690,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="fix cors options behind auth" />
     <MESSAGE value="Improving data modelling" />
     <MESSAGE value="implemented room creation" />
     <MESSAGE value="new endpoints implemented" />
@@ -698,7 +714,8 @@
     <MESSAGE value="added support for new message types: reply, text, media, system" />
     <MESSAGE value="fix serde bug with msg type media" />
     <MESSAGE value="support for reply messages implemented" />
-    <option name="LAST_COMMIT_MESSAGE" value="support for reply messages implemented" />
+    <MESSAGE value="readme change" />
+    <option name="LAST_COMMIT_MESSAGE" value="readme change" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

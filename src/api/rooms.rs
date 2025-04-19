@@ -7,9 +7,10 @@ use chrono::{Utc};
 use log::{error};
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
+use crate::api::timeline::msg_to_dto;
 use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomDTO, NewRoom, RoomType};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom, RoomType, SystemBody, User};
 use crate::api::utils::{check_user_in_room, parse_uuid};
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;
@@ -53,10 +54,11 @@ pub async fn get_room_with_details(
 
     match res {
         Ok((room, user)) => {
-            let room_details = ChatRoomDTO {
+            let room_details = ChatRoomWithUserDTO {
                 id: room.id,
                 room_type: room.room_type,
                 room_name: room.room_name,
+                room_image_url: room.room_image_url,
                 created_at: room.created_at,
                 users: user,
             };
@@ -192,4 +194,79 @@ pub async fn get_room_list_item_by_id(
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
+}
+
+pub async fn leave_room(
+    Extension(token): Extension<KeycloakToken<String>>,
+    State(state): State<Arc<AppState>>,
+    Path(room_id): Path<Uuid>
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    let res = tokio::try_join!( //executing 2 queries async
+        state.room_repository.select_room(&room_id),
+        state.room_repository.select_all_user_in_room(&room_id)
+    );
+    
+    match res {
+        Ok((room, users)) => {
+            let mut leaving_user = match users.iter().find(|user| user.id == id) {
+              Some(user) => {user.clone()} 
+              None => {
+                  return HttpError::bad_request("User not found in this room.").into_response();
+              }
+            };
+            if let Err(err) = state.room_repository.remove_user_from_room(&room_id, &leaving_user.id).await {
+                error!("{}", err.to_string());
+                return HttpError::bad_request("Unable to change room membership state in db.").into_response();           
+            }
+            leaving_user.membership_status = MembershipStatus::Left;
+            
+            let body_json = match serde_json::to_string(&SystemBody::UserLeft { related_user: leaving_user.clone() }) {
+                Ok(json) => json,
+                Err(_) => return StatusCode::BAD_REQUEST.into_response()           
+            };
+            
+            let message = Message {
+                chat_room_id: room.id,
+                message_id: Uuid::new_v4(),
+                sender_id: leaving_user.id,
+                msg_body: body_json,
+                msg_type: MsgType::System.to_string(),
+                created_at: Utc::now(),
+            };
+            if let Err(err) = state.message_repository.insert_data(message.clone()).await {
+                error!("{}", err.to_string());
+                return HttpError::bad_request("Unable to persist the message.").into_response();           
+            };
+            
+            let mapped_msg = match msg_to_dto(message) {
+                Ok(msg) => msg,
+                Err(err) => {
+                    return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
+                }
+            };
+            
+            let json = match serde_json::to_value(&mapped_msg) {
+                Ok(json) => json,
+                Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
+            };
+
+
+            let note = Notification {
+                notification_event: NotificationEvent::RoomChangeEvent,
+                body: json,
+                created_at: mapped_msg.created_at,
+                display_value: None
+            };
+            let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
+            
+            BroadcastChannel::get().send_event_to_all(send_to, note).await;
+            StatusCode::OK.into_response()
+        }
+        Err(error) => {
+            error!("{}", error.to_string());
+            HttpError::bad_request("Can't get room & user state.").into_response()
+        }
+    }
+    
 }

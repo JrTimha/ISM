@@ -2,7 +2,9 @@
 
 **ISM (Instant SaaS Messenger)** is a high-performance, scalable messaging solution specifically designed for SaaS backends. Written in Rust, it leverages Tokio and Axum to provide an asynchronous, stable, and efficient infrastructure.
 
+I am using ISM as my social backend in my own app, here you see an example video with ISM in action:
 
+https://github.com/user-attachments/assets/e02c1ef1-c29d-438d-b77d-3346945ae74d
 
 
 ## Supported Features

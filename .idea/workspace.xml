@@ -11,16 +11,10 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="sqlx updates">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/notifications.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/model/message.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/message.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/room.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/room.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -299,15 +293,7 @@
       <workItem from="1744852938487" duration="1045000" />
       <workItem from="1744900529015" duration="3263000" />
       <workItem from="1745060613877" duration="21676000" />
-      <workItem from="1745253645110" duration="9260000" />
-    </task>
-    <task id="LOCAL-00004" summary="prod/dev mode">
-      <option name="closed" value="true" />
-      <created>1736122773491</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1736122773491</updated>
+      <workItem from="1745253645110" duration="12330000" />
     </task>
     <task id="LOCAL-00005" summary="added database layer for scyllaDB and CassandraDB">
       <option name="closed" value="true" />
@@ -693,7 +679,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745090593856</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services.">
+      <option name="closed" value="true" />
+      <created>1745263984834</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1745263984834</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -714,7 +708,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Room read fix, room set read on send message" />
     <MESSAGE value="rename refactor" />
     <MESSAGE value="Entity updates" />
     <MESSAGE value="Implementation of a custom notification endpoint" />
@@ -739,7 +732,8 @@
     <MESSAGE value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
     <MESSAGE value="changing room invite broadcasting" />
     <MESSAGE value="sqlx updates" />
-    <option name="LAST_COMMIT_MESSAGE" value="sqlx updates" />
+    <MESSAGE value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
+    <option name="LAST_COMMIT_MESSAGE" value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

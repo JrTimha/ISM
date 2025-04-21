@@ -43,9 +43,21 @@ pub struct MessageDTO {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum MessageBody {
+    /**
+    * This is the most common message type, just a text message.
+    */
     Text(TextBody),
+    /**
+    * For linking urls to images, videos or other media.
+    */
     Media(MediaBody),
+    /**
+    * Replying to a message, alle message types supported.
+    */
     Reply(ReplyBody),
+    /**
+    * For room events like user joining or leaving.
+    */
     System(SystemBody)
 }
 

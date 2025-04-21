@@ -135,17 +135,17 @@ pub async fn create_room(
         match res {
             Ok((room_creator, room_participator)) => {
                 if let (Some(creator_dto), Some(participator_dto)) = (room_creator, room_participator) {
-                    
+
                     BroadcastChannel::get().send_event(Notification {
                         body: NewRoom{room: participator_dto},
                         created_at: Utc::now()
                     }, other_user).await;
-                    
+
                     BroadcastChannel::get().send_event(Notification {
                         body: NewRoom {room: creator_dto},
                         created_at: Utc::now()
                     }, &id).await;
-                    
+
                     StatusCode::CREATED.into_response()
                 } else {
                     HttpError::bad_request("Room for participator is null.").into_response()
@@ -237,15 +237,15 @@ pub async fn leave_room(
             };
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
             save_message_and_broadcast(message, &state, send_to).await;
-            
+
             BroadcastChannel::get().send_event(
                 Notification {
                     body: LeaveRoom {room_id: room.id},
                     created_at: Utc::now()
-                }, 
+                },
                 &leaving_user.id
             ).await;
-            
+
             StatusCode::OK.into_response()
         }
         Err(error) => {
@@ -260,11 +260,10 @@ pub async fn leave_room(
 pub async fn invite_to_room(
     Extension(token): Extension<KeycloakToken<String>>,
     State(state): State<Arc<AppState>>,
-    Path(room_id): Path<Uuid>,
-    Path(user_id): Path<Uuid>
+    Path((room_id, user_id)): Path<(Uuid, Uuid)>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-
+    
     match state.room_repository.select_joined_user_in_room(&room_id).await {
         Ok(users) => {
             let user_to_find = users.iter().find(|user| user.id == id);
@@ -275,9 +274,9 @@ pub async fn invite_to_room(
                 _ => {
                     return HttpError::bad_request("User conditions not met in this room.").into_response();
                 }
-            }
-
-            let user = match state.room_repository.add_user_to_room(&room_id, &user_id).await {
+            };
+           
+            let user = match state.room_repository.add_user_to_room(&user_id, &room_id).await {
                 Ok(user) => user,
                 Err(err) => {
                     error!("{}", err.to_string());
@@ -292,7 +291,7 @@ pub async fn invite_to_room(
                     return HttpError::bad_request("Can't serialize message").into_response()
                 }
             };
-            
+
             //sending room change event to all previous users in the room
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
             let message = Message {
@@ -304,7 +303,7 @@ pub async fn invite_to_room(
                 created_at: Utc::now(),
             };
             save_message_and_broadcast(message, &state, send_to).await;
-            
+
             //sending new room event to invited user
             let room_for_user = match state.room_repository.find_specific_joined_room(&room_id, &user_id).await {
                 Ok(Some(room)) => room,

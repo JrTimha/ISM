@@ -10,11 +10,11 @@ https://github.com/user-attachments/assets/e02c1ef1-c29d-438d-b77d-3346945ae74d
 ## Supported Features
 
 - **Scalability**: Handles millions of simultaneous connections using the asynchronous Tokio runtime.
-- **Secure Communication**: Includes TLS support and JWT-based authentication.
+- **OAUTH2 & OIDC**: Supports JWT-based authentication with IDPs (only Keycloak tested!).
 - **Easy Integration**: Seamlessly integrates with existing SaaS architectures.
-- **Modularity**: Easily extensible system with a clear modular architecture.
 - **Realtime Notification Support**: Real-time message delivery with minimal latency achieved with Server-Sent-Events (SSE).
 - **Persistent Storage**:Persists users and chat rooms in a relational db and room messages to a NoSQL databases.
+- **Custom Notifications**: Sending custom notifications (JSONs) with Kafka or Webhook to your users
 
 ## Supported Database
 - **ScyllaDB**: Saving all your messages in your ScyllaDB Cluster
@@ -78,5 +78,5 @@ An example Docker Compose:
 
 ## Development:
 
-Compiling the project: You need to execute 'cargo sqlx prepare' if you changed sql queries and to be able to compile the project on your own!
+Compiling the project: You need to execute 'cargo sqlx prepare' if you have changed sql queries and to be able to compile the project on your own!
 

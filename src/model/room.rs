@@ -4,8 +4,7 @@ use sqlx::Type;
 use uuid::Uuid;
 use crate::model::user::User;
 
-#[derive(Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(sqlx::FromRow, sqlx::Type, Debug)]
 pub struct ChatRoomEntity {
     pub id: Uuid,
     pub room_type: RoomType,

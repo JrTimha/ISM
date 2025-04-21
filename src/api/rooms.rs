@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
@@ -10,9 +10,10 @@ use crate::api::errors::{HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom, RoomType, SystemBody};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MsgType, NewRoom as UploadRoom, RoomType, SystemBody};
 use crate::api::utils::{check_user_in_room, parse_uuid};
-use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
+use crate::broadcast::{BroadcastChannel, Notification};
+use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
 use crate::core::AppState;
 
 
@@ -89,7 +90,7 @@ pub async fn mark_room_as_read(
 pub async fn create_room(
     Extension(token): Extension<KeycloakToken<String>>,
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<NewRoom>
+    Json(payload): Json<UploadRoom>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
 
@@ -134,18 +135,18 @@ pub async fn create_room(
         match res {
             Ok((room_creator, room_participator)) => {
                 if let (Some(creator_dto), Some(participator_dto)) = (room_creator, room_participator) {
-                    let json = match serde_json::to_value(&participator_dto) {
-                        Ok(json) => json,
-                        Err(_) => return StatusCode::BAD_REQUEST.into_response()
-                    };
-                    let note = Notification {
-                        notification_event: NotificationEvent::NewRoom,
-                        body: json,
-                        created_at: Utc::now(),
-                        display_value: None
-                    };
-                    BroadcastChannel::get().send_event(note, other_user).await;
-                    Json(creator_dto).into_response()
+                    
+                    BroadcastChannel::get().send_event(Notification {
+                        body: NewRoom{room: participator_dto},
+                        created_at: Utc::now()
+                    }, other_user).await;
+                    
+                    BroadcastChannel::get().send_event(Notification {
+                        body: NewRoom {room: creator_dto},
+                        created_at: Utc::now()
+                    }, &id).await;
+                    
+                    StatusCode::CREATED.into_response()
                 } else {
                     HttpError::bad_request("Room for participator is null.").into_response()
                 }
@@ -167,17 +168,13 @@ pub async fn create_room(
             }
         };
 
-        let json = match serde_json::to_value(&room) {
-            Ok(json) => json,
-            Err(_) => return StatusCode::BAD_REQUEST.into_response()
-        };
-        let note = Notification {
-            notification_event: NotificationEvent::NewRoom,
-            body: json,
-            created_at: Utc::now(),
-            display_value: None
-        };
-        BroadcastChannel::get().send_event_to_all(users, note).await;
+        BroadcastChannel::get().send_event_to_all(
+            users,
+            Notification {
+                body: NewRoom{room: room.clone()},
+                created_at: Utc::now()
+            }
+        ).await;
         Json(room).into_response()
     }
 }
@@ -195,6 +192,7 @@ pub async fn get_room_list_item_by_id(
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
     }
 }
+
 
 pub async fn leave_room(
     Extension(token): Extension<KeycloakToken<String>>,
@@ -238,7 +236,17 @@ pub async fn leave_room(
                 created_at: Utc::now(),
             };
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-            save_message_and_broadcast(message, &state, send_to).await
+            save_message_and_broadcast(message, &state, send_to).await;
+            
+            BroadcastChannel::get().send_event(
+                Notification {
+                    body: LeaveRoom {room_id: room.id},
+                    created_at: Utc::now()
+                }, 
+                &leaving_user.id
+            ).await;
+            
+            StatusCode::OK.into_response()
         }
         Err(error) => {
             error!("{}", error.to_string());
@@ -258,7 +266,7 @@ pub async fn invite_to_room(
     let id = parse_uuid(&token.subject).unwrap();
 
     match state.room_repository.select_joined_user_in_room(&room_id).await {
-        Ok(mut users) => {
+        Ok(users) => {
             let user_to_find = users.iter().find(|user| user.id == id);
             let user_to_exclude = users.iter().find(|user| user.id == user_id);
 
@@ -285,27 +293,6 @@ pub async fn invite_to_room(
                 }
             };
             
-            //sending new room event to invited user
-            let room_for_user = match state.room_repository.find_specific_joined_room(&room_id, &user_id).await {
-                Ok(Some(room)) => room,
-                Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
-                Err(err) => {
-                    error!("{}", err.to_string());
-                    return HttpError::bad_request("Room not found after creation.").into_response()
-                }
-            };
-            let json = match serde_json::to_value(&room_for_user) {
-                Ok(json) => json,
-                Err(_) => return StatusCode::BAD_REQUEST.into_response()
-            };
-            let note = Notification {
-                notification_event: NotificationEvent::NewRoom,
-                body: json,
-                created_at: Utc::now(),
-                display_value: None
-            };
-            BroadcastChannel::get().send_event(note, &user.id).await;
-            
             //sending room change event to all previous users in the room
             let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
             let message = Message {
@@ -316,8 +303,24 @@ pub async fn invite_to_room(
                 msg_type: MsgType::System.to_string(),
                 created_at: Utc::now(),
             };
+            save_message_and_broadcast(message, &state, send_to).await;
+            
+            //sending new room event to invited user
+            let room_for_user = match state.room_repository.find_specific_joined_room(&room_id, &user_id).await {
+                Ok(Some(room)) => room,
+                Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
+                Err(err) => {
+                    error!("{}", err.to_string());
+                    return HttpError::bad_request("Room not found after creation.").into_response()
+                }
+            };
 
-            save_message_and_broadcast(message, &state, send_to).await
+            let note = Notification {
+                body: NewRoom{room: room_for_user},
+                created_at: Utc::now()
+            };
+            BroadcastChannel::get().send_event(note, &user.id).await;
+            StatusCode::OK.into_response()
         }
         Err(error) => {
             error!("{}", error.to_string());
@@ -338,19 +341,10 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
             return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
         }
     };
-
-    let json = match serde_json::to_value(&mapped_msg) {
-        Ok(json) => json,
-        Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
-    };
-
     let note = Notification {
-        notification_event: NotificationEvent::RoomChangeEvent,
-        body: json,
-        created_at: mapped_msg.created_at,
-        display_value: None
+        body: RoomChangeEvent{message: mapped_msg},
+        created_at: Utc::now()
     };
-
     BroadcastChannel::get().send_event_to_all(to_users, note).await;
     StatusCode::OK.into_response()
 }

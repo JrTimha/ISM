@@ -11,7 +11,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use crate::api::errors::HttpError;
 use crate::api::utils::parse_uuid;
-use crate::broadcast::{BroadcastChannel, NewNotification, Notification};
+use crate::broadcast::{BroadcastChannel, SendNotification};
 use crate::core::AppState;
 use crate::keycloak::decode::KeycloakToken;
 
@@ -54,7 +54,7 @@ pub async fn poll_for_new_notifications() -> impl IntoResponse {
 pub async fn add_notification(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-    Json(payload): Json<NewNotification>,
+    Json(payload): Json<SendNotification>,
 ) -> impl IntoResponse {
 
     let client = match state.env.token_issuer.valid_admin_client.clone() {
@@ -67,13 +67,7 @@ pub async fn add_notification(
     if token.authorized_party != client {
         return HttpError::unauthorized("This client is not allowed to add a notification!").into_response()
     }
-
-    let notification = Notification {
-        notification_event: payload.event_type,
-        body: payload.body,
-        created_at: payload.created_at,
-        display_value: None
-    };
-    BroadcastChannel::get().send_event(notification, &payload.to_user).await;
+    
+    BroadcastChannel::get().send_event(payload.body, &payload.to_user).await;
     StatusCode::OK.into_response()
 }

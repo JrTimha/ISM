@@ -3,7 +3,7 @@ use std::time::Duration;
 use samsa::prelude::{BrokerAddress, ConsumeMessage, ConsumerGroup, ConsumerGroupBuilder, TcpConnection, TopicPartitionsBuilder};
 use log::{debug, error};
 use tokio_stream::StreamExt;
-use crate::broadcast::{BroadcastChannel, NewNotification, Notification};
+use crate::broadcast::{BroadcastChannel, SendNotification};
 use crate::core::KafkaConfig;
 
 
@@ -52,15 +52,9 @@ pub async fn start_consumer(config: KafkaConfig) {
 }
 
 async fn process_message_entry(entry: ConsumeMessage, broadcast: &Arc<BroadcastChannel>) {
-    match serde_json::from_slice::<NewNotification>(&entry.value.to_vec()) {
+    match serde_json::from_slice::<SendNotification>(&entry.value.to_vec()) {
         Ok(value) => {
-            let notification = Notification {
-                notification_event: value.event_type,
-                body: value.body,
-                created_at: value.created_at,
-                display_value: None
-            };
-            broadcast.send_event(notification, &value.to_user).await;
+            broadcast.send_event(value.body, &value.to_user).await;
             debug!("Sent event, offset: {}", entry.offset);
         },
         Err(err) => {

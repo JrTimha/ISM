@@ -21,12 +21,14 @@ pub struct Message {
     pub chat_room_id: Uuid,
     pub message_id: Uuid,
     pub sender_id: Uuid,
+    //it is a json string in scyllaDb, because the rust client can't handle json to struct at the moment
     pub msg_body: String,
+    //the rust client from scylla can't handle enums at the moment, so we have to use a string and map it to the enum later
     pub msg_type: String,
     pub created_at: DateTime<Utc>
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageDTO {
     pub chat_room_id: Uuid,

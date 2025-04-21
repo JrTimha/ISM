@@ -1,32 +1,59 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use crate::model::{ChatRoomListItemDTO, MessageDTO};
 
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Notification {
-    pub notification_event: NotificationEvent,
-    pub body: serde_json::Value, //json
-    pub created_at: DateTime<Utc>,
-    pub display_value: Option<String>
+    #[serde(flatten)]
+    pub body: NotificationEvent,
+    pub created_at: DateTime<Utc>
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
 pub enum NotificationEvent {
-    FriendRequestReceived,
-    FriendRequestAccepted,
-    ChatMessage,
-    SystemMessage,
-    NewRoom,
-    RoomChangeEvent
+    
+    #[serde(rename_all = "camelCase")]
+    FriendRequestReceived {from_user: serde_json::Value},
+
+    #[serde(rename_all = "camelCase")]
+    FriendRequestAccepted {from_user: serde_json::Value},
+
+    /**
+    * Different chat messages, sent to all active users in a room
+    */
+    #[serde(rename_all = "camelCase")]
+    ChatMessage {message: MessageDTO, display_value: String},
+
+    /**
+    * A system message is a message not sent by a user, but by the system, whatever you want
+    */
+    SystemMessage {message: serde_json::Value},
+    
+    /**
+    * Sending this event to a newly invited user
+    */
+    NewRoom {room: ChatRoomListItemDTO},
+
+    /**
+    * Sending this event to a user who has left a room
+    */
+    #[serde(rename_all = "camelCase")]
+    LeaveRoom {room_id: Uuid},
+
+    /**
+    * Sending this event to all users in a room where a member has left
+    */
+    RoomChangeEvent {message: MessageDTO}
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct NewNotification {
-    pub event_type: NotificationEvent,
-    pub to_user: Uuid,
-    pub body: serde_json::Value,
-    pub created_at: DateTime<Utc>,
+pub struct SendNotification {
+    #[serde(flatten)]
+    pub body: Notification,
+    pub to_user: Uuid
 }

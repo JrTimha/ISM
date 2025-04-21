@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::api::errors::HttpError;
 use crate::api::timeline::msg_to_dto;
 use crate::api::utils::parse_uuid;
-use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
+use crate::broadcast::{BroadcastChannel, Notification};
+use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
 use crate::database::RoomRepository;
 use crate::keycloak::decode::KeycloakToken;
@@ -24,7 +25,7 @@ pub async fn send_message(
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
 
-    //validate if user is in the room
+    //validate if the user is in the room
     let users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
         Ok(ids) => ids,
         Err(error) => {
@@ -89,18 +90,14 @@ pub async fn send_message(
             return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
         }
     };
-    let json = match serde_json::to_value(&mapped_msg) {
-        Ok(json) => json,
-        Err(_) => return HttpError::bad_request("Can't serialize message").into_response()
-    };
-
-    let note = Notification {
-        notification_event: NotificationEvent::ChatMessage,
-        body: json,
-        created_at: mapped_msg.created_at,
-        display_value: Option::from(displayed)
-    };
-    BroadcastChannel::get().send_event_to_all(users, note).await;
+    
+    BroadcastChannel::get().send_event_to_all(
+        users,
+        Notification {
+            body: ChatMessage {message: mapped_msg.clone(), display_value: displayed },
+            created_at: Utc::now()
+        }
+    ).await;
     (StatusCode::CREATED, Json(mapped_msg)).into_response()
 }
 

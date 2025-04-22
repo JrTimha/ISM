@@ -11,9 +11,12 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services.">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="fixing bugs in the join room logic">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/message_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/model/message.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/message.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -83,7 +86,7 @@
     &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
     &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
     &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;terminal&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.editor&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -293,15 +296,10 @@
       <workItem from="1744852938487" duration="1045000" />
       <workItem from="1744900529015" duration="3263000" />
       <workItem from="1745060613877" duration="21676000" />
-      <workItem from="1745253645110" duration="12330000" />
-    </task>
-    <task id="LOCAL-00005" summary="added database layer for scyllaDB and CassandraDB">
-      <option name="closed" value="true" />
-      <created>1736184472754</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
-      <option name="project" value="LOCAL" />
-      <updated>1736184472754</updated>
+      <workItem from="1745253645110" duration="13414000" />
+      <workItem from="1745275186977" duration="4932000" />
+      <workItem from="1745310850779" duration="10206000" />
+      <workItem from="1745356429509" duration="862000" />
     </task>
     <task id="LOCAL-00006" summary="added database repository singleton">
       <option name="closed" value="true" />
@@ -687,7 +685,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745263984834</updated>
     </task>
-    <option name="localTasksCounter" value="54" />
+    <task id="LOCAL-00054" summary="fixing bugs in the join room logic">
+      <option name="closed" value="true" />
+      <created>1745266917821</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1745266917821</updated>
+    </task>
+    <option name="localTasksCounter" value="55" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -708,7 +714,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="rename refactor" />
     <MESSAGE value="Entity updates" />
     <MESSAGE value="Implementation of a custom notification endpoint" />
     <MESSAGE value="fixed read-endpoint from get to post" />
@@ -733,7 +738,8 @@
     <MESSAGE value="changing room invite broadcasting" />
     <MESSAGE value="sqlx updates" />
     <MESSAGE value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
+    <MESSAGE value="fixing bugs in the join room logic" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixing bugs in the join room logic" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

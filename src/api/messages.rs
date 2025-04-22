@@ -38,39 +38,40 @@ pub async fn send_message(
     }
 
 
-    let body_json = match &payload.msg_body {
+    let msg_body = match payload.msg_body.clone() {
         NewMessageBody::Text(text) => {
-            serde_json::to_string(text).unwrap()
+            MessageBody::Text(text)
         }
         NewMessageBody::Media(media) => {
-            serde_json::to_string(media).unwrap()
+            MessageBody::Media(media)
         }
         NewMessageBody::Reply(reply) => {
-            let reply = match handle_reply_message(reply, &state, &payload.chat_room_id).await {
+            let reply = match handle_reply_message(&reply, &state, &payload.chat_room_id).await {
                 Ok(reply) => reply,
                 Err(err) => {
                     error!("{}", err.to_string());
                     return HttpError::bad_request("Can't handle reply message.").into_response();
                 }
             };
-            serde_json::to_string(&reply).unwrap()
+            MessageBody::Reply(reply)
         }
     };
-
-    let msg = Message {
-        chat_room_id: payload.chat_room_id,
-        message_id: Uuid::new_v4(),
-        sender_id: id,
-        msg_body: body_json,
-        msg_type: payload.msg_type.to_string(),
-        created_at: Utc::now(),
+    
+    let msg = match Message::new(payload.chat_room_id, id, msg_body) {
+        Ok(message) => message,
+        Err(err) => {
+            error!("{}", err.to_string());
+            return HttpError::bad_request("Can't serialize message.").into_response();
+        }
     };
-
-    //todo: make this a transaction:
+    
+    
     if let Err(err) = state.message_repository.insert_data(msg.clone()).await {
         error!("{}", err.to_string());
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
+    
+    //todo: make this a transaction:
     let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg.sender_id, generate_room_preview_text(&payload)).await {
         Ok(displayed) => displayed,
         Err(error) => {
@@ -84,7 +85,7 @@ pub async fn send_message(
     }
 
 
-    let mapped_msg = match msg_to_dto(msg.clone()) {
+    let mapped_msg = match msg_to_dto(msg) {
         Ok(msg) => msg,
         Err(err) => {
             return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()

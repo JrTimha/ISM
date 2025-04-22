@@ -46,6 +46,7 @@ pub trait RoomRepository {
     async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
     async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
     async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error>;
+    async fn delete_room(&self, room_id: &Uuid) -> Result<(), sqlx::Error>;
     async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error>;
     async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
     async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
@@ -125,6 +126,14 @@ impl RoomRepository for RoomDatabaseClient {
             user_id
         ).fetch_all(&self.pool).await?;
         Ok(rooms)
+    }
+    
+    async fn delete_room(&self, room_id: &Uuid) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!("DELETE FROM chat_room_participant WHERE room_id = $1", room_id).execute(&mut *tx).await?;
+        sqlx::query!("DELETE FROM chat_room WHERE id = $1",room_id).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error> {
@@ -245,7 +254,7 @@ impl RoomRepository for RoomDatabaseClient {
             JOIN app_user AS users ON participants.user_id = users.id
             WHERE participants.user_id = $1 AND participants.room_id = $2
             "#, user_id, room_id).fetch_one(&mut *tx).await?;
-        let text = format!("{}{}", user.display_name, String::from(" ist in den Chat eingetreten.")); //todo: think about a better latest msg logic
+        let text = format!("{}{}", user.display_name, String::from(" ist in dem Chat beigetreten.")); //todo: think about a better latest msg logic
         sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
         tx.commit().await?;
         Ok(user)
@@ -276,7 +285,7 @@ impl RoomRepository for RoomDatabaseClient {
     async fn remove_user_from_room(&self, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *tx).await?;
-        let text = format!("{}{}", user.display_name, String::from(" ist in den Chat eingetreten.")); //todo: think about a better latest msg logic
+        let text = format!("{}{}", user.display_name, String::from(" hat den Chat verlassen.")); //todo: think about a better latest msg logic
         sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
         tx.commit().await?;
         Ok(())

@@ -94,6 +94,12 @@ impl MessageRepository {
             }
         }
     }
+    
+    pub async fn clear_chat_room_messages(&self, room_id: &Uuid) -> Result<(), ExecutionError> {
+        let session = self.session.clone();
+        session.query_unpaged("DELETE FROM chat_messages WHERE chat_room_id = ?", (room_id,)).await?;
+        Ok(())
+    }
 
     async fn change_keyspace(&self, keyspace: &String) -> Result<(), UseKeyspaceError> {
         self.session.use_keyspace(keyspace, true).await?;

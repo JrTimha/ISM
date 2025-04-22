@@ -11,7 +11,7 @@ use crate::model::User;
 pub enum MsgType {
     Text,
     Media,
-    System,
+    RoomChange,
     Reply,
 }
 
@@ -21,11 +21,34 @@ pub struct Message {
     pub chat_room_id: Uuid,
     pub message_id: Uuid,
     pub sender_id: Uuid,
-    //it is a json string in scyllaDb, because the rust client can't handle json to struct at the moment
+    //it is a JSON string in scyllaDb, because the rust client can't handle JSON to struct at the moment
     pub msg_body: String,
     //the rust client from scylla can't handle enums at the moment, so we have to use a string and map it to the enum later
     pub msg_type: String,
     pub created_at: DateTime<Utc>
+}
+
+impl Message {
+    
+    pub fn new(room_id: Uuid, sender_id: Uuid, msg_body: MessageBody) -> Result<Message, serde_json::Error> {
+        let typ = match msg_body {
+            MessageBody::Text(_) => MsgType::Text,
+            MessageBody::Media(_) => MsgType::Media,
+            MessageBody::Reply(_) => MsgType::Reply,
+            MessageBody::RoomChange(_) => MsgType::RoomChange
+        };
+        let body_json = serde_json::to_string(&msg_body)?;
+        let msg = Message {
+            chat_room_id: room_id,
+            message_id: Uuid::new_v4(),
+            sender_id: sender_id,
+            msg_body: body_json,
+            msg_type: typ.to_string(),
+            created_at: Utc::now()
+        };
+        Ok(msg)
+    }
+    
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -58,7 +81,7 @@ pub enum MessageBody {
     /**
     * For room events like user joining or leaving.
     */
-    System(SystemBody)
+    RoomChange(RoomChangeBody)
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -98,7 +121,7 @@ pub enum RepliedMessageDetails {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
-pub enum SystemBody {
+pub enum RoomChangeBody {
     UserJoined {related_user: User},
     UserLeft {related_user: User},
     UserInvited {related_user: User}
@@ -135,7 +158,7 @@ impl fmt::Display for MsgType {
         match self {
             MsgType::Text => write!(f, "Text"),
             MsgType::Media => write!(f, "Media"),
-            MsgType::System => write!(f, "System"),
+            MsgType::RoomChange => write!(f, "RoomChange"),
             MsgType::Reply => write!(f, "Reply")
         }
     }
@@ -149,6 +172,7 @@ impl fmt::Display for ParseMessageTypeError {
         write!(f, "Ungültiger MessageType-String")
     }
 }
+
 impl Error for ParseMessageTypeError {}
 
 
@@ -159,7 +183,7 @@ impl FromStr for MsgType {
         match s {
             "Text" => Ok(MsgType::Text),
             "Media" => Ok(MsgType::Media),
-            "System" => Ok(MsgType::System),
+            "RoomChange" => Ok(MsgType::RoomChange),
             "Reply" => Ok(MsgType::Reply),
             _ => Err(ParseMessageTypeError),
         }

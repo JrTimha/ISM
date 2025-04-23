@@ -11,11 +11,9 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability.">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Readme improved">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -299,15 +297,7 @@
       <workItem from="1745310850779" duration="10206000" />
       <workItem from="1745356429509" duration="1826000" />
       <workItem from="1745360971775" duration="3012000" />
-      <workItem from="1745401702205" duration="15606000" />
-    </task>
-    <task id="LOCAL-00008" summary="Better Logs and Cors Config">
-      <option name="closed" value="true" />
-      <created>1736383582128</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1736383582128</updated>
+      <workItem from="1745401702205" duration="16328000" />
     </task>
     <task id="LOCAL-00009" summary="Added postgres user database">
       <option name="closed" value="true" />
@@ -693,7 +683,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745431515376</updated>
     </task>
-    <option name="localTasksCounter" value="57" />
+    <task id="LOCAL-00057" summary="Readme improved">
+      <option name="closed" value="true" />
+      <created>1745446787750</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1745446787750</updated>
+    </task>
+    <option name="localTasksCounter" value="58" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -714,7 +712,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="fixed read-endpoint from get to post" />
     <MESSAGE value="big one: support for server side events with broadcast events for realtime notifications" />
     <MESSAGE value="Sending notifications with optional display value" />
     <MESSAGE value="added dockerfile" />
@@ -739,7 +736,8 @@
     <MESSAGE value="fixing bugs in the join room logic" />
     <MESSAGE value="Add room deletion functionality and improve message handling&#10;&#10;Implemented the ability to delete rooms, including clearing associated messages and broadcasting leave events to users. Refactored message creation logic by introducing a factory method in the `Message` struct. Enhanced room leave/join workflows and transitioned from &quot;System&quot; message type to &quot;RoomChange&quot; for better clarity." />
     <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
+    <MESSAGE value="Readme improved" />
+    <option name="LAST_COMMIT_MESSAGE" value="Readme improved" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

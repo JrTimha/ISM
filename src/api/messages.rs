@@ -6,7 +6,6 @@ use axum::response::IntoResponse;
 use chrono::Utc;
 use http::{StatusCode};
 use log::error;
-use sqlx::Acquire;
 use uuid::Uuid;
 use crate::api::errors::HttpError;
 use crate::api::timeline::msg_to_dto;

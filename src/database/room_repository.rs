@@ -1,6 +1,6 @@
 use chrono::Utc;
 use log::{error, info};
-use sqlx::{Acquire, Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
+use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use sqlx::error::BoxDynError;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;

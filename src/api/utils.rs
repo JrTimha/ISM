@@ -2,7 +2,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use crate::api::errors::HttpError;
 use crate::core::AppState;
-use crate::database::RoomRepository;
+
 
 pub fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
     Uuid::try_parse(subject).map_err(|_| HttpError::bad_request("Invalid token subject".to_string()))

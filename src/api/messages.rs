@@ -6,6 +6,7 @@ use axum::response::IntoResponse;
 use chrono::Utc;
 use http::{StatusCode};
 use log::error;
+use sqlx::Acquire;
 use uuid::Uuid;
 use crate::api::errors::HttpError;
 use crate::api::timeline::msg_to_dto;
@@ -13,7 +14,6 @@ use crate::api::utils::parse_uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
-use crate::database::RoomRepository;
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{Message, MessageBody, MsgType, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
 
@@ -71,19 +71,19 @@ pub async fn send_message(
         return HttpError::bad_request("Can't safe message in timeline").into_response();
     }
     
-    //todo: make this a transaction:
-    let displayed = match state.room_repository.update_last_room_message(&payload.chat_room_id, &msg.sender_id, generate_room_preview_text(&payload)).await {
+    let mut tx = state.room_repository.start_transaction().await.unwrap();
+    let displayed = match state.room_repository.update_last_room_message(&mut *tx, &payload.chat_room_id, &msg.sender_id, generate_room_preview_text(&payload)).await {
         Ok(displayed) => displayed,
         Err(error) => {
             error!("{}", error);
             return HttpError::bad_request("Can't update the state of the chat room.").into_response();
         }
     };
-    if let Err(err) = state.room_repository.update_user_read_status(&payload.chat_room_id, &msg.sender_id).await {
+    if let Err(err) = state.room_repository.update_user_read_status(&mut *tx, &payload.chat_room_id, &msg.sender_id).await {
         error!("{}", err);
         return HttpError::bad_request("Can't update user read status.").into_response();
     }
-
+    tx.commit().await.unwrap();
 
     let mapped_msg = match msg_to_dto(msg) {
         Ok(msg) => msg,

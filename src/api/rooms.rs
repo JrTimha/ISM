@@ -8,7 +8,6 @@ use log::{error};
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
 use crate::api::timeline::{msg_to_dto};
-use crate::database::{RoomRepository};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User};
 use crate::api::utils::{check_user_in_room, parse_uuid};
@@ -78,11 +77,11 @@ pub async fn mark_room_as_read(
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    match state.room_repository.update_user_read_status(&room_id, &id).await {
-        Ok(()) => StatusCode::OK.into_response(),
-        Err(_) => {
-            HttpError::bad_request("Can't update user read status.").into_response()
-        }
+    let pl = state.room_repository.get_connection();
+    match state.room_repository.update_user_read_status(pl, &room_id, &id).await {
+        Ok(()) => StatusCode::OK.into_response()
+        ,
+        Err(_) => HttpError::bad_request("Can't update user read status.").into_response()
     }
 }
 
@@ -230,7 +229,8 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
         error!("Can't clear chat messages for this room: {}", err);
         return HttpError::bad_request("Unable to delete this room.").into_response();
     };
-    if let Err(err) = state.room_repository.delete_room(&room.id).await {
+    let mut tx = state.room_repository.start_transaction().await.unwrap();
+    if let Err(err) = state.room_repository.delete_room(&mut *tx, &room.id).await {
         error!("Can't delete room: {}", err);
         return HttpError::bad_request("Unable to change room membership state in db.").into_response();
     };
@@ -242,11 +242,13 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
             created_at: Utc::now()
         }
     ).await;
+    tx.commit().await.unwrap();
     StatusCode::OK.into_response()
 }
 
 async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<User>, mut leaving_user: User) -> Response {
-    if let Err(err) = state.room_repository.remove_user_from_room(&room.id, &leaving_user).await {
+    let mut tx = state.room_repository.start_transaction().await.unwrap();
+    if let Err(err) = state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user).await {
         error!("{}", err.to_string());
         return HttpError::bad_request("Unable to change room membership state in db.").into_response();
     }
@@ -256,7 +258,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         if let Err(err) = state.message_repository.clear_chat_room_messages(&room.id).await {
             error!("Can't clear chat messages for this room: {}", err);
         };
-        if let Err(err) = state.room_repository.delete_room(&room.id).await {
+        if let Err(err) = state.room_repository.delete_room(&mut *tx, &room.id).await {
             error!("Can't delete room: {}", err);
             return HttpError::bad_request("Unable to change room membership state in db.").into_response();
         };
@@ -267,6 +269,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
             },
             &leaving_user.id
         ).await;
+        tx.commit().await.unwrap();
         StatusCode::OK.into_response()
     } else { //find and handle the leaving user
         let message = match Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()})) {
@@ -286,6 +289,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
             },
             &leaving_user.id
         ).await;
+        tx.commit().await.unwrap();
         StatusCode::OK.into_response()
     }
 }

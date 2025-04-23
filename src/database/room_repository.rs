@@ -1,7 +1,7 @@
-use async_trait::async_trait;
 use chrono::Utc;
 use log::{error, info};
-use sqlx::{Pool, Postgres, QueryBuilder};
+use sqlx::{Acquire, Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
+use sqlx::error::BoxDynError;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
 use crate::core::{UserDbConfig};
@@ -23,7 +23,7 @@ impl RoomDatabaseClient {
             .username(&config.db_user)
             .password(&config.db_password);
         let pool = match PgPoolOptions::new()
-            .max_connections(10)
+            .max_connections(25)
             .connect_with(opt)
             .await
         {
@@ -38,31 +38,17 @@ impl RoomDatabaseClient {
         };
         RoomDatabaseClient { pool }
     }
-}
 
-#[async_trait]
-pub trait RoomRepository {
+    pub async fn start_transaction(&self) -> Result<Transaction<Postgres>, Error> {
+        let tx = self.pool.begin().await?;
+        Ok(tx)
+    }
 
-    async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
-    async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error>;
-    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error>;
-    async fn delete_room(&self, room_id: &Uuid) -> Result<(), sqlx::Error>;
-    async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error>;
-    async fn insert_room(&self, room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error>;
-    async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error>;
-    async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error>;
-    async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error>;
-    async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error>;
-    async fn update_last_room_message(&self, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error>;
-    async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>;
-    async fn remove_user_from_room(&self, room_id: &Uuid,  user: &User) -> Result<(), sqlx::Error>;
-}
+    pub fn get_connection(&self) -> &Pool<Postgres> {
+        &self.pool
+    }
 
-
-#[async_trait]
-impl RoomRepository for RoomDatabaseClient {
-
-    async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
+    pub async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
         let users = sqlx::query_as!(User,
             r#"
             SELECT users.id,
@@ -78,7 +64,7 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(users)
     }
 
-    async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
+    pub async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
         let users = sqlx::query_as!(User,
             r#"
             SELECT
@@ -95,7 +81,7 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(users)
     }
 
-    async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error> {
+    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error> {
         let rooms = sqlx::query_as!(
             ChatRoomListItemDTO,
             r#"
@@ -127,16 +113,14 @@ impl RoomRepository for RoomDatabaseClient {
         ).fetch_all(&self.pool).await?;
         Ok(rooms)
     }
-    
-    async fn delete_room(&self, room_id: &Uuid) -> Result<(), sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-        sqlx::query!("DELETE FROM chat_room_participant WHERE room_id = $1", room_id).execute(&mut *tx).await?;
-        sqlx::query!("DELETE FROM chat_room WHERE id = $1",room_id).execute(&mut *tx).await?;
-        tx.commit().await?;
+
+    pub async fn delete_room(&self, conn: &mut PgConnection, room_id: &Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM chat_room_participant WHERE room_id = $1", room_id).execute(&mut *conn).await?;
+        sqlx::query!("DELETE FROM chat_room WHERE id = $1",room_id).execute(&mut *conn).await?;
         Ok(())
     }
 
-    async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error> {
+    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error> {
         let room = sqlx::query_as!(
             ChatRoomListItemDTO,
             r#"
@@ -170,7 +154,7 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(room)
     }
 
-    async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
+    pub async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
@@ -205,15 +189,15 @@ impl RoomRepository for RoomDatabaseClient {
         );
         builder.push_values(&new_room.invited_users, |mut db, user| {
             db.push_bind(user)
-              .push_bind(&room.id)
-              .push_bind(Utc::now());
+                .push_bind(&room.id)
+                .push_bind(Utc::now());
         }).build().fetch_all(&mut *tx).await?;
 
         tx.commit().await?;
         Ok(room)
     }
 
-    async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error> {
+    pub async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error> {
         let room_details = sqlx::query_as!(
             ChatRoomEntity,
             r#"
@@ -224,7 +208,7 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(room_details)
     }
 
-    async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn is_user_in_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<bool, sqlx::Error> {
         let exists = sqlx::query_scalar!(
             r#"
             SELECT EXISTS(
@@ -236,12 +220,12 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(exists.unwrap_or(false))
     }
 
-    async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error> {
+    pub async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query!("INSERT INTO chat_room_participant (user_id, room_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, room_id) DO UPDATE SET joined_at = $3, participant_state = 'Joined'",
             user_id, room_id, Utc::now()).execute(&mut *tx).await?;
 
-       let user = sqlx::query_as!(User,
+        let user = sqlx::query_as!(User,
            r#"
             SELECT
                 users.id,
@@ -260,34 +244,55 @@ impl RoomRepository for RoomDatabaseClient {
         Ok(user)
     }
 
-    async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    pub async fn select_room_participants_ids(&self, room_id: &Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
         let result = sqlx::query!(r#"SELECT user_id FROM chat_room_participant WHERE room_id = $1 AND participant_state = 'Joined'"#, room_id).fetch_all(&self.pool).await?;
         let user: Vec<Uuid> = result.iter().map(|id| id.user_id).collect();
         Ok(user)
     }
 
-    async fn update_last_room_message(&self, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error> {
-        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", sender_id).fetch_one(&self.pool).await?;
+    /// If you really just want to accept both, a transaction or a
+    /// connection as an argument to a function, then it's easier to just accept a
+    /// mutable reference to a database connection like so:
+    ///
+    /// ```rust
+    /// # use sqlx::{postgres::PgConnection, error::BoxDynError};
+    /// # #[cfg(any(postgres_9_6, postgres_14))]
+    /// async fn run_query(conn: &mut PgConnection) -> Result<(), BoxDynError> {
+    ///     sqlx::query!("SELECT 1 as v").fetch_one(&mut *conn).await?;
+    ///     sqlx::query!("SELECT 2 as v").fetch_one(&mut *conn).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// The downside of this approach is that you have to `acquire` a connection
+    /// from a pool first and can't directly pass the pool as argument.
+    /// 
+    /// Like this: state.room_repository.get_connection().acquire().await.unwrap();
+    ///
+    /// [workaround]: https://github.com/launchbadge/sqlx/issues/1015#issuecomment-767787777
+    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, BoxDynError>
+    {
+        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", sender_id).fetch_one(&mut *conn).await?;
         let text = format!("{}{}", name.display_name, preview_text);
         sqlx::query!(
             "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
             room_id,
             &text
-        ).execute(&self.pool).await?;
+        ).execute(&mut *conn).await?;
         Ok(text)
     }
 
-    async fn update_user_read_status(&self, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query!("Update chat_room_participant SET last_message_read_at = NOW() WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&self.pool).await?;
+    pub async fn update_user_read_status<'e, E>(&self, exec: E, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>
+    where E: sqlx::Executor<'e, Database = Postgres>
+    {
+        sqlx::query!("Update chat_room_participant SET last_message_read_at = NOW() WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(exec).await?;
         Ok(())
     }
 
-    async fn remove_user_from_room(&self, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *tx).await?;
+    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
+        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *conn).await?;
         let text = format!("{}{}", user.display_name, String::from(" hat den Chat verlassen.")); //todo: think about a better latest msg logic
-        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
-        tx.commit().await?;
+        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *conn).await?;
         Ok(())
     }
 

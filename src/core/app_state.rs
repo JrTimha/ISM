@@ -1,9 +1,9 @@
 use crate::core::ISMConfig;
-use crate::database::{MessageRepository, RoomDatabaseClient};
+use crate::database::{MessageDatabase, RoomDatabase};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub env: ISMConfig,
-    pub room_repository: RoomDatabaseClient,
-    pub message_repository: MessageRepository
+    pub room_repository: RoomDatabase,
+    pub message_repository: MessageDatabase
 }

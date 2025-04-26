@@ -1,5 +1,5 @@
 use chrono::Utc;
-use log::{error, info};
+use log::{info};
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use sqlx::error::BoxDynError;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -9,11 +9,11 @@ use crate::model::user::{User, MembershipStatus};
 use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, NewRoom, RoomType};
 
 #[derive(Debug, Clone)]
-pub struct RoomDatabaseClient {
+pub struct RoomDatabase {
     pool: Pool<Postgres>,
 }
 
-impl RoomDatabaseClient {
+impl RoomDatabase {
 
     pub async fn new(config: &UserDbConfig) -> Self {
         let opt = PgConnectOptions::new()
@@ -32,11 +32,10 @@ impl RoomDatabaseClient {
                 pool
             }
             Err(err) => {
-                error!("Failed to connect to the room database: {:?}", err);
-                std::process::exit(1);
+                panic!("Failed to connect to the room database: {:?}", err);
             }
         };
-        RoomDatabaseClient { pool }
+        RoomDatabase { pool }
     }
 
     pub async fn start_transaction(&self) -> Result<Transaction<Postgres>, Error> {

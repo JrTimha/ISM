@@ -12,8 +12,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Readme improved">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/default.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/default.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/message_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -297,15 +302,11 @@
       <workItem from="1745310850779" duration="10206000" />
       <workItem from="1745356429509" duration="1826000" />
       <workItem from="1745360971775" duration="3012000" />
-      <workItem from="1745401702205" duration="16328000" />
-    </task>
-    <task id="LOCAL-00009" summary="Added postgres user database">
-      <option name="closed" value="true" />
-      <created>1736386983789</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1736386983789</updated>
+      <workItem from="1745401702205" duration="17089000" />
+      <workItem from="1745569751170" duration="1391000" />
+      <workItem from="1745601645073" duration="1482000" />
+      <workItem from="1745629277172" duration="1894000" />
+      <workItem from="1745662015440" duration="2883000" />
     </task>
     <task id="LOCAL-00010" summary="Added postgres user database">
       <option name="closed" value="true" />
@@ -691,7 +692,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745446787750</updated>
     </task>
-    <option name="localTasksCounter" value="58" />
+    <task id="LOCAL-00058" summary="Readme improved">
+      <option name="closed" value="true" />
+      <created>1745447311538</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1745447311538</updated>
+    </task>
+    <option name="localTasksCounter" value="59" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

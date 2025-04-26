@@ -1,11 +1,12 @@
 use std::env;
 use dotenv::dotenv;
-use log::{info};
 use tokio::net::TcpListener;
-use tokio::task;
+use tokio::{signal, task};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 use ism::core::{AppState, ISMConfig};
 use ism::api::{init_router};
-use ism::database::{MessageRepository, RoomDatabaseClient};
+use ism::database::{MessageDatabase, RoomDatabase};
 use tracing_subscriber::filter::LevelFilter;
 use ism::broadcast::BroadcastChannel;
 use ism::kafka::start_consumer;
@@ -18,24 +19,24 @@ async fn main() {
     dotenv().ok();
     let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
     let config = ISMConfig::new(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));
+
+    let filter = EnvFilter::try_from_env("ISM_LOG_LEVEL").unwrap()
+        .add_directive(LevelFilter::INFO.into())
+        .add_directive("scylla=info".parse().unwrap());
+
     tracing_subscriber::fmt()
-        .with_max_level(LevelFilter::DEBUG)
+        .with_env_filter(filter)
         .init();
 
     info!("Starting up ISM in {run_mode} mode.");
-
     //init broadcaster channel
     BroadcastChannel::init().await;
-
-    //init both database connections, exit application if failing
-    let message_repository = MessageRepository::new(&config.message_db_config).await.unwrap_or_else(|err|{
-        panic!("Failed to initialize message repository: {}", err);
-    });
-
+    
+    //init app state and both database connections, exit application if failing
     let app_state = AppState {
         env: config.clone(),
-        room_repository: RoomDatabaseClient::new(&config.user_db_config).await,
-        message_repository
+        room_repository: RoomDatabase::new(&config.user_db_config).await,
+        message_repository: MessageDatabase::new(&config.message_db_config).await
     };
 
     if app_state.env.use_kafka == true {
@@ -46,10 +47,37 @@ async fn main() {
     }
 
     //init api router:
-    let app = init_router(app_state.clone()).await;
+    let app = init_router(app_state).await;
     let url = format!("{}:{}", config.ism_url, config.ism_port);
     let listener = TcpListener::bind(url.clone()).await.unwrap();
-    info!("ISM-Server up and is listening on: http://{url}");
-    axum::serve(listener, app).await.unwrap();
+    info!("ISM-Server up and is listening on: {url}");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
     info!("Stopping ISM...");
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

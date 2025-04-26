@@ -2,7 +2,7 @@ ism_url = "localhost"
 ism_port= 5403
 log_level = "info"
 cors_origin = "http://localhost:4200"
-use_kafka = true
+use_kafka = false
 
 [message_db_config]
 db_url = "localhost:9042"
@@ -21,6 +21,7 @@ db_name = "postgres"
 [token_issuer]
 iss_host = "http://localhost:8180/"
 iss_realm = "meventure"
+valid_admin_client = "api-client"
 
 [kafka_config]
 bootstrap_host = "localhost"

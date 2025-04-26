@@ -12,13 +12,13 @@ use uuid::Uuid;
 use crate::model::Message;
 
 #[derive(Debug, Clone)]
-pub struct MessageRepository {
+pub struct MessageDatabase {
     session: Arc<Session>,
 }
 
-impl MessageRepository {
+impl MessageDatabase {
 
-    pub async fn new(config: &MessageDbConfig) -> Result<Self, NewSessionError> {
+    pub async fn new(config: &MessageDbConfig) -> Self {
         let session = match SessionBuilder::new()
             .known_node(&config.db_url)
             .user(&config.db_user, &config.db_password)
@@ -30,20 +30,18 @@ impl MessageRepository {
                 session
             },
             Err(err) => {
-                error!("Failed to create session to the message database: {:?}", err);
-                std::process::exit(1);
+                panic!("Failed to create session to the message database: {:?}", err);
             }
         };
-        let repository = MessageRepository { session: Arc::new(session) };
+        let repository = MessageDatabase { session: Arc::new(session) };
         if config.with_db_init {
             repository.create_keyspace_with_tables().await;
         }
-
+        
         if let Err(err) = repository.change_keyspace(&config.db_keyspace).await {
-            error!("Failed to use keyspace {:?}", err);
-            std::process::exit(1);
+            panic!("Failed to use keyspace {:?}", err);
         }
-        Ok(repository)
+        repository
     }
 
     pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {

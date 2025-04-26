@@ -11,14 +11,13 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Readme improved">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/default.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/default.config.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/message_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/message_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_database.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_database.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -306,15 +305,7 @@
       <workItem from="1745569751170" duration="1391000" />
       <workItem from="1745601645073" duration="1482000" />
       <workItem from="1745629277172" duration="1894000" />
-      <workItem from="1745662015440" duration="2883000" />
-    </task>
-    <task id="LOCAL-00010" summary="Added postgres user database">
-      <option name="closed" value="true" />
-      <created>1736387173261</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1736387173261</updated>
+      <workItem from="1745662015440" duration="4936000" />
     </task>
     <task id="LOCAL-00011" summary="Added protected routes with jwt keycloak auth">
       <option name="closed" value="true" />
@@ -700,7 +691,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745447311538</updated>
     </task>
-    <option name="localTasksCounter" value="59" />
+    <task id="LOCAL-00059" summary="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly.">
+      <option name="closed" value="true" />
+      <created>1745667216835</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1745667216836</updated>
+    </task>
+    <option name="localTasksCounter" value="60" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -721,7 +720,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="big one: support for server side events with broadcast events for realtime notifications" />
     <MESSAGE value="Sending notifications with optional display value" />
     <MESSAGE value="added dockerfile" />
     <MESSAGE value="change pipeline" />
@@ -746,7 +744,8 @@
     <MESSAGE value="Add room deletion functionality and improve message handling&#10;&#10;Implemented the ability to delete rooms, including clearing associated messages and broadcasting leave events to users. Refactored message creation logic by introducing a factory method in the `Message` struct. Enhanced room leave/join workflows and transitioned from &quot;System&quot; message type to &quot;RoomChange&quot; for better clarity." />
     <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
     <MESSAGE value="Readme improved" />
-    <option name="LAST_COMMIT_MESSAGE" value="Readme improved" />
+    <MESSAGE value="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly." />
+    <option name="LAST_COMMIT_MESSAGE" value="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

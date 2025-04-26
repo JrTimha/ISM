@@ -6,7 +6,7 @@ use log::{debug, error, info};
 use scylla::client::pager::TypedRowStream;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
-use scylla::errors::{ExecutionError, NewSessionError, UseKeyspaceError};
+use scylla::errors::{ExecutionError, UseKeyspaceError};
 use scylla::response::query_result::QueryResult;
 use uuid::Uuid;
 use crate::model::Message;

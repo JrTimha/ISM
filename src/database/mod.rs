@@ -1,5 +1,5 @@
-mod message_repository;
-mod room_repository;
+mod message_database;
+mod room_database;
 
-pub use message_repository::{MessageDatabase};
-pub use room_repository::{RoomDatabase};
+pub use message_database::{MessageDatabase};
+pub use room_database::{RoomDatabase};

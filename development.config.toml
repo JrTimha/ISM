@@ -1,6 +1,6 @@
 ism_url = "127.0.0.1"
 ism_port= 7800
-use_kafka = true
+use_kafka = false
 
 [token_issuer]
 valid_admin_client = "api-client"

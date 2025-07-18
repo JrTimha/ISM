@@ -5,19 +5,19 @@ edition = "2024"
 
 [dependencies]
 log = "0.4.27"
-axum = "0.8.3"
-tokio = {version = "1.44.2", features = ["full"]}
+axum = "0.8.4"
+tokio = {version = "1.46.1", features = ["full"]}
 tower = "0.5.2"
-config = "0.15.11"
+config = "0.15.13"
 serde = "1.0.219"
-scylla = { version = "1.1.0", features = ["chrono-04"] }
+scylla = { version = "1.3.0", features = ["chrono-04"] }
 futures = "0.3.31"
-uuid = { version = "1.16.0", features = ["v4", "serde", "v7"] }
-chrono = { version = "0.4.40", features = ["serde"] }
-tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+uuid = { version = "1.17.0", features = ["v4", "serde", "v7"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+tower-http = { version = "0.6.6", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-sqlx = {version = "0.8.5", features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"]}
+sqlx = {version = "0.8.6", features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"]}
 dotenv = "0.15.0"
 serde_json = "1.0.140"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
@@ -30,12 +30,12 @@ educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
 http = "1.3.1"
 jsonwebtoken = "9.3.1"
 nonempty = { version = "0.11.0", features = ["std"] }
-reqwest = { version = "0.12.15", features = ["json"], default-features = false }
+reqwest = { version = "0.12.22", features = ["json"], default-features = false }
 serde-querystring = "0.3.0"
-serde_with = "3.12.0"
-snafu = "0.8.5"
+serde_with = "3.14.0"
+snafu = "0.8.6"
 time = "0.3.41"
-try-again = "0.2.1"
+try-again = "0.2.2"
 typed-builder = "0.21.0"
 url = "2.5.4"
 
@@ -50,5 +50,5 @@ rustls-tls = ["reqwest/rustls-tls"]
 assertr = "0.1.0"
 tower-http = { version = "0.6.2", features = ["trace"] }
 tracing-subscriber = "0.3.19"
-uuid = { version = "1.16.0", features = ["v7", "serde"] }
-sqlx-cli =  { version = "0.8.5", features = ["postgres", "rustls"] }
+uuid = { version = "1.17.0", features = ["v7", "serde"] }
+sqlx-cli =  { version = "0.8.6", features = ["postgres", "rustls"] }

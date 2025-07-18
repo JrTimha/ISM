@@ -4,7 +4,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
-use log::{error};
+use log::{error, info};
 use uuid::Uuid;
 use crate::api::errors::{HttpError};
 use crate::api::timeline::{msg_to_dto};
@@ -270,6 +270,20 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
             &leaving_user.id
         ).await;
         tx.commit().await.unwrap();
+
+        //delete room image if it exists:
+        if room.room_image_url.is_some() {
+            let url = room.room_image_url.unwrap();
+            match state.s3_bucket.delete_object(&url).await {
+                Ok(_) => {
+                    info!("Deleted image for room: {}", &room.id);
+                },
+                Err(err) => {
+                    error!("Can't delete image of room: {}", err);
+                }
+            };
+        }
+
         StatusCode::OK.into_response()
     } else { //find and handle the leaving user
         let message = match Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()})) {

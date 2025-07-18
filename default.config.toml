@@ -23,6 +23,12 @@ iss_host = "http://localhost:8180/"
 iss_realm = "meventure"
 valid_admin_client = "api-client"
 
+[object_db_config]
+db_user = "minioadmin"
+db_url = "http://localhost:9000"
+db_password = "minioadmin"
+bucket_name = "meventure"
+
 [kafka_config]
 bootstrap_host = "localhost"
 bootstrap_port = 19192

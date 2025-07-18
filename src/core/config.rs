@@ -11,9 +11,18 @@ pub struct ISMConfig {
     pub log_level: String,
     pub cors_origin: String,
     pub user_db_config: UserDbConfig,
+    pub object_db_config: ObjectDbConfig,
     pub message_db_config: MessageDbConfig,
     pub token_issuer: TokenIssuer,
     pub kafka_config: KafkaConfig
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ObjectDbConfig {
+    pub db_user: String,
+    pub db_url: String,
+    pub db_password: String,
+    pub bucket_name: String
 }
 
 #[derive(Deserialize, Debug, Clone)]

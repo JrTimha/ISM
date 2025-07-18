@@ -6,7 +6,7 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 use ism::core::{AppState, ISMConfig};
 use ism::api::{init_router};
-use ism::database::{MessageDatabase, RoomDatabase};
+use ism::database::{MessageDatabase, ObjectDatabase, RoomDatabase};
 use tracing_subscriber::filter::LevelFilter;
 use ism::broadcast::BroadcastChannel;
 use ism::kafka::start_consumer;
@@ -36,7 +36,8 @@ async fn main() {
     let app_state = AppState {
         env: config.clone(),
         room_repository: RoomDatabase::new(&config.user_db_config).await,
-        message_repository: MessageDatabase::new(&config.message_db_config).await
+        message_repository: MessageDatabase::new(&config.message_db_config).await,
+        s3_bucket: ObjectDatabase::new(&config.object_db_config).await
     };
 
     if app_state.env.use_kafka == true {

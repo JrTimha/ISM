@@ -11,18 +11,8 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Added S3 support">
-      <change afterPath="$PROJECT_DIR$/src/model/response_utils.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="S3 Support implemented">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/utils.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/object_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/object_database.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_database.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,39 +57,39 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run ISM.executor": "Run",
-    "Cargo.Run.executor": "Run",
-    "Docker.Dockerfile runtime.executor": "Run",
-    "Docker.Dockerfile.executor": "Run",
-    "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml: Compose Deployment.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "C:/Users/Tim/IdeaProjects/ISM/src/broadcast",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "configurable.group.appearance",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Tim/IdeaProjects/ISM/src/broadcast&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
@@ -112,10 +102,27 @@
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Run ISM">
+  <component name="RunManager" selected="Cargo.sqlx">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="sqlx" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="sqlx prepare" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <envs />
       <option name="emulateTerminal" value="true" />
@@ -137,14 +144,6 @@
           <option name="imageTag" value="debianbookworm-slim_runtime" />
           <option name="buildCliOptions" value="--target runtime" />
           <option name="buildOnly" value="true" />
-          <option name="sourceFilePath" value="Dockerfile" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
-    <configuration name="Dockerfile" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
-      <deployment type="dockerfile">
-        <settings>
           <option name="sourceFilePath" value="Dockerfile" />
         </settings>
       </deployment>
@@ -190,11 +189,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
         <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
         <item itemvalue="Docker.Dockerfile runtime" />
-        <item itemvalue="Docker.Dockerfile" />
       </list>
     </recent_temporary>
   </component>
@@ -314,23 +313,7 @@
       <workItem from="1746012906127" duration="1403000" />
       <workItem from="1752833673825" duration="1671000" />
       <workItem from="1752836101494" duration="9123000" />
-      <workItem from="1753439671227" duration="14716000" />
-    </task>
-    <task id="LOCAL-00014" summary="Working on notification cache">
-      <option name="closed" value="true" />
-      <created>1736687707352</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1736687707352</updated>
-    </task>
-    <task id="LOCAL-00015" summary="cleanup">
-      <option name="closed" value="true" />
-      <created>1736688244759</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1736688244759</updated>
+      <workItem from="1753439671227" duration="15486000" />
     </task>
     <task id="LOCAL-00016" summary="fix cors options behind auth">
       <option name="closed" value="true" />
@@ -708,7 +691,23 @@
       <option name="project" value="LOCAL" />
       <updated>1752854488056</updated>
     </task>
-    <option name="localTasksCounter" value="63" />
+    <task id="LOCAL-00063" summary="S3 Support implemented">
+      <option name="closed" value="true" />
+      <created>1753459017389</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1753459017389</updated>
+    </task>
+    <task id="LOCAL-00064" summary="S3 Support implemented">
+      <option name="closed" value="true" />
+      <created>1753459198297</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1753459198297</updated>
+    </task>
+    <option name="localTasksCounter" value="65" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -729,7 +728,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="dockerfile updated" />
     <MESSAGE value="updating create dependencies" />
     <MESSAGE value="refactoring &amp; kafka support" />
     <MESSAGE value="refactoring" />
@@ -754,7 +752,8 @@
     <MESSAGE value="Refactor database modules and update dependencies&#10;&#10;Renamed `message_repository` to `message_database` and `room_repository` to `room_database` for better consistency. Updated `sqlx` and other dependencies to newer versions, removing unnecessary ones. Adjusted Cargo metadata and configuration to reflect these changes." />
     <MESSAGE value="Updating important dependencies" />
     <MESSAGE value="Added S3 support" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added S3 support" />
+    <MESSAGE value="S3 Support implemented" />
+    <option name="LAST_COMMIT_MESSAGE" value="S3 Support implemented" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

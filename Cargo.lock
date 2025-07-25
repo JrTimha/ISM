@@ -1906,7 +1906,6 @@ dependencies = [
  "educe",
  "futures",
  "http",
- "http-body-util",
  "image",
  "jsonwebtoken",
  "log",

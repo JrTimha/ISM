@@ -24,6 +24,8 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 samsa = "0.1.7"
 minio = { version = "0.3.0", features = ["default"] }
 image = { version = "0.25.6"}
+bytes = "1.10.1"
+
 
 #keycloak:
 atomic-time = "0.1.5"
@@ -39,9 +41,6 @@ time = "0.3.41"
 try-again = "0.2.2"
 typed-builder = "0.21.0"
 url = "2.5.4"
-bytes = "1.10.1"
-http-body-util = "0.1.2"
-
 
 [features]
 default = ["default-tls", "reqwest/charset", "reqwest/http2", "reqwest/macos-system-configuration"]

@@ -1,16 +1,17 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
-use axum::extract::{Path, State};
+use axum::extract::{Path, State, Multipart};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
 use log::{error, info};
 use uuid::Uuid;
+use bytes::Bytes;
 use crate::api::errors::{HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User};
-use crate::api::utils::{check_user_in_room, parse_uuid};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User, UploadResponse};
+use crate::api::utils::{check_user_in_room, crop_image_from_center, parse_uuid};
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
 use crate::core::AppState;
@@ -79,8 +80,7 @@ pub async fn mark_room_as_read(
     let id = parse_uuid(&token.subject).unwrap();
     let pl = state.room_repository.get_connection();
     match state.room_repository.update_user_read_status(pl, &room_id, &id).await {
-        Ok(()) => StatusCode::OK.into_response()
-        ,
+        Ok(()) => StatusCode::OK.into_response(),
         Err(_) => HttpError::bad_request("Can't update user read status.").into_response()
     }
 }
@@ -186,7 +186,7 @@ pub async fn get_room_list_item_by_id(
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-    match state.room_repository.find_specific_joined_room(&id, &room_id).await {
+    match state.room_repository.find_specific_joined_room(&room_id, &id).await {
         Ok(Some(room)) => Json(room).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(err) => HttpError::bad_request(err.to_string()).into_response()
@@ -401,4 +401,68 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
     };
     BroadcastChannel::get().send_event_to_all(to_users, note).await;
     StatusCode::OK.into_response()
+}
+
+pub async fn save_room_image(
+    Extension(token): Extension<KeycloakToken<String>>,
+    State(state): State<Arc<AppState>>,
+    Path(room_id): Path<Uuid>,
+    mut multipart: Multipart
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+        return err.into_response();
+    }
+
+    let mut image_data: Option<Bytes> = None;
+
+    loop {
+        match multipart.next_field().await {
+            Ok(Some(field)) => {
+                if field.name() ==  Some("image") {
+                    let data = match field.bytes().await {
+                        Ok(data) => data,
+                        Err(_) => {
+                            return HttpError::bad_request("Error reading the image byte stream.").into_response()
+                        }
+                    };
+                    image_data = Some(data);
+                    break;
+                }
+            },
+            Ok(None) => {
+                break; //stream finished
+            }
+            Err(err) => { //read error
+                error!("Bad image upload: {}", err.to_string());
+                return HttpError::bad_request("Can't extract image file.").into_response()
+            }
+        }
+    }
+
+    if let Some(image_data) = image_data {
+        let img = match crop_image_from_center(&image_data, 500, 500) {
+            Ok(img) => img,
+            Err(err) => {
+                return err.into_response()
+            }
+        };
+        let object_id = format!("rooms/{}", room_id);
+        if let Err(err) = state.s3_bucket.insert_object(&object_id, img).await {
+            error!("{}", err.to_string());
+            return HttpError::bad_request("Can't save image.").into_response()
+        };
+        if let Err(err) = state.room_repository.update_room_img_url(&room_id, &object_id).await{
+            error!("{}", err.to_string());
+            return HttpError::bad_request("Can't save image.").into_response()
+        };
+        let response = UploadResponse {
+            image_url: object_id.clone(),
+            image_name: format!("{}.png", object_id),
+        };
+
+        (StatusCode::CREATED, Json(response)).into_response()
+    } else {
+        HttpError::bad_request("Required field 'image' not found in the upload.").into_response()
+    }
 }

@@ -1,16 +1,18 @@
 use std::sync::Arc;
 use axum::http::{HeaderValue, Method, StatusCode};
 use axum::{Router};
+use axum::extract::DefaultBodyLimit;
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use http::header::{CONNECTION, CONTENT_LENGTH, ORIGIN};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
 use crate::api::messages::send_message;
 use crate::api::notifications::{add_notification, poll_for_new_notifications, stream_server_events};
-use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, invite_to_room, leave_room, mark_room_as_read};
+use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, invite_to_room, leave_room, mark_room_as_read, save_room_image};
 use crate::api::timeline::scroll_chat_timeline;
 use crate::core::{AppState, TokenIssuer};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
@@ -25,7 +27,7 @@ pub async fn init_router(app_state: AppState) -> Router {
     let origin = app_state.env.cors_origin.clone();
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<HeaderValue>().unwrap())
-        .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE])
+        .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE, CONTENT_LENGTH, CONNECTION, ORIGIN])
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS]);
 
@@ -46,6 +48,7 @@ pub async fn init_router(app_state: AppState) -> Router {
         .route("/api/rooms/{room_id}", get(get_room_list_item_by_id))
         .route("/api/rooms/{room_id}/leave", post(leave_room))
         .route("/api/rooms/{room_id}/invite/{user_id}", post(invite_to_room))
+        .route("/api/rooms/{room_id}/upload-img", post(save_room_image))
         .route("/api/rooms", get(get_joined_rooms))
 
         //layering bottom to top middleware
@@ -54,6 +57,7 @@ pub async fn init_router(app_state: AppState) -> Router {
                 .layer(TraceLayer::new_for_http()) //1
                 .layer(cors)//2
                 .layer(init_auth(app_state.env.token_issuer.clone())) //3..
+                .layer(DefaultBodyLimit::max(5 * 1024 * 1024)) //max 5mb files
         )
         .with_state(Arc::new(app_state));
     public_routing.merge(protected_routing)

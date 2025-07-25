@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 log = "0.4.27"
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["multipart"] }
 tokio = {version = "1.46.1", features = ["full"]}
 tower = "0.5.2"
 config = "0.15.13"
@@ -22,7 +22,8 @@ dotenv = "0.15.0"
 serde_json = "1.0.140"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 samsa = "0.1.7"
-minio = "0.3.0"
+minio = { version = "0.3.0", features = ["default"] }
+image = { version = "0.25.6"}
 
 #keycloak:
 atomic-time = "0.1.5"
@@ -38,6 +39,8 @@ time = "0.3.41"
 try-again = "0.2.2"
 typed-builder = "0.21.0"
 url = "2.5.4"
+bytes = "1.10.1"
+http-body-util = "0.1.2"
 
 
 [features]

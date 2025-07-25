@@ -69,6 +69,13 @@ db_name = "postgres"
 iss_host = "http://localhost:8180/" #Keycloak Root URL
 iss_realm = "my-realm" #Keycloak Realm
 
+[object_db_config] #connection to the S3 Bucket, used for images
+db_user = "minioadmin"
+db_url = "http://localhost:9000"
+db_password = "minioadmin"
+bucket_name = "meventure"
+
+
 [kafka_config]  #OPTIONAL: Kafka configuration (only used if use_kafka = true)
 bootstrap_host = "localhost"
 bootstrap_port = 19192

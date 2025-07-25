@@ -288,6 +288,12 @@ impl RoomDatabase {
         Ok(())
     }
 
+    pub async fn update_room_img_url(&self, room_id: &Uuid, image_url: &String) -> Result<(), sqlx::Error> {
+        sqlx::query!("UPDATE chat_room SET room_image_url = $1 WHERE id = $2", image_url, room_id).execute(&self.pool).await?;
+        Ok(())
+    }
+
+
     pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
         sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *conn).await?;
         let text = format!("{}{}", user.display_name, String::from(" hat den Chat verlassen.")); //todo: think about a better latest msg logic

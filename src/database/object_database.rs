@@ -1,7 +1,8 @@
 use std::sync::Arc;
+use bytes::Bytes;
 use log::{debug, info};
 use minio::s3::{Client, ClientBuilder};
-use minio::s3::builders::ObjectToDelete;
+use minio::s3::builders::{ObjectContent, ObjectToDelete};
 use minio::s3::creds::StaticProvider;
 use minio::s3::http::BaseUrl;
 use minio::s3::segmented_bytes::SegmentedBytes;
@@ -58,9 +59,10 @@ impl ObjectDatabase {
         Ok(())
     }
 
-    pub async fn insert_object(&self, object_id: &String, content: SegmentedBytes) -> Result<(), Box<dyn std::error::Error+Send+Sync>> {
+    pub async fn insert_object(&self, object_id: &String, content: Bytes) -> Result<(), Box<dyn std::error::Error+Send+Sync>> {
         let session = self.session.clone();
-        let response = session.put_object(&self.config.bucket_name, object_id, content).send().await?;
+        let object = ObjectContent::from(content);
+        let response = session.put_object_content(&self.config.bucket_name, object_id, object).content_type("image/jpeg".to_string()).send().await?;
         debug!("Saved object with name: {:?}", response.object);
         Ok(())
     }

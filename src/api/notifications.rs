@@ -9,7 +9,7 @@ use http::StatusCode;
 use log::error;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use crate::api::errors::HttpError;
+use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::utils::parse_uuid;
 use crate::broadcast::{BroadcastChannel, SendNotification};
 use crate::core::AppState;
@@ -60,12 +60,20 @@ pub async fn add_notification(
     let client = match state.env.token_issuer.valid_admin_client.clone() {
         Some(client) => client,
         None => {
-            return HttpError::bad_request("A valid admin client is not provided.").into_response()
+            return HttpError::new(
+                StatusCode::UNAUTHORIZED,
+                ErrorCode::InsufficientPermissions,
+                "A valid admin client is not provided."
+            ).into_response()
         }
     };
 
     if token.authorized_party != client {
-        return HttpError::unauthorized("This client is not allowed to add a notification!").into_response()
+        return HttpError::new(
+            StatusCode::UNAUTHORIZED,
+            ErrorCode::InsufficientPermissions,
+            "This client is not allowed to add a notification!"
+        ).into_response()
     }
     
     BroadcastChannel::get().send_event(payload.body, &payload.to_user).await;

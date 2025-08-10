@@ -4,10 +4,10 @@ use axum::{Extension, Json};
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use chrono::{DateTime, Utc};
-use http::StatusCode;
 use log::{error};
 use serde::Deserialize;
 use uuid::Uuid;
+use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::utils::{check_user_in_room, parse_uuid};
 use crate::core::AppState;
 use crate::keycloak::decode::KeycloakToken;
@@ -43,7 +43,7 @@ pub async fn scroll_chat_timeline(
         },
         Err(err) => {
             error!("{}", err.to_string());
-            StatusCode::BAD_REQUEST.into_response()
+            HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to fetch message data.").into_response()
         }
     }
 }

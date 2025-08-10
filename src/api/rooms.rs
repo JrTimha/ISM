@@ -7,7 +7,7 @@ use chrono::{Utc};
 use log::{error, info};
 use uuid::Uuid;
 use bytes::Bytes;
-use crate::api::errors::{HttpError};
+use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User, UploadResponse};
@@ -23,7 +23,7 @@ pub async fn get_users_in_room(
 ) -> impl IntoResponse {
     match state.room_repository.select_all_user_in_room(&room_id).await {
         Ok(users) => Json(users).into_response(),
-        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+        Err(err) => HttpError::bad_request(ErrorCode::RoomNotFound, err.to_string()).into_response()
     }
 }
 
@@ -34,7 +34,7 @@ pub async fn get_joined_rooms(
     let id = parse_uuid(&token.subject).unwrap();
     match state.room_repository.get_joined_rooms(&id).await {
         Ok(rooms) => Json(rooms).into_response(),
-        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+        Err(err) => HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::UnexpectedError, err.to_string()).into_response()
     }
 }
 
@@ -66,7 +66,7 @@ pub async fn get_room_with_details(
             Json(room_details).into_response()
         }
         Err(err) => {
-            HttpError::bad_request(err.to_string()).into_response()
+            HttpError::bad_request(ErrorCode::RoomNotFound, err.to_string()).into_response()
         }
     }
 
@@ -81,7 +81,7 @@ pub async fn mark_room_as_read(
     let pl = state.room_repository.get_connection();
     match state.room_repository.update_user_read_status(pl, &room_id, &id).await {
         Ok(()) => StatusCode::OK.into_response(),
-        Err(_) => HttpError::bad_request("Can't update user read status.").into_response()
+        Err(_) => HttpError::bad_request(ErrorCode::UnexpectedError,"Can't update user read status.").into_response()
     }
 }
 
@@ -94,18 +94,18 @@ pub async fn create_room(
     let id = parse_uuid(&token.subject).unwrap();
 
     if !payload.invited_users.contains(&id) {
-        return HttpError::bad_request("Sender ID is not in the list of invited users.".to_string()).into_response();
+        return HttpError::bad_request(ErrorCode::InvalidContent, "Sender ID is not in the list of invited users.").into_response();
     }
 
     match payload.room_type {
         RoomType::Single => {
             if payload.invited_users.len() != 2 {
-                return HttpError::bad_request("Personal rooms must have exactly two IDs (sender + one other).".to_string()).into_response();
+                return HttpError::bad_request(ErrorCode::InvalidContent, "Personal rooms must have exactly two IDs (sender + one other).").into_response();
             }
         }
         RoomType::Group => {
             if payload.invited_users.len() < 2 {
-                return HttpError::bad_request("Groups must have more than one user.".to_string()).into_response();
+                return HttpError::bad_request(ErrorCode::InvalidContent, "Groups must have more than one user.").into_response();
             }
         }
     }
@@ -114,7 +114,7 @@ pub async fn create_room(
         Ok(room) => room,
         Err(error) => {
             error!("{}", error);
-            return HttpError::bad_request("Unable to persist the room.").into_response()
+            return HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::UnexpectedError, "Unable to persist the room.").into_response()
         }
     };
 
@@ -123,7 +123,7 @@ pub async fn create_room(
     if room_entity.room_type == RoomType::Single {
         let other_user = match users.iter().find(|&&entry| entry != id) {
             Some(other_user) => other_user,
-            None => return HttpError::bad_request("Can't find other user.").into_response(),
+            None => return HttpError::bad_request(ErrorCode::InvalidContent,"Can't find other user.").into_response(),
         };
 
         //sending 2 specific room views to the users, because private rooms are shown like another user
@@ -148,12 +148,12 @@ pub async fn create_room(
 
                     StatusCode::CREATED.into_response()
                 } else {
-                    HttpError::bad_request("Room for participator is null.").into_response()
+                    HttpError::bad_request(ErrorCode::UnexpectedError,"Room for participator is null.").into_response()
                 }
             }
             Err(error) => {
                 error!("{}", error);
-                HttpError::bad_request("Can't find the room.").into_response()
+                HttpError::bad_request(ErrorCode::UnexpectedError,"Can't find the room.").into_response()
             }
         }
 
@@ -161,10 +161,10 @@ pub async fn create_room(
 
         let room = match state.room_repository.find_specific_joined_room(&room_entity.id, &id).await {
             Ok(Some(room)) => room,
-            Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
+            Ok(None) => return HttpError::bad_request(ErrorCode::UnexpectedError,"Room not found after creation.").into_response(),
             Err(error) => {
                 error!("{}", error);
-                return HttpError::bad_request("Room not found after creation.").into_response()
+                return HttpError::bad_request(ErrorCode::UnexpectedError,"Room not found after creation.").into_response()
             }
         };
 
@@ -189,7 +189,7 @@ pub async fn get_room_list_item_by_id(
     match state.room_repository.find_specific_joined_room(&room_id, &id).await {
         Ok(Some(room)) => Json(room).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(err) => HttpError::bad_request(err.to_string()).into_response()
+        Err(err) => HttpError::bad_request(ErrorCode::UnexpectedError, err.to_string()).into_response()
     }
 }
 
@@ -208,13 +208,13 @@ pub async fn leave_room(
         Ok((room, users)) => (room, users),
         Err(error) => {
             error!("{}", error.to_string());
-            return HttpError::bad_request("Can't get room & user state.").into_response()
+            return HttpError::bad_request(ErrorCode::InvalidContent,"Can't get room & user state.").into_response()
         }
     };
     let leaving_user = match users.iter().find(|user| user.id == id) {
         Some(user) => {user.clone()}
         None => {
-            return HttpError::bad_request("User not found in this room.").into_response();
+            return HttpError::new(StatusCode::UNAUTHORIZED, ErrorCode::InsufficientPermissions,"User not found in this room.").into_response();
         }
     };
     if room.room_type == RoomType::Single { //if someone leaves a single room, the whole room is getting wiped!
@@ -227,12 +227,12 @@ pub async fn leave_room(
 async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<User>) -> Response {
     if let Err(err) = state.message_repository.clear_chat_room_messages(&room.id).await {
         error!("Can't clear chat messages for this room: {}", err);
-        return HttpError::bad_request("Unable to delete this room.").into_response();
+        return HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to delete this room.").into_response();
     };
     let mut tx = state.room_repository.start_transaction().await.unwrap();
     if let Err(err) = state.room_repository.delete_room(&mut *tx, &room.id).await {
         error!("Can't delete room: {}", err);
-        return HttpError::bad_request("Unable to change room membership state in db.").into_response();
+        return HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to change room membership state in db.").into_response();
     };
     let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
     BroadcastChannel::get().send_event_to_all(
@@ -250,7 +250,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     let mut tx = state.room_repository.start_transaction().await.unwrap();
     if let Err(err) = state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user).await {
         error!("{}", err.to_string());
-        return HttpError::bad_request("Unable to change room membership state in db.").into_response();
+        return HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to change room membership state in db.").into_response();
     }
     leaving_user.membership_status = MembershipStatus::Left;
 
@@ -260,7 +260,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         };
         if let Err(err) = state.room_repository.delete_room(&mut *tx, &room.id).await {
             error!("Can't delete room: {}", err);
-            return HttpError::bad_request("Unable to change room membership state in db.").into_response();
+            return HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to change room membership state in db.").into_response();
         };
         BroadcastChannel::get().send_event(
             Notification {
@@ -290,7 +290,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
             Ok(json) => json,
             Err(err) => {
                 error!("{}", err.to_string());
-                return HttpError::bad_request("Can't serialize message").into_response()
+                return HttpError::bad_request(ErrorCode::UnexpectedError, "Can't serialize message").into_response()
             }
         };
 
@@ -324,11 +324,11 @@ pub async fn invite_to_room(
         Ok((room, users)) => (room, users),
         Err(error) => {
             error!("{}", error.to_string());
-            return HttpError::bad_request("Can't get room & user state.").into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError, "Can't get room & user state.").into_response()
         }
     };
     if room.room_type == RoomType::Single { 
-        return HttpError::bad_request("Room type single doesn't allow invites!").into_response();
+        return HttpError::bad_request(ErrorCode::InvalidContent, "Room type single doesn't allow invites!").into_response();
     }
     //we have to check if the inviter is in the room and the invited user isn't!
     let user_to_find = users.iter().find(|user| user.id == id);
@@ -336,7 +336,7 @@ pub async fn invite_to_room(
     match (user_to_find, user_to_exclude) {
         (Some(_inviter), None) => {} //we have checked the invite rules and continue
         _ => {
-            return HttpError::bad_request("User conditions not met in this room.").into_response();
+            return HttpError::bad_request(ErrorCode::InvalidContent,"User conditions not met in this room.").into_response();
         }
     };
 
@@ -345,7 +345,7 @@ pub async fn invite_to_room(
         Ok(user) => user,
         Err(err) => {
             error!("{}", err.to_string());
-            return HttpError::bad_request("Unable to change room membership state in db.").into_response();
+            return HttpError::bad_request(ErrorCode::UnexpectedError,"Unable to change room membership state in db.").into_response();
         }
     };
 
@@ -354,7 +354,7 @@ pub async fn invite_to_room(
         Ok(json) => json,
         Err(err) => {
             error!("{}", err.to_string());
-            return HttpError::bad_request("Can't serialize message").into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError,"Can't serialize message").into_response()
         }
     };
     //sending room change event to all previous users in the room
@@ -365,10 +365,10 @@ pub async fn invite_to_room(
     //sending new room event to invited user
     let room_for_user = match state.room_repository.find_specific_joined_room(&room_id, &user_id).await {
         Ok(Some(room)) => room,
-        Ok(None) => return HttpError::bad_request("Room not found after creation.").into_response(),
+        Ok(None) => return HttpError::bad_request(ErrorCode::UnexpectedError,"Room not found after creation.").into_response(),
         Err(err) => {
             error!("{}", err.to_string());
-            return HttpError::bad_request("Room not found after creation.").into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError,"Room not found after creation.").into_response()
         }
     };
 
@@ -386,13 +386,13 @@ pub async fn invite_to_room(
 async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>) -> Response {
     if let Err(err) = state.message_repository.insert_data(message.clone()).await {
         error!("{}", err.to_string());
-        return HttpError::bad_request("Unable to persist the message.").into_response();
+        return HttpError::bad_request(ErrorCode::UnexpectedError,"Unable to persist the message.").into_response();
     };
 
     let mapped_msg = match msg_to_dto(message) {
         Ok(msg) => msg,
         Err(err) => {
-            return HttpError::bad_request(format!("Can't serialize message: {}", err)).into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError,format!("Can't serialize message: {}", err)).into_response()
         }
     };
     let note = Notification {
@@ -423,7 +423,7 @@ pub async fn save_room_image(
                     let data = match field.bytes().await {
                         Ok(data) => data,
                         Err(_) => {
-                            return HttpError::bad_request("Error reading the image byte stream.").into_response()
+                            return HttpError::bad_request(ErrorCode::UnexpectedError,"Error reading the image byte stream.").into_response()
                         }
                     };
                     image_data = Some(data);
@@ -435,7 +435,7 @@ pub async fn save_room_image(
             }
             Err(err) => { //read error
                 error!("Bad image upload: {}", err.to_string());
-                return HttpError::bad_request("Can't extract image file.").into_response()
+                return HttpError::bad_request(ErrorCode::InvalidContent,"Can't extract image file.").into_response()
             }
         }
     }
@@ -450,11 +450,11 @@ pub async fn save_room_image(
         let object_id = format!("rooms/{}", room_id);
         if let Err(err) = state.s3_bucket.insert_object(&object_id, img).await {
             error!("{}", err.to_string());
-            return HttpError::bad_request("Can't save image.").into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError,"Can't save image.").into_response()
         };
         if let Err(err) = state.room_repository.update_room_img_url(&room_id, &object_id).await{
             error!("{}", err.to_string());
-            return HttpError::bad_request("Can't save image.").into_response()
+            return HttpError::bad_request(ErrorCode::UnexpectedError,"Can't save image.").into_response()
         };
         let response = UploadResponse {
             image_url: object_id.clone(),
@@ -463,6 +463,6 @@ pub async fn save_room_image(
 
         (StatusCode::CREATED, Json(response)).into_response()
     } else {
-        HttpError::bad_request("Required field 'image' not found in the upload.").into_response()
+        HttpError::bad_request(ErrorCode::InvalidContent,"Required field 'image' not found in the upload.").into_response()
     }
 }

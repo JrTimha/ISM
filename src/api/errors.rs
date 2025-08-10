@@ -1,100 +1,105 @@
-use std::fmt;
 use std::fmt::Display;
 use axum::http::StatusCode;
+use axum::Json;
 use axum::response::{IntoResponse, Response};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
+use serde::Serialize;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct ErrorResponse {
-    pub status: String,
-    pub message: String,
+    timestamp: String,
+    status: u16,
+    error: String,
+    message: String,
+    path: String,
+    #[serde(rename = "errorCode")]
+    error_code: ErrorCode,
 }
 
-impl fmt::Display for ErrorResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).unwrap())
-    }
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[allow(dead_code)]
+pub enum ErrorCode {
+    // Authentication & Authorization
+    InsufficientPermissions,
+
+    // User & Profile Errors
+    UserNotFound,
+
+    // Content & Interaction Errors
+    RoomNotFound,
+    MessageNotFound,
+    InvalidContent,
+    FileProcessingError,
+
+    // General API & Validation Errors
+    ValidationError,
+    ServiceUnavailable,
+    UnexpectedError,
 }
 
-
-#[derive(Debug, PartialEq)]
-pub enum ErrorMessage {
-    ServerError,
-    UserNoLongerExist,
-    PermissionDenied,
-}
-
-impl ErrorMessage {
+impl ErrorCode {
     fn to_str(&self) -> String {
         match self {
-            ErrorMessage::ServerError => "Server Error. Please try again later".to_string(),
-            ErrorMessage::UserNoLongerExist => "User belonging to this token no longer exists".to_string(),
-            ErrorMessage::PermissionDenied => "You are not allowed to perform this action".to_string(),
+            ErrorCode::UnexpectedError => "Server Error. Please try again later".to_string(),
+            ErrorCode::UserNotFound => "User not found.".to_string(),
+            ErrorCode::InsufficientPermissions => "You are not allowed to perform this action".to_string(),
+            _ => format!("{:?}", self),
         }
     }
 }
 
-impl Display for ErrorMessage {
+impl Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str().to_owned())
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug)]
 pub struct HttpError {
+    pub status_code: StatusCode,
+    pub error_code: ErrorCode,
     pub message: String,
-    pub status: StatusCode,
 }
 
 impl HttpError {
-    pub fn new(message: impl Into<String>, status: StatusCode) -> Self {
-        HttpError {
+
+    pub fn new(status_code: StatusCode, error_code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            status_code,
+            error_code,
             message: message.into(),
-            status,
         }
     }
 
-    pub fn server_error(message: impl Into<String>) -> Self {
-        HttpError {
+    pub fn bad_request(error_code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            status_code: StatusCode::BAD_REQUEST,
+            error_code,
             message: message.into(),
-            status: StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
-    pub fn bad_request(message: impl Into<String>) -> Self {
-        HttpError {
-            message: message.into(),
-            status: StatusCode::BAD_REQUEST,
-        }
-    }
-    
 
-    pub fn unauthorized(message: impl Into<String>) -> Self {
-        HttpError {
-            message: message.into(),
-            status: StatusCode::UNAUTHORIZED,
-        }
-    }
-
-    pub fn into_http_response(self) -> Response {
-        (self.status, self.message).into_response()
-    }
 }
 
-impl fmt::Display for HttpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "HttpError: message: {}, status: {}",
-            self.message, self.status
-        )
-    }
-}
-
-impl std::error::Error for HttpError {}
 
 impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
-        self.into_http_response()
+
+        tracing::error!("An error occurred: status={}, code={:?}, msg='{}'", self.status_code, self.error_code, self.message);
+
+        let status = self.status_code;
+
+        let error_response = ErrorResponse {
+            timestamp: Utc::now().to_rfc3339(),
+            status: status.as_u16(),
+            error: status.canonical_reason().unwrap_or("Unknown Status").to_string(),
+            message: self.message.clone(),
+            path: "unknown".to_string(), //placeholder
+            error_code: self.error_code,
+        };
+
+        (status, Json(error_response)).into_response()
     }
 }

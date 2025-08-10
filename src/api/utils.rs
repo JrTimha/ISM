@@ -2,14 +2,15 @@ use std::sync::Arc;
 use bytes::Bytes;
 use uuid::Uuid;
 use std::io::Cursor;
+use http::StatusCode;
 use image::GenericImageView;
 use log::error;
-use crate::api::errors::HttpError;
+use crate::api::errors::{ErrorCode, HttpError};
 use crate::core::AppState;
 
 
 pub fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
-    Uuid::try_parse(subject).map_err(|_| HttpError::bad_request("Invalid token subject".to_string()))
+    Uuid::try_parse(subject).map_err(|_| HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::ValidationError, "Can't parse token to UUID."))
 }
 
 pub async fn check_user_in_room(
@@ -17,16 +18,21 @@ pub async fn check_user_in_room(
     user_id: &Uuid,
     room_id: &Uuid,
 ) -> Result<(), HttpError> {
-    let is_in = state
+    let is_in = match state
         .room_repository
         .is_user_in_room(user_id, room_id)
-        .await
-        .map_err(|_| HttpError::bad_request("Failed to check room access."))?;
+        .await {
+        Ok(is_in) => is_in,
+        Err(err) => {
+            error!("{}", err);
+            return Err(HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::UnexpectedError, "Unable to check if user is in room"))
+        }
+    };
 
     if is_in {
         Ok(())
     } else {
-        Err(HttpError::unauthorized("Room not found or access denied."))
+        Err(HttpError::new(StatusCode::UNAUTHORIZED, ErrorCode::InsufficientPermissions, "Unable to check if user is in room"))
     }
 }
 
@@ -40,7 +46,7 @@ pub fn crop_image_from_center(
         Ok(img) => img,
         Err(err) => {
             error!("{}", err);
-            return Err(HttpError::bad_request("Image Processing Error."))
+            return Err(HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::FileProcessingError, "Unable to load the image."))
         }
     };
 
@@ -61,7 +67,7 @@ pub fn crop_image_from_center(
         },
         Err(err) => {
             error!("{}", err);
-            Err(HttpError::bad_request("Image Processing Error."))
+            Err(HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::FileProcessingError, "Image processing failed."))
         }
     }
 }

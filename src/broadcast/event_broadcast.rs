@@ -74,7 +74,7 @@ impl BroadcastChannel {
         if let Some(sender) = lock.get(to_user) {
             match sender.send(notification) {
                 Ok(sc) => {
-                    info!("Successfully sent {:?}", sc);
+                    info!("Successfully sent {:?} broadcast event.", sc);
                 }
                 Err(err) => {
                     error!("Unable to broadcast notification: {}", err);
@@ -89,7 +89,7 @@ impl BroadcastChannel {
             if let Some(sender) = lock.get(&user_id) {
                 match sender.send(notification.clone()) {
                     Ok(sc) => {
-                        info!("Successfully sent {:?}", sc);
+                        info!("Successfully sent {:?} broadcast event.", sc);
                     }
                     Err(err) => {
                         error!("Unable to broadcast notification: {}", err);

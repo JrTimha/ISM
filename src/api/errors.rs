@@ -11,7 +11,7 @@ pub struct ErrorResponse {
     status: u16,
     error: String,
     message: String,
-    path: String,
+    path: Option<String>,
     #[serde(rename = "errorCode")]
     error_code: ErrorCode,
 }
@@ -96,7 +96,7 @@ impl IntoResponse for HttpError {
             status: status.as_u16(),
             error: status.canonical_reason().unwrap_or("Unknown Status").to_string(),
             message: self.message.clone(),
-            path: "unknown".to_string(), //placeholder
+            path: None,
             error_code: self.error_code,
         };
 

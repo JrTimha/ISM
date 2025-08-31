@@ -11,14 +11,11 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="S3 Support implemented">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Updated exception handling">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/errors.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/notifications.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/timeline.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/utils.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -329,15 +326,17 @@
       <workItem from="1754657555324" duration="1278000" />
       <workItem from="1754688304729" duration="688000" />
       <workItem from="1754775839484" duration="637000" />
-      <workItem from="1754823630775" duration="6428000" />
-    </task>
-    <task id="LOCAL-00017" summary="Improving data modelling">
-      <option name="closed" value="true" />
-      <created>1736700445060</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1736700445060</updated>
+      <workItem from="1754823630775" duration="6889000" />
+      <workItem from="1754839102768" duration="1097000" />
+      <workItem from="1754840363797" duration="691000" />
+      <workItem from="1755604227750" duration="2531000" />
+      <workItem from="1755790468780" duration="2440000" />
+      <workItem from="1755850403201" duration="1224000" />
+      <workItem from="1756073551971" duration="1903000" />
+      <workItem from="1756206684003" duration="1529000" />
+      <workItem from="1756289591518" duration="614000" />
+      <workItem from="1756458163209" duration="1255000" />
+      <workItem from="1756648247930" duration="719000" />
     </task>
     <task id="LOCAL-00018" summary="implemented room creation">
       <option name="closed" value="true" />
@@ -723,7 +722,15 @@
       <option name="project" value="LOCAL" />
       <updated>1753460361718</updated>
     </task>
-    <option name="localTasksCounter" value="66" />
+    <task id="LOCAL-00066" summary="Updated exception handling">
+      <option name="closed" value="true" />
+      <created>1754838607784</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1754838607784</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -744,7 +751,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="updating create dependencies" />
     <MESSAGE value="refactoring &amp; kafka support" />
     <MESSAGE value="refactoring" />
     <MESSAGE value="sqlx prepare exec" />
@@ -769,7 +775,8 @@
     <MESSAGE value="Updating important dependencies" />
     <MESSAGE value="Added S3 support" />
     <MESSAGE value="S3 Support implemented" />
-    <option name="LAST_COMMIT_MESSAGE" value="S3 Support implemented" />
+    <MESSAGE value="Updated exception handling" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated exception handling" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -23,7 +23,6 @@ pub async fn send_message(
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
-
     //validate if the user is in the room
     let users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
         Ok(ids) => ids,

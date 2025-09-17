@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
-use axum::extract::{Path, State, Multipart};
+use axum::extract::{Path, State, Multipart, Query};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use chrono::{Utc};
 use log::{error, info};
 use uuid::Uuid;
@@ -10,7 +10,7 @@ use bytes::Bytes;
 use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User, UploadResponse};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User, UploadResponse, SingleRoomSearchUserParams};
 use crate::api::utils::{check_user_in_room, crop_image_from_center, parse_uuid};
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
@@ -401,6 +401,23 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
     };
     BroadcastChannel::get().send_event_to_all(to_users, note).await;
     StatusCode::OK.into_response()
+}
+
+
+pub async fn search_existing_single_room(
+    Extension(token): Extension<KeycloakToken<String>>,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SingleRoomSearchUserParams>,
+) -> impl IntoResponse {
+    let id = parse_uuid(&token.subject).unwrap();
+    match state.room_repository.find_room_between_users(&id, &params.with_user).await {
+        Ok(Some(room)) => Redirect::temporary(format!("/api/rooms/{}", room).as_str()).into_response(),
+        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            error!("{}", e.to_string());
+            HttpError::bad_request(ErrorCode::UnexpectedError,"Unexpected data query error.").into_response()
+        }
+    }
 }
 
 pub async fn save_room_image(

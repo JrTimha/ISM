@@ -6,16 +6,18 @@
   <component name="CargoProjects">
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
       <package file="$PROJECT_DIR$">
-        <enabledFeature name="default" />
+        <feature name="default" enabled="true" />
       </package>
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Updated exception handling">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration.">
+      <change afterPath="$PROJECT_DIR$/src/model/queries.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/errors.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/room_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_database.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,7 +108,7 @@
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Run ISM">
+  <component name="RunManager" selected="Cargo.sqlx">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -193,11 +195,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
-        <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
       </list>
     </recent_temporary>
   </component>
@@ -336,15 +338,19 @@
       <workItem from="1756206684003" duration="1529000" />
       <workItem from="1756289591518" duration="614000" />
       <workItem from="1756458163209" duration="1255000" />
-      <workItem from="1756648247930" duration="719000" />
-    </task>
-    <task id="LOCAL-00018" summary="implemented room creation">
-      <option name="closed" value="true" />
-      <created>1736718858397</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1736718858398</updated>
+      <workItem from="1756648247930" duration="6237000" />
+      <workItem from="1756678361252" duration="2340000" />
+      <workItem from="1756759708583" duration="1485000" />
+      <workItem from="1756825691647" duration="83000" />
+      <workItem from="1756837276219" duration="1533000" />
+      <workItem from="1756892418402" duration="1275000" />
+      <workItem from="1756936968058" duration="1467000" />
+      <workItem from="1757162814976" duration="2579000" />
+      <workItem from="1757362381869" duration="1266000" />
+      <workItem from="1757461306689" duration="647000" />
+      <workItem from="1757692707245" duration="1271000" />
+      <workItem from="1757873035959" duration="695000" />
+      <workItem from="1758108262366" duration="6124000" />
     </task>
     <task id="LOCAL-00019" summary="new endpoints implemented">
       <option name="closed" value="true" />
@@ -730,7 +736,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754838607784</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration.">
+      <option name="closed" value="true" />
+      <created>1756661314170</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1756661314170</updated>
+    </task>
+    <option name="localTasksCounter" value="68" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -751,7 +765,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="refactoring &amp; kafka support" />
     <MESSAGE value="refactoring" />
     <MESSAGE value="sqlx prepare exec" />
     <MESSAGE value="api refactor continues" />
@@ -776,7 +789,8 @@
     <MESSAGE value="Added S3 support" />
     <MESSAGE value="S3 Support implemented" />
     <MESSAGE value="Updated exception handling" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated exception handling" />
+    <MESSAGE value="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration." />
+    <option name="LAST_COMMIT_MESSAGE" value="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

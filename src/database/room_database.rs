@@ -219,6 +219,23 @@ impl RoomDatabase {
         Ok(exists.unwrap_or(false))
     }
 
+    pub async fn find_room_between_users(&self, user_id: &Uuid, other_user_id: &Uuid) -> Result<Option<Uuid>, sqlx::Error> {
+        let room_details = sqlx::query!(
+            r#"
+            SELECT r.id
+            FROM chat_room r
+                JOIN chat_room_participant p ON r.id = p.room_id
+            WHERE r.room_type = 'Single' AND p.user_id IN ($1, $2) AND p.participant_state = 'Joined'
+            GROUP BY r.id
+            HAVING COUNT(p.user_id) = 2
+            "#, user_id, other_user_id).fetch_optional(&self.pool).await?;
+
+        match room_details {
+            Some(room) => Ok(Some(room.id)),
+            None => Ok(None)
+        }
+    }
+
     pub async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query!("INSERT INTO chat_room_participant (user_id, room_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, room_id) DO UPDATE SET joined_at = $3, participant_state = 'Joined'",

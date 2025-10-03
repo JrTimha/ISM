@@ -184,12 +184,13 @@ impl RoomDatabase {
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
         let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(
-            "INSERT INTO chat_room_participant (user_id, room_id, joined_at) "
+            "INSERT INTO chat_room_participant (user_id, room_id, joined_at, participant_state) "
         );
         builder.push_values(&new_room.invited_users, |mut db, user| {
             db.push_bind(user)
                 .push_bind(&room.id)
-                .push_bind(Utc::now());
+                .push_bind(Utc::now())
+                .push_bind(MembershipStatus::Joined.to_string());
         }).build().fetch_all(&mut *tx).await?;
 
         tx.commit().await?;

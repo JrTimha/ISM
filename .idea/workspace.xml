@@ -12,12 +12,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration.">
-      <change afterPath="$PROJECT_DIR$/src/model/queries.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/router.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/database/room_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_database.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/user.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/user.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,7 +42,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/JrTimha/ISM.git&quot;,
-    &quot;accountId&quot;: &quot;a0cdf11b-08b2-491e-bf68-df1e7391a072&quot;
+    &quot;accountId&quot;: &quot;7e42ddce-4e81-4a2a-b5df-e0b46b7da343&quot;
   }
 }</component>
   <component name="MacroExpansionManager">
@@ -69,11 +66,13 @@
     &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
     &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
     &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
@@ -167,12 +166,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml.console: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml.cassandra: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="console" />
+              <option value="cassandra" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -197,9 +196,9 @@
       <list>
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
-        <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
       </list>
     </recent_temporary>
   </component>
@@ -351,6 +350,9 @@
       <workItem from="1757692707245" duration="1271000" />
       <workItem from="1757873035959" duration="695000" />
       <workItem from="1758108262366" duration="6124000" />
+      <workItem from="1759144283770" duration="1933000" />
+      <workItem from="1759268632496" duration="651000" />
+      <workItem from="1759530407480" duration="1756000" />
     </task>
     <task id="LOCAL-00019" summary="new endpoints implemented">
       <option name="closed" value="true" />

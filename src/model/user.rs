@@ -21,3 +21,24 @@ pub enum MembershipStatus {
     Left,
     Invited
 }
+
+impl MembershipStatus {
+
+
+    pub fn to_str(&self) -> &str {
+        match self {
+            MembershipStatus::Joined => "Joined",
+            MembershipStatus::Left => "Left",
+            MembershipStatus::Invited => "Invited"
+
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            MembershipStatus::Joined => String::from("Joined"),
+            MembershipStatus::Left => String::from("Left"),
+            MembershipStatus::Invited => String::from("Invited")
+        }
+    }
+}

@@ -105,7 +105,7 @@
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Run ISM">
+  <component name="RunManager" selected="Cargo.sqlx">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -192,10 +192,10 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
-        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>

@@ -84,29 +84,33 @@ impl RoomDatabase {
         let rooms = sqlx::query_as!(
             ChatRoomListItemDTO,
             r#"
-            SELECT DISTINCT ON (room.id)
-                room.id,
-                room.room_type AS "room_type: RoomType",
-                room.created_at,
-                room.latest_message,
-                room.latest_message_preview_text,
-                CASE
-                    WHEN room.room_type = 'Single' THEN u.display_name
-                    ELSE room.room_name
-                END AS room_name,
-                CASE
-                    WHEN room.room_type = 'Single' THEN u.profile_picture
-                    ELSE room.room_image_url
-                END AS room_image_url,
-                CASE
-                    WHEN participants.last_message_read_at < room.latest_message THEN TRUE
-                    ELSE FALSE
-                END AS unread
-            FROM chat_room_participant AS participants
-            JOIN chat_room AS room ON participants.room_id = room.id
-            LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
-            LEFT JOIN app_user u ON u.id = crp.user_id
-            WHERE participants.user_id = $1 AND participants.participant_state = 'Joined'
+            WITH room_selection AS (
+                SELECT DISTINCT ON (room.id)
+                    room.id,
+                    room.room_type AS "room_type: RoomType",
+                    room.created_at,
+                    room.latest_message,
+                    room.latest_message_preview_text,
+                    CASE
+                        WHEN room.room_type = 'Single' THEN u.display_name
+                        ELSE room.room_name
+                    END AS room_name,
+                    CASE
+                        WHEN room.room_type = 'Single' THEN u.profile_picture
+                        ELSE room.room_image_url
+                    END AS room_image_url,
+                    CASE
+                        WHEN participants.last_message_read_at < room.latest_message THEN TRUE
+                        ELSE FALSE
+                    END AS unread
+                FROM chat_room_participant AS participants
+                JOIN chat_room AS room ON participants.room_id = room.id
+                LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
+                LEFT JOIN app_user u ON u.id = crp.user_id
+                WHERE participants.user_id = $1 AND participants.participant_state = 'Joined'
+            )
+            SELECT * FROM room_selection
+            ORDER BY latest_message DESC
             "#,
             user_id
         ).fetch_all(&self.pool).await?;
@@ -157,7 +161,7 @@ impl RoomDatabase {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
-            room_name: Option::from(new_room.room_name.unwrap_or_else(|| String::from("Neuer Chat"))),
+            room_name: new_room.room_name,
             room_image_url: None,
             created_at: Utc::now(),
             latest_message: Option::from(Utc::now()),

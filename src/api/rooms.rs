@@ -2,7 +2,7 @@ use std::sync::Arc;
 use axum::{Extension, Json};
 use axum::extract::{Path, State, Multipart, Query};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Response};
 use chrono::{Utc};
 use log::{error, info};
 use uuid::Uuid;
@@ -49,19 +49,24 @@ pub async fn get_room_with_details(
     }
 
     let res = tokio::try_join!( //executing 2 queries async
-        state.room_repository.select_room(&room_id),
+        state.room_repository.find_specific_joined_room(&room_id, &id),
         state.room_repository.select_all_user_in_room(&room_id)
     );
 
     match res {
-        Ok((room, user)) => {
+        Ok((room_option, users)) => {
+            let chat_room = match room_option {
+                Some(room) => room,
+                None => return HttpError::new(StatusCode::NOT_FOUND, ErrorCode::RoomNotFound, "Room not found").into_response()
+            };
+
             let room_details = ChatRoomWithUserDTO {
-                id: room.id,
-                room_type: room.room_type,
-                room_name: room.room_name,
-                room_image_url: room.room_image_url,
-                created_at: room.created_at,
-                users: user,
+                id: chat_room.id,
+                room_type: chat_room.room_type,
+                room_name: chat_room.room_name.unwrap_or(String::from("Unnamed Chat")),
+                room_image_url: chat_room.room_image_url,
+                created_at: chat_room.created_at,
+                users: users,
             };
             Json(room_details).into_response()
         }
@@ -142,11 +147,11 @@ pub async fn create_room(
                     }, other_user).await;
 
                     broadcast.send_event(Notification {
-                        body: NewRoom {room: creator_dto},
+                        body: NewRoom {room: creator_dto.clone()},
                         created_at: Utc::now()
                     }, &id).await;
 
-                    StatusCode::CREATED.into_response()
+                    Json(creator_dto).into_response()
                 } else {
                     HttpError::bad_request(ErrorCode::UnexpectedError,"Room for participator is null.").into_response()
                 }
@@ -411,7 +416,7 @@ pub async fn search_existing_single_room(
 ) -> impl IntoResponse {
     let id = parse_uuid(&token.subject).unwrap();
     match state.room_repository.find_room_between_users(&id, &params.with_user).await {
-        Ok(Some(room)) => Redirect::temporary(format!("/api/rooms/{}", room).as_str()).into_response(),
+        Ok(Some(room)) => (StatusCode::OK, room.to_string()).into_response(),
         Ok(None) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             error!("{}", e.to_string());

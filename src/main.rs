@@ -53,7 +53,7 @@ async fn main() {
     let listener = TcpListener::bind(url.clone()).await.unwrap();
     info!("ISM-Server up and is listening on: {url}");
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())//only working if there are no active connections
+        .with_graceful_shutdown(shutdown_signal())//only working when there aren't active connections
         .await
         .unwrap();
     info!("Stopping ISM...");

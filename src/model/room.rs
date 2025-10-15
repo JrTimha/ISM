@@ -53,7 +53,7 @@ impl RoomType {
 pub struct ChatRoomWithUserDTO {
     pub id: Uuid,
     pub room_type: RoomType,
-    pub room_name: Option<String>,
+    pub room_name: String,
     pub room_image_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub users: Vec<User>

@@ -35,6 +35,7 @@ jobs:
           images: ghcr.io/jrtimha/ism
           tags: |
             type=ref,event=tag
+            type=raw,value=nightly,enable={{is_default_branch}}
 
       - name: Build the Docker image
         uses: docker/build-push-action@v5

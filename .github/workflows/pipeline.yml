@@ -3,6 +3,7 @@ name: Rest-API CI/CD
 on:
   push:
     branches: [ "master" ]
+    tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "master" ]
 
@@ -32,13 +33,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/jrtimha/ism
-          tags: type=ref,event=tag
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
 
       - name: Build the Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags != '' && steps.meta.outputs.tags || 'ghcr.io/jrtimha/ism:latest' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

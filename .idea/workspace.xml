@@ -11,12 +11,8 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Change baseline sql schema, fixed room user insert state bug">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Data Model improvements">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/room_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/room_database.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/room.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/room.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -359,15 +355,8 @@
       <workItem from="1760281368437" duration="612000" />
       <workItem from="1760343903110" duration="1911000" />
       <workItem from="1760381849981" duration="1430000" />
-      <workItem from="1760471513247" duration="6049000" />
-    </task>
-    <task id="LOCAL-00020" summary="new endpoints implemented">
-      <option name="closed" value="true" />
-      <created>1737138602880</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1737138602880</updated>
+      <workItem from="1760471513247" duration="6102000" />
+      <workItem from="1760519109514" duration="165000" />
     </task>
     <task id="LOCAL-00021" summary="new endpoints implemented">
       <option name="closed" value="true" />
@@ -753,7 +742,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759532473716</updated>
     </task>
-    <option name="localTasksCounter" value="69" />
+    <task id="LOCAL-00069" summary="Data Model improvements">
+      <option name="closed" value="true" />
+      <created>1760487918603</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1760487918603</updated>
+    </task>
+    <option name="localTasksCounter" value="70" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -774,7 +771,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="sqlx prepare exec" />
     <MESSAGE value="api refactor continues" />
     <MESSAGE value="added support for new message types: reply, text, media, system" />
     <MESSAGE value="fix serde bug with msg type media" />
@@ -799,7 +795,8 @@
     <MESSAGE value="Updated exception handling" />
     <MESSAGE value="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration." />
     <MESSAGE value="Change baseline sql schema, fixed room user insert state bug" />
-    <option name="LAST_COMMIT_MESSAGE" value="Change baseline sql schema, fixed room user insert state bug" />
+    <MESSAGE value="Data Model improvements" />
+    <option name="LAST_COMMIT_MESSAGE" value="Data Model improvements" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

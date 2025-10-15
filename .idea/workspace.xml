@@ -11,9 +11,7 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Data Model improvements">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Added tagging to pipeline.yml" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -29,6 +27,12 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="PUSH_TAGS">
+      <GitPushTagMode>
+        <option name="argument" value="--tags" />
+        <option name="title" value="All" />
+      </GitPushTagMode>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -105,7 +109,7 @@
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.sqlx">
+  <component name="RunManager" selected="Cargo.Run ISM">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -192,10 +196,10 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
@@ -357,14 +361,7 @@
       <workItem from="1760381849981" duration="1430000" />
       <workItem from="1760471513247" duration="6102000" />
       <workItem from="1760519109514" duration="165000" />
-    </task>
-    <task id="LOCAL-00021" summary="new endpoints implemented">
-      <option name="closed" value="true" />
-      <created>1737248851133</created>
-      <option name="number" value="00021" />
-      <option name="presentableId" value="LOCAL-00021" />
-      <option name="project" value="LOCAL" />
-      <updated>1737248851133</updated>
+      <workItem from="1760549682815" duration="123000" />
     </task>
     <task id="LOCAL-00022" summary="notify body as json">
       <option name="closed" value="true" />
@@ -750,7 +747,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760487918603</updated>
     </task>
-    <option name="localTasksCounter" value="70" />
+    <task id="LOCAL-00070" summary="Added tagging to pipeline.yml">
+      <option name="closed" value="true" />
+      <created>1760549764982</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1760549764982</updated>
+    </task>
+    <option name="localTasksCounter" value="71" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -771,7 +776,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="api refactor continues" />
     <MESSAGE value="added support for new message types: reply, text, media, system" />
     <MESSAGE value="fix serde bug with msg type media" />
     <MESSAGE value="support for reply messages implemented" />
@@ -796,7 +800,8 @@
     <MESSAGE value="Refactor exception handling and improve broadcast event logging&#10;&#10;- Updated `errors.rs` to make `path` optional within error responses.&#10;- Enhanced logging messages in `event_broadcast.rs` for better clarity during broadcast event notifications.&#10;- Minor cleanup in `messages.rs` and `.idea/workspace.xml` to align with updated tasks and workspace configuration." />
     <MESSAGE value="Change baseline sql schema, fixed room user insert state bug" />
     <MESSAGE value="Data Model improvements" />
-    <option name="LAST_COMMIT_MESSAGE" value="Data Model improvements" />
+    <MESSAGE value="Added tagging to pipeline.yml" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added tagging to pipeline.yml" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -34,7 +34,6 @@ jobs:
         with:
           images: ghcr.io/jrtimha/ism
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
 
       - name: Build the Docker image

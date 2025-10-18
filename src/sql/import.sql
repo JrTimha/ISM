@@ -1,3 +1,4 @@
+
 create table chat_room_participant
 (
     joined_at            timestamp(6) with time zone not null,
@@ -37,7 +38,7 @@ create table chat_room
     room_type                   varchar(255)                not null
         constraint chat_room_room_type_check
             check ((room_type)::text = ANY ((ARRAY ['Single'::character varying, 'Group'::character varying])::text[]))
-    );
+);
 
 alter table chat_room
     owner to postgres;

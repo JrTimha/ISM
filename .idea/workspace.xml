@@ -12,8 +12,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Added tagging to pipeline.yml">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/pipeline.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/pipeline.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -71,8 +72,10 @@
     &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
     &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
     &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.KeycloakDB: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.keycloak: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -82,7 +85,7 @@
     &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/Tim/IdeaProjects/ISM/src/broadcast&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/marcelpfeiffer/code/open_source/ISM&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -91,7 +94,7 @@
     &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
     &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
     &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.editor&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -105,11 +108,11 @@
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\assets" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\model" />
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
-      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
   <component name="RunManager" selected="Cargo.Run ISM">
@@ -148,17 +151,6 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Dockerfile runtime" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
-      <deployment type="dockerfile">
-        <settings>
-          <option name="imageTag" value="debianbookworm-slim_runtime" />
-          <option name="buildCliOptions" value="--target runtime" />
-          <option name="buildOnly" value="true" />
-          <option name="sourceFilePath" value="Dockerfile" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -171,12 +163,20 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml.cassandra: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="compose.yaml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="compose.yaml.KeycloakDB: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="cassandra" />
+              <option value="KeycloakDB" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -184,12 +184,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml.redpanda-0: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml.keycloak: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="redpanda-0" />
+              <option value="keycloak" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -200,9 +200,9 @@
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Run ISM" />
-        <item itemvalue="Cargo.sqlx" />
-        <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
-        <item itemvalue="Cargo.sqlx" />
+        <item itemvalue="Docker.compose.yaml.keycloak: Compose Deployment" />
+        <item itemvalue="Docker.compose.yaml.KeycloakDB: Compose Deployment" />
+        <item itemvalue="Docker.compose.yaml: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
@@ -366,6 +366,9 @@
       <workItem from="1760519109514" duration="165000" />
       <workItem from="1760549682815" duration="123000" />
       <workItem from="1760550576774" duration="613000" />
+      <workItem from="1760823912901" duration="3219000" />
+      <workItem from="1760863334069" duration="116000" />
+      <workItem from="1760892263772" duration="690000" />
     </task>
     <task id="LOCAL-00023" summary="Timeline Query with timestamp">
       <option name="closed" value="true" />

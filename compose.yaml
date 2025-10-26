@@ -10,73 +10,95 @@ services:
     volumes:
       - cassandra-data:/var/lib/cassandra
 
-  redpanda-0:
-    command:
-      - redpanda
-      - start
-      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      # Address the broker advertises to clients that connect to the Kafka API.
-      # Use the internal addresses to connect to the Redpanda brokers'
-      # from inside the same Docker network.
-      # Use the external addresses to connect to the Redpanda brokers'
-      # from outside the Docker network.
-      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
-      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-      # Address the broker advertises to clients that connect to the HTTP Proxy.
-      - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
-      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
-      # Redpanda brokers use the RPC API to communicate with each other internally.
-      - --rpc-addr redpanda-0:33145
-      - --advertise-rpc-addr redpanda-0:33145
-      # Mode dev-container uses well-known configuration properties for development in containers.
-      - --mode dev-container
-      # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
-      - --smp 1
-      - --default-log-level=info
-    image: docker.redpanda.com/redpandadata/redpanda:v25.1.1
-    container_name: redpanda-0
-    volumes:
-      - redpanda-0:/var/lib/redpanda/data
-    networks:
-      - redpanda_network
+  minio:
+    image: minio/minio
     ports:
-      - 18081:18081
-      - 18082:18082
-      - 19092:19092
-      - 19644:9644
-
-  console:
-    container_name: redpanda-console
-    image: docker.redpanda.com/redpandadata/console:v3.0.0
-    networks:
-      - redpanda_network
-    entrypoint: /bin/sh
-    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      CONFIG_FILEPATH: /tmp/config.yml
-      CONSOLE_CONFIG_FILE: |
-        kafka:
-          brokers: ["redpanda-0:9092"]
-        schemaRegistry:
-          enabled: true
-          urls: ["http://redpanda-0:8081"]
-        redpanda:
-          adminApi:
-            enabled: true
-            urls: ["http://redpanda-0:9644"]
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server --address ":9000" --console-address ":9001" /data
+
+  KeycloakDB:
+    container_name: KeycloakDB
+    image: "postgres:17.2"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: keycloak
+      POSTGRES_HOST: postgres
+    networks:
+      - local
     ports:
-      - "18080:8080"
+      - "5432:5432"
+
+  keycloak:
+    container_name: keycloak
+    image: keycloak/keycloak:26.4
     depends_on:
-      - redpanda-0
+      - "KeycloakDB"
+    environment:
+      #JAVA_TOOL_OPTIONS: -XX:UseSVE=0 #workaround for macOS 15.2
+      JAVA_OPTS_APPEND: -Dkeycloak.profile.feature.upload_scripts=enabled
+      KC_DB: postgres
+      KC_DB_PASSWORD: postgres
+      KC_DB_URL: jdbc:postgresql://KeycloakDB:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HOSTNAME: http://localhost:8180
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8080"
+      - "8787:8787" # debug port
+    networks:
+      - local
+    volumes:
+      - ./realm.json:/opt/keycloak/data/import/realm.json
+    entrypoint:
+      - /opt/keycloak/bin/kc.sh
+      - start
+      - --import-realm
 
-
+  RoomDB:
+    container_name: RoomDB
+    image: postgres:17.2
+    volumes:
+      - room_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: meventure1234
+    networks:
+      - local
+    ports:
+      - "32768:5432"
 
 volumes:
   cassandra-data:
     driver: local
-  redpanda-0:
+  minio-data:
+    driver: local
+  keycloak_data:
+    driver: local
+  postgres_data:
+    driver: local
+  room_data:
     driver: local
 
+
 networks:
-  redpanda_network:
+  local:
+    name: local
     driver: bridge
+

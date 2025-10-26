@@ -41,6 +41,7 @@ time = "0.3.41"
 try-again = "0.2.2"
 typed-builder = "0.21.0"
 url = "2.5.4"
+sqlx-cli = "0.8.6"
 
 [features]
 default = ["default-tls", "reqwest/charset", "reqwest/http2", "reqwest/macos-system-configuration"]

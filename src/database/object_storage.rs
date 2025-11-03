@@ -7,25 +7,25 @@ use minio::s3::creds::StaticProvider;
 use minio::s3::http::BaseUrl;
 use minio::s3::segmented_bytes::SegmentedBytes;
 use minio::s3::types::S3Api;
-use crate::core::ObjectDbConfig;
+use crate::core::ObjectStorageConfig;
 
 #[derive(Debug, Clone)]
-pub struct ObjectDatabase {
+pub struct ObjectStorage {
     session: Arc<Client>,
-    config: ObjectDbConfig,
+    config: ObjectStorageConfig,
 }
 
-impl ObjectDatabase {
+impl ObjectStorage {
 
-    pub async fn new(config: &ObjectDbConfig) -> Self {
+    pub async fn new(config: &ObjectStorageConfig) -> Self {
         let static_provider = Box::new(StaticProvider::new(
-            &config.db_user,
-            &config.db_password,
+            &config.access_key,
+            &config.secret_key,
             None,
         ));
-        let url = match config.db_url.parse::<BaseUrl>() {
+        let url = match config.storage_url.parse::<BaseUrl>() {
             Ok(url) => url,
-            Err(error) => panic!("Unable to parse db url: {:?}", error)
+            Err(error) => panic!("Unable to parse s3 url: {:?}", error)
         };
         let client: Client = match ClientBuilder::new(url).provider(Some(static_provider)).build() {
             Ok(client) => client,
@@ -42,7 +42,7 @@ impl ObjectDatabase {
                 panic!("Unable to check if bucket exists: {:?}", error)
             }
         };
-        ObjectDatabase { session: Arc::new(client), config: config.clone() }
+        ObjectStorage { session: Arc::new(client), config: config.clone() }
     }
 
     pub async fn get_object(&self, object_id: &String) -> Result<SegmentedBytes,  Box<dyn std::error::Error + Send + Sync>> {

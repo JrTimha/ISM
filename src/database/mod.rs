@@ -1,7 +1,5 @@
 mod message_database;
-mod room_database;
-mod object_database;
+mod object_storage;
 
-pub use message_database::{MessageDatabase};
-pub use room_database::{RoomDatabase};
-pub use object_database::{ObjectDatabase};
+pub use message_database::MessageDatabase;
+pub use object_storage::ObjectStorage;

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct User {
+pub struct RoomMember {
     pub id: Uuid,
     pub display_name: String,
     pub profile_picture: Option<String>,
@@ -23,7 +23,6 @@ pub enum MembershipStatus {
 }
 
 impl MembershipStatus {
-
 
     pub fn to_str(&self) -> &str {
         match self {

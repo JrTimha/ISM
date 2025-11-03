@@ -75,12 +75,12 @@ impl MessageDatabase {
         let queries = [
             "CREATE KEYSPACE IF NOT EXISTS messaging WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}",
             "CREATE TABLE IF NOT EXISTS messaging.chat_messages (
-            chat_room_id UUID,
-            message_id UUID,
-            sender_id UUID,
-            msg_body TEXT,
-            msg_type TEXT,
-            created_at TIMESTAMP,
+                chat_room_id UUID,
+                message_id UUID,
+                sender_id UUID,
+                msg_body TEXT,
+                msg_type TEXT,
+                created_at TIMESTAMP,
             PRIMARY KEY ((chat_room_id), created_at, message_id)
         )"
         ];

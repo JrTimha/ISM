@@ -1,41 +1,20 @@
 use chrono::Utc;
-use log::{info};
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use sqlx::error::BoxDynError;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use uuid::Uuid;
-use crate::core::{UserDbConfig};
-use crate::model::user::{User, MembershipStatus};
-use crate::model::{ChatRoomEntity, ChatRoomListItemDTO, NewRoom, RoomType};
+use crate::model::room_member::{RoomMember, MembershipStatus};
+use crate::model::{ChatRoomEntity, ChatRoom, NewRoom, RoomType};
 
-#[derive(Debug, Clone)]
-pub struct RoomDatabase {
+#[derive(Clone)]
+pub struct RoomRepository {
     pool: Pool<Postgres>,
 }
 
-impl RoomDatabase {
+impl RoomRepository {
 
-    pub async fn new(config: &UserDbConfig) -> Self {
-        let opt = PgConnectOptions::new()
-            .host(&config.db_host)
-            .port(config.db_port)
-            .database(&config.db_name)
-            .username(&config.db_user)
-            .password(&config.db_password);
-        let pool = match PgPoolOptions::new()
-            .max_connections(25)
-            .connect_with(opt)
-            .await
-        {
-            Ok(pool) => {
-                info!("Established connection to the room database.");
-                pool
-            }
-            Err(err) => {
-                panic!("Failed to connect to the room database: {:?}", err);
-            }
-        };
-        RoomDatabase { pool }
+
+    pub fn new(pool: Pool<Postgres>) -> Self {
+        RoomRepository { pool }
     }
 
     pub async fn start_transaction(&self) -> Result<Transaction<Postgres>, Error> {
@@ -47,8 +26,8 @@ impl RoomDatabase {
         &self.pool
     }
 
-    pub async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
-        let users = sqlx::query_as!(User,
+    pub async fn select_all_user_in_room(&self, room_id: &Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
+        let users = sqlx::query_as!(RoomMember,
             r#"
             SELECT users.id,
                    users.display_name,
@@ -63,8 +42,8 @@ impl RoomDatabase {
         Ok(users)
     }
 
-    pub async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<User>, sqlx::Error> {
-        let users = sqlx::query_as!(User,
+    pub async fn select_joined_user_in_room(&self, room_id: &Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
+        let users = sqlx::query_as!(RoomMember,
             r#"
             SELECT
                 users.id,
@@ -80,9 +59,9 @@ impl RoomDatabase {
         Ok(users)
     }
 
-    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomListItemDTO>, sqlx::Error> {
+    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoom>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-            ChatRoomListItemDTO,
+            ChatRoom,
             r#"
             WITH room_selection AS (
                 SELECT DISTINCT ON (room.id)
@@ -123,9 +102,9 @@ impl RoomDatabase {
         Ok(())
     }
 
-    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomListItemDTO>, sqlx::Error> {
+    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoom>, sqlx::Error> {
         let room = sqlx::query_as!(
-            ChatRoomListItemDTO,
+            ChatRoom,
             r#"
             SELECT
                 room.id,
@@ -241,12 +220,12 @@ impl RoomDatabase {
         }
     }
 
-    pub async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<User, sqlx::Error> {
+    pub async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<RoomMember, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query!("INSERT INTO chat_room_participant (user_id, room_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, room_id) DO UPDATE SET joined_at = $3, participant_state = 'Joined'",
             user_id, room_id, Utc::now()).execute(&mut *tx).await?;
 
-        let user = sqlx::query_as!(User,
+        let user = sqlx::query_as!(RoomMember,
            r#"
             SELECT
                 users.id,
@@ -316,7 +295,7 @@ impl RoomDatabase {
     }
 
 
-    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user: &User) -> Result<(), sqlx::Error> {
+    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user: &RoomMember) -> Result<(), sqlx::Error> {
         sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *conn).await?;
         let text = format!("{}{}", user.display_name, String::from(" hat den Chat verlassen.")); //todo: think about a better latest msg logic
         sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *conn).await?;

@@ -5,3 +5,4 @@ pub mod model;
 pub mod broadcast;
 pub mod kafka;
 pub mod keycloak;
+pub mod repository;

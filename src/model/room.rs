@@ -2,7 +2,7 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
-use crate::model::user::User;
+use crate::model::room_member::RoomMember;
 
 #[derive(sqlx::FromRow, sqlx::Type, Debug)]
 pub struct ChatRoomEntity {
@@ -53,15 +53,18 @@ impl RoomType {
 pub struct ChatRoomWithUserDTO {
     pub id: Uuid,
     pub room_type: RoomType,
-    pub room_name: String,
     pub room_image_url: Option<String>,
+    pub room_name: String,
     pub created_at: DateTime<Utc>,
-    pub users: Vec<User>
+    pub latest_message: Option<DateTime<Utc>>,
+    pub unread: Option<bool>,
+    pub latest_message_preview_text: Option<String>,
+    pub users: Vec<RoomMember>
 }
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ChatRoomListItemDTO {
+pub struct ChatRoom {
     pub id: Uuid,
     pub room_type: RoomType,
     pub room_image_url: Option<String>,

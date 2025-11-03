@@ -24,9 +24,9 @@ iss_realm = "meventure"
 valid_admin_client = "api-client"
 
 [object_db_config]
-db_user = "minioadmin"
-db_url = "http://localhost:9000"
-db_password = "minioadmin"
+access_key = "minioadmin"
+storage_url = "http://localhost:9000"
+secret_key = "minioadmin"
 bucket_name = "meventure"
 
 [kafka_config]

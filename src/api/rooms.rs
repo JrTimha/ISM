@@ -10,7 +10,7 @@ use bytes::Bytes;
 use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, User, UploadResponse, SingleRoomSearchUserParams};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, RoomMember, UploadResponse, SingleRoomSearchUserParams};
 use crate::api::utils::{check_user_in_room, crop_image_from_center, parse_uuid};
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
@@ -66,6 +66,9 @@ pub async fn get_room_with_details(
                 room_name: chat_room.room_name.unwrap_or(String::from("Unnamed Chat")),
                 room_image_url: chat_room.room_image_url,
                 created_at: chat_room.created_at,
+                latest_message: chat_room.latest_message,
+                unread: chat_room.unread,
+                latest_message_preview_text: chat_room.latest_message_preview_text,
                 users: users,
             };
             Json(room_details).into_response()
@@ -229,7 +232,7 @@ pub async fn leave_room(
     }
 }
 
-async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<User>) -> Response {
+async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>) -> Response {
     if let Err(err) = state.message_repository.clear_chat_room_messages(&room.id).await {
         error!("Can't clear chat messages for this room: {}", err);
         return HttpError::bad_request(ErrorCode::UnexpectedError, "Unable to delete this room.").into_response();
@@ -251,7 +254,7 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
     StatusCode::OK.into_response()
 }
 
-async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<User>, mut leaving_user: User) -> Response {
+async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>, mut leaving_user: RoomMember) -> Response {
     let mut tx = state.room_repository.start_transaction().await.unwrap();
     if let Err(err) = state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user).await {
         error!("{}", err.to_string());

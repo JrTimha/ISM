@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::User;
+use crate::model::RoomMember;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum MsgType {
@@ -122,9 +122,9 @@ pub enum RepliedMessageDetails {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomChangeBody {
-    UserJoined {related_user: User},
-    UserLeft {related_user: User},
-    UserInvited {related_user: User}
+    UserJoined {related_user: RoomMember },
+    UserLeft {related_user: RoomMember },
+    UserInvited {related_user: RoomMember }
 }
 
 

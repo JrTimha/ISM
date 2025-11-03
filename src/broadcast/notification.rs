@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::{ChatRoomListItemDTO, MessageDTO};
+use crate::model::{ChatRoom, MessageDTO};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -35,7 +35,7 @@ pub enum NotificationEvent {
     /**
     * Sending this event to a newly invited user
     */
-    NewRoom {room: ChatRoomListItemDTO},
+    NewRoom {room: ChatRoom },
 
     /**
     * Sending this event to a user who has left a room

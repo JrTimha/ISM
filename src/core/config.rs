@@ -11,17 +11,17 @@ pub struct ISMConfig {
     pub log_level: String,
     pub cors_origin: String,
     pub user_db_config: UserDbConfig,
-    pub object_db_config: ObjectDbConfig,
+    pub object_db_config: ObjectStorageConfig,
     pub message_db_config: MessageDbConfig,
     pub token_issuer: TokenIssuer,
     pub kafka_config: KafkaConfig
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct ObjectDbConfig {
-    pub db_user: String,
-    pub db_url: String,
-    pub db_password: String,
+pub struct ObjectStorageConfig {
+    pub access_key: String,
+    pub storage_url: String,
+    pub secret_key: String,
     pub bucket_name: String
 }
 
@@ -68,8 +68,9 @@ impl ISMConfig {
         let config = Config::builder()
             .add_source(File::with_name("default.config.toml"))
             .add_source(File::with_name(&format!("{mode}.config.toml")).required(false))
-            .add_source(Environment::default().separator("__"))
+            .add_source(Environment::with_prefix("ism").prefix_separator("_").separator("__"))
             .build()?;
+
         config.try_deserialize()
     }
 }

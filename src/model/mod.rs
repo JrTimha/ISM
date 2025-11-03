@@ -1,11 +1,11 @@
 mod room;
 mod message;
 
-pub mod user;
+pub mod room_member;
 mod response_utils;
 mod queries;
 
-pub use user::*;
+pub use room_member::*;
 pub use room::*;
 pub use message::*;
 pub use response_utils::*;

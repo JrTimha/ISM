@@ -17,7 +17,7 @@ impl RoomRepository {
         RoomRepository { pool }
     }
 
-    pub async fn start_transaction(&self) -> Result<Transaction<Postgres>, Error> {
+    pub async fn start_transaction(&self) -> Result<Transaction<'_, Postgres>, Error> {
         let tx = self.pool.begin().await?;
         Ok(tx)
     }

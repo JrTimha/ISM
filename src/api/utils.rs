@@ -9,10 +9,6 @@ use crate::api::errors::{ErrorCode, HttpError};
 use crate::core::AppState;
 
 
-pub fn parse_uuid(subject: &str) -> Result<Uuid, HttpError> {
-    Uuid::try_parse(subject).map_err(|_| HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::ValidationError, "Can't parse token to UUID."))
-}
-
 pub async fn check_user_in_room(
     state: &Arc<AppState>,
     user_id: &Uuid,

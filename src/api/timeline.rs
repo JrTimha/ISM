@@ -8,7 +8,7 @@ use log::{error};
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::api::errors::{ErrorCode, HttpError};
-use crate::api::utils::{check_user_in_room, parse_uuid};
+use crate::api::utils::{check_user_in_room};
 use crate::core::AppState;
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{Message, MessageDTO, MsgType};
@@ -24,8 +24,8 @@ pub async fn scroll_chat_timeline(
     Path(room_id): Path<Uuid>,
     Query(params): Query<TimelineQuery>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+    
+    if let Err(err) = check_user_in_room(&state, &token.subject, &room_id).await {
         return err.into_response();
     }
     match state.message_repository.fetch_data(params.timestamp, room_id).await {

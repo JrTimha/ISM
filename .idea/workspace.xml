@@ -11,9 +11,21 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Added tagging to pipeline.yml">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/pipeline.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/pipeline.yml" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Update dependencies, update tu rust 1.91">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/notifications.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/timeline.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/utils.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/keycloak/decode.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/keycloak/decode.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/room_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/util.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/util.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,6 +49,7 @@
       </GitPushTagMode>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -82,7 +95,7 @@
     &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/Tim/IdeaProjects/ISM/src/broadcast&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -91,7 +104,7 @@
     &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
     &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
     &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -102,14 +115,15 @@
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/repository" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/repository" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\assets" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\model" />
       <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
-      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\rest" />
     </key>
   </component>
   <component name="RunManager" selected="Cargo.Run ISM">
@@ -197,6 +211,13 @@
       </deployment>
       <method v="2" />
     </configuration>
+    <list>
+      <item itemvalue="Cargo.Run ISM" />
+      <item itemvalue="Cargo.sqlx" />
+      <item itemvalue="Docker.Dockerfile runtime" />
+      <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
+      <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Run ISM" />
@@ -366,14 +387,9 @@
       <workItem from="1760519109514" duration="165000" />
       <workItem from="1760549682815" duration="123000" />
       <workItem from="1760550576774" duration="613000" />
-    </task>
-    <task id="LOCAL-00023" summary="Timeline Query with timestamp">
-      <option name="closed" value="true" />
-      <created>1737591883993</created>
-      <option name="number" value="00023" />
-      <option name="presentableId" value="LOCAL-00023" />
-      <option name="project" value="LOCAL" />
-      <updated>1737591883993</updated>
+      <workItem from="1761651805658" duration="856000" />
+      <workItem from="1762200076734" duration="12623000" />
+      <workItem from="1762212725451" duration="47000" />
     </task>
     <task id="LOCAL-00024" summary="Room read support, room list dto endpoint with more details">
       <option name="closed" value="true" />
@@ -759,7 +775,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760550648768</updated>
     </task>
-    <option name="localTasksCounter" value="72" />
+    <task id="LOCAL-00072" summary="App State Refactor">
+      <option name="closed" value="true" />
+      <created>1762209897658</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1762209897658</updated>
+    </task>
+    <option name="localTasksCounter" value="73" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -780,8 +804,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="added support for new message types: reply, text, media, system" />
-    <MESSAGE value="fix serde bug with msg type media" />
     <MESSAGE value="support for reply messages implemented" />
     <MESSAGE value="readme change" />
     <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
@@ -805,7 +827,9 @@
     <MESSAGE value="Change baseline sql schema, fixed room user insert state bug" />
     <MESSAGE value="Data Model improvements" />
     <MESSAGE value="Added tagging to pipeline.yml" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added tagging to pipeline.yml" />
+    <MESSAGE value="App State Refactor" />
+    <MESSAGE value="Update dependencies, update tu rust 1.91" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update dependencies, update tu rust 1.91" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

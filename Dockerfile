@@ -1,4 +1,4 @@
-FROM rust:1.86.0-slim-bookworm AS builder
+FROM rust:1.91.0-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -6,9 +6,9 @@ COPY .sqlx ./.sqlx/
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-# Installiere OpenSSL-Entwicklungspakete
 ENV SQLX_OFFLINE=true
 
+# Installiere OpenSSL-Entwicklungspakete
 RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config
 
 # Baue Abhängigkeiten

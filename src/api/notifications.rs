@@ -10,7 +10,6 @@ use log::error;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use crate::api::errors::{ErrorCode, HttpError};
-use crate::api::utils::parse_uuid;
 use crate::broadcast::{BroadcastChannel, SendNotification};
 use crate::core::AppState;
 use crate::keycloak::decode::KeycloakToken;
@@ -21,9 +20,8 @@ pub async fn stream_server_events(
 ) -> Sse<impl Stream<Item = Result<Event, BroadcastStreamRecvError>>> {
 
     use futures::StreamExt;
-    let id = parse_uuid(&token.subject).unwrap();
 
-    let receiver = BroadcastChannel::get().subscribe_to_user_events(id.clone()).await;
+    let receiver = BroadcastChannel::get().subscribe_to_user_events(token.subject.clone()).await;
 
     let stream = BroadcastStream::new(receiver).filter_map(move |notification| async move {
         match notification {

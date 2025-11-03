@@ -11,7 +11,7 @@ use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
 use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, RoomMember, UploadResponse, SingleRoomSearchUserParams};
-use crate::api::utils::{check_user_in_room, crop_image_from_center, parse_uuid};
+use crate::api::utils::{check_user_in_room, crop_image_from_center};
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
 use crate::core::AppState;
@@ -31,8 +31,7 @@ pub async fn get_joined_rooms(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    match state.room_repository.get_joined_rooms(&id).await {
+    match state.room_repository.get_joined_rooms(&token.subject).await {
         Ok(rooms) => Json(rooms).into_response(),
         Err(err) => HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::UnexpectedError, err.to_string()).into_response()
     }
@@ -43,13 +42,12 @@ pub async fn get_room_with_details(
     Extension(token): Extension<KeycloakToken<String>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+    if let Err(err) = check_user_in_room(&state, &token.subject, &room_id).await {
         return err.into_response();
     }
 
     let res = tokio::try_join!( //executing 2 queries async
-        state.room_repository.find_specific_joined_room(&room_id, &id),
+        state.room_repository.find_specific_joined_room(&room_id, &token.subject),
         state.room_repository.select_all_user_in_room(&room_id)
     );
 
@@ -85,9 +83,8 @@ pub async fn mark_room_as_read(
     Extension(token): Extension<KeycloakToken<String>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
     let pl = state.room_repository.get_connection();
-    match state.room_repository.update_user_read_status(pl, &room_id, &id).await {
+    match state.room_repository.update_user_read_status(pl, &room_id, &token.subject).await {
         Ok(()) => StatusCode::OK.into_response(),
         Err(_) => HttpError::bad_request(ErrorCode::UnexpectedError,"Can't update user read status.").into_response()
     }
@@ -99,9 +96,8 @@ pub async fn create_room(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UploadRoom>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
 
-    if !payload.invited_users.contains(&id) {
+    if !payload.invited_users.contains(&token.subject) {
         return HttpError::bad_request(ErrorCode::InvalidContent, "Sender ID is not in the list of invited users.").into_response();
     }
 
@@ -129,14 +125,14 @@ pub async fn create_room(
     let users = payload.invited_users;
     
     if room_entity.room_type == RoomType::Single {
-        let other_user = match users.iter().find(|&&entry| entry != id) {
+        let other_user = match users.iter().find(|&&entry| entry != token.subject) {
             Some(other_user) => other_user,
             None => return HttpError::bad_request(ErrorCode::InvalidContent,"Can't find other user.").into_response(),
         };
 
         //sending 2 specific room views to the users, because private rooms are shown like another user
         let result = tokio::try_join!( //executing 2 queries async
-        state.room_repository.find_specific_joined_room(&room_entity.id, &id),
+        state.room_repository.find_specific_joined_room(&room_entity.id, &token.subject),
         state.room_repository.find_specific_joined_room(&room_entity.id, other_user)
         );
         match result {
@@ -152,7 +148,7 @@ pub async fn create_room(
                     broadcast.send_event(Notification {
                         body: NewRoom {room: creator_dto.clone()},
                         created_at: Utc::now()
-                    }, &id).await;
+                    }, &token.subject).await;
 
                     Json(creator_dto).into_response()
                 } else {
@@ -167,7 +163,7 @@ pub async fn create_room(
 
     } else { //is group room
 
-        let room = match state.room_repository.find_specific_joined_room(&room_entity.id, &id).await {
+        let room = match state.room_repository.find_specific_joined_room(&room_entity.id, &token.subject).await {
             Ok(Some(room)) => room,
             Ok(None) => return HttpError::bad_request(ErrorCode::UnexpectedError,"Room not found after creation.").into_response(),
             Err(error) => {
@@ -193,8 +189,7 @@ pub async fn get_room_list_item_by_id(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    match state.room_repository.find_specific_joined_room(&room_id, &id).await {
+    match state.room_repository.find_specific_joined_room(&room_id, &token.subject).await {
         Ok(Some(room)) => Json(room).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(err) => HttpError::bad_request(ErrorCode::UnexpectedError, err.to_string()).into_response()
@@ -207,7 +202,6 @@ pub async fn leave_room(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
     let result = tokio::try_join!( //executing 2 queries async
         state.room_repository.select_room(&room_id),
         state.room_repository.select_joined_user_in_room(&room_id)
@@ -219,7 +213,7 @@ pub async fn leave_room(
             return HttpError::bad_request(ErrorCode::InvalidContent,"Can't get room & user state.").into_response()
         }
     };
-    let leaving_user = match users.iter().find(|user| user.id == id) {
+    let leaving_user = match users.iter().find(|user| user.id == token.subject) {
         Some(user) => {user.clone()}
         None => {
             return HttpError::new(StatusCode::UNAUTHORIZED, ErrorCode::InsufficientPermissions,"User not found in this room.").into_response();
@@ -323,7 +317,6 @@ pub async fn invite_to_room(
     Path((room_id, user_id)): Path<(Uuid, Uuid)>
 ) -> impl IntoResponse {
     
-    let id = parse_uuid(&token.subject).unwrap();
     let result = tokio::try_join!( //executing 2 queries async
         state.room_repository.select_room(&room_id),
         state.room_repository.select_joined_user_in_room(&room_id)
@@ -339,7 +332,7 @@ pub async fn invite_to_room(
         return HttpError::bad_request(ErrorCode::InvalidContent, "Room type single doesn't allow invites!").into_response();
     }
     //we have to check if the inviter is in the room and the invited user isn't!
-    let user_to_find = users.iter().find(|user| user.id == id);
+    let user_to_find = users.iter().find(|user| user.id == token.subject);
     let user_to_exclude = users.iter().find(|user| user.id == user_id);
     match (user_to_find, user_to_exclude) {
         (Some(_inviter), None) => {} //we have checked the invite rules and continue
@@ -417,8 +410,7 @@ pub async fn search_existing_single_room(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SingleRoomSearchUserParams>,
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    match state.room_repository.find_room_between_users(&id, &params.with_user).await {
+    match state.room_repository.find_room_between_users(&token.subject, &params.with_user).await {
         Ok(Some(room)) => (StatusCode::OK, room.to_string()).into_response(),
         Ok(None) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
@@ -434,8 +426,7 @@ pub async fn save_room_image(
     Path(room_id): Path<Uuid>,
     mut multipart: Multipart
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
-    if let Err(err) = check_user_in_room(&state, &id, &room_id).await {
+    if let Err(err) = check_user_in_room(&state, &token.subject, &room_id).await {
         return err.into_response();
     }
 

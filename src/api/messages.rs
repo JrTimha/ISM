@@ -9,7 +9,6 @@ use log::error;
 use uuid::Uuid;
 use crate::api::errors::{ErrorCode, HttpError};
 use crate::api::timeline::msg_to_dto;
-use crate::api::utils::parse_uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
@@ -22,7 +21,6 @@ pub async fn send_message(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<NewMessage>
 ) -> impl IntoResponse {
-    let id = parse_uuid(&token.subject).unwrap();
     //validate if the user is in the room
     let users = match state.room_repository.select_room_participants_ids(&payload.chat_room_id).await {
         Ok(ids) => ids,
@@ -31,7 +29,7 @@ pub async fn send_message(
             return HttpError::bad_request(ErrorCode::UnexpectedError,"Can't fetch room participants.").into_response();
         }
     };
-    if !users.contains(&id) {
+    if !users.contains(&token.subject) {
         return HttpError::new(StatusCode::UNAUTHORIZED, ErrorCode::InsufficientPermissions, "Room not found or access denied.").into_response();
     }
 
@@ -55,7 +53,7 @@ pub async fn send_message(
         }
     };
     
-    let msg = match Message::new(payload.chat_room_id, id, msg_body) {
+    let msg = match Message::new(payload.chat_room_id, token.subject, msg_body) {
         Ok(message) => message,
         Err(err) => {
             error!("{}", err.to_string());

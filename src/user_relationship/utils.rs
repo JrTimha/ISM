@@ -1,8 +1,9 @@
 use uuid::Uuid;
 use crate::user_relationship::model::{Relationship, RelationshipState, UserRelationship};
 
+
 pub fn resolve_relationship_state(
-    client_id: Uuid,
+    client_id: &Uuid,
     relationship: Option<UserRelationship>,
 ) -> Option<Relationship> {
 
@@ -14,7 +15,7 @@ pub fn resolve_relationship_state(
         RelationshipState::FRIEND => Some(Relationship::Friend),
 
         RelationshipState::A_BLOCKED => {
-            if relationship.user_a_id == client_id {
+            if relationship.user_a_id == *client_id {
                 Some(Relationship::ClientBlocked)
             } else {
                 Some(Relationship::ClientGotBlocked)
@@ -22,7 +23,7 @@ pub fn resolve_relationship_state(
         }
 
         RelationshipState::B_BLOCKED => {
-            if relationship.user_b_id == client_id {
+            if relationship.user_b_id == *client_id {
                 Some(Relationship::ClientBlocked)
             } else {
                 Some(Relationship::ClientGotBlocked)
@@ -30,7 +31,7 @@ pub fn resolve_relationship_state(
         }
 
         RelationshipState::ALL_BLOCKED => {
-            if relationship.user_b_id == client_id || relationship.user_a_id == client_id {
+            if relationship.user_b_id == *client_id || relationship.user_a_id == *client_id {
                 Some(Relationship::ClientBlocked)
             } else {
                 Some(Relationship::ClientGotBlocked)
@@ -38,7 +39,7 @@ pub fn resolve_relationship_state(
         }
 
         RelationshipState::A_INVITED => {
-            if relationship.user_a_id == client_id {
+            if relationship.user_a_id == *client_id {
                 Some(Relationship::InviteSent)
             } else {
                 Some(Relationship::InviteReceived)
@@ -46,7 +47,7 @@ pub fn resolve_relationship_state(
         }
 
         RelationshipState::B_INVITED => {
-            if relationship.user_b_id == client_id {
+            if relationship.user_b_id == *client_id {
                 Some(Relationship::InviteSent)
             } else {
                 Some(Relationship::InviteReceived)

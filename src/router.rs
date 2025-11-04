@@ -27,7 +27,7 @@ pub async fn init_router(app_state: AppState) -> Router {
         .allow_origin(origin.parse::<HeaderValue>().unwrap())
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE, CONTENT_LENGTH, CONNECTION, ORIGIN])
         .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS]);
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE]);
 
     let public_routing = Router::new()
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))

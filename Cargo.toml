@@ -25,6 +25,7 @@ samsa = "0.1.7"
 minio = { version = "0.3.0", features = ["default"] }
 image = { version = "0.25.8"}
 bytes = "1.10.1"
+base64 = "0.22.1"
 
 #keycloak:
 atomic-time = "0.1.5"

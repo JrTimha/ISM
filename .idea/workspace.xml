@@ -12,35 +12,24 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Update dependencies, update tu rust 1.91">
-      <change afterPath="$PROJECT_DIR$/src/messaging/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/messaging/routes.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/rooms/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/rooms/routes.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/utils.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="folder restructure">
+      <change afterPath="$PROJECT_DIR$/src/core/cursor.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/query_param.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/router.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/timeline.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/sql/import.sql" beforeDir="false" afterPath="$PROJECT_DIR$/sql/import.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/utils.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -108,8 +97,11 @@
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
@@ -120,6 +112,7 @@
     &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
     &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -408,15 +401,8 @@
       <workItem from="1762212794011" duration="6731000" />
       <workItem from="1762248465667" duration="259000" />
       <workItem from="1762248727309" duration="30000" />
-      <workItem from="1762248809929" duration="5086000" />
-    </task>
-    <task id="LOCAL-00025" summary="Room read fix, room set read on send message">
-      <option name="closed" value="true" />
-      <created>1737922424303</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1737922424303</updated>
+      <workItem from="1762248809929" duration="17269000" />
+      <workItem from="1762266608463" duration="10813000" />
     </task>
     <task id="LOCAL-00026" summary="rename refactor">
       <option name="closed" value="true" />
@@ -802,7 +788,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762212839073</updated>
     </task>
-    <option name="localTasksCounter" value="74" />
+    <task id="LOCAL-00074" summary="folder restructure">
+      <option name="closed" value="true" />
+      <created>1762254673423</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1762254673423</updated>
+    </task>
+    <option name="localTasksCounter" value="75" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -823,7 +817,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="support for reply messages implemented" />
     <MESSAGE value="readme change" />
     <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
     <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
@@ -848,7 +841,8 @@
     <MESSAGE value="Added tagging to pipeline.yml" />
     <MESSAGE value="App State Refactor" />
     <MESSAGE value="Update dependencies, update tu rust 1.91" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update dependencies, update tu rust 1.91" />
+    <MESSAGE value="folder restructure" />
+    <option name="LAST_COMMIT_MESSAGE" value="folder restructure" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -1,4 +1,6 @@
-use std::fmt::Display;
+use std::error::Error;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
@@ -31,6 +33,8 @@ pub enum ErrorCode {
     MessageNotFound,
     InvalidContent,
     FileProcessingError,
+
+    ContentNotFound,
 
     // General API & Validation Errors
     ValidationError,
@@ -101,5 +105,100 @@ impl IntoResponse for HttpError {
         };
 
         (status, Json(error_response)).into_response()
+    }
+}
+
+pub enum AppError {
+    /// Ein Fehler, der von einer ungültigen Anfrage des Clients herrührt.
+    ValidationError(String),
+
+    /// Ein angeforderter Datensatz wurde nicht gefunden.
+    NotFound(String),
+
+    /// Ein Fehler, der aus der Datenbank kommt. Wir verpacken den ursprünglichen Fehler.
+    /// `Box<dyn Error + Send + Sync>` ist der Standardweg in Rust, um einen beliebigen Fehler zu speichern.
+    DatabaseError(Box<dyn Error + Send + Sync>),
+
+    /// Ein interner Fehler bei der Verarbeitung, z.B. beim Kodieren/Dekodieren.
+    ProcessingError(String),
+
+    Blocked(String),
+}
+
+impl fmt::Debug for AppError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ValidationError(msg) => write!(f, "ValidationError: {}", msg),
+            Self::NotFound(msg) => write!(f, "NotFound: {}", msg),
+            Self::DatabaseError(err) => write!(f, "DatabaseError: {}", err),
+            Self::ProcessingError(msg) => write!(f, "ProcessingError: {}", msg),
+            Self::Blocked(msg) => write!(f, "Blocked: {}", msg),
+        }
+    }
+}
+
+impl Display for AppError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::ValidationError(msg) => write!(f, "Invalid input: {}", msg),
+            AppError::NotFound(msg) => write!(f, "Entity not found: {}", msg),
+            AppError::DatabaseError(err) => write!(f, "Ein Datenbankfehler ist aufgetreten: {}", err),
+            AppError::ProcessingError(msg) => write!(f, "Ein Verarbeitungsfehler ist aufgetreten: {}", msg),
+            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
+        }
+    }
+}
+
+impl From<sqlx::Error> for AppError {
+    fn from(err: sqlx::Error) -> AppError {
+        AppError::DatabaseError(Box::new(err))
+    }
+}
+
+impl Error for AppError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            AppError::DatabaseError(err) => Some(err.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+
+        let http_error = match self {
+            AppError::ValidationError(msg) => {
+                HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::ValidationError, msg)
+            }
+            AppError::NotFound(msg) => {
+                HttpError::new(StatusCode::NOT_FOUND, ErrorCode::ContentNotFound, msg)
+            }
+            AppError::DatabaseError(internal_err) => {
+                tracing::error!("Database error: {:?}", internal_err);
+                HttpError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorCode::ServiceUnavailable,
+                    "Internal service outage."
+                )
+            }
+            AppError::ProcessingError(msg) => {
+                tracing::error!("Intern processing error: {}", msg);
+                HttpError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorCode::UnexpectedError,
+                    "Unexpected server error processing."
+                )
+            }
+            AppError::Blocked(msg) => {
+                HttpError::new(
+                    StatusCode::FORBIDDEN,
+                    ErrorCode::InsufficientPermissions,
+                    msg
+                )
+            }
+        };
+
+        http_error.into_response()
     }
 }

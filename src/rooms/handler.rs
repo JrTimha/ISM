@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use axum::{Extension, Json};
 use axum::extract::{Multipart, Path, Query, State};
@@ -13,6 +14,7 @@ use crate::messaging::model::MessageDTO;
 use crate::model::{ChatRoom, ChatRoomWithUserDTO, NewRoom, RoomMember, RoomType, UploadResponse};
 use crate::rooms::room_service::RoomService;
 use crate::rooms::timeline_service::TimelineService;
+use crate::user_relationship::user_service::UserService;
 use crate::utils::check_user_in_room;
 
 #[derive(Deserialize, Debug)]
@@ -80,17 +82,31 @@ pub async fn mark_room_as_read(
 pub async fn handle_create_room(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-    Json(payload): Json<NewRoom>
+    Json(mut payload): Json<NewRoom>
 ) -> Result<Json<ChatRoom>, AppError> {
 
     if !payload.invited_users.contains(&token.subject) {
         return Err(AppError::ValidationError("Sender ID is not in the list of invited users.".to_string()));
     }
+    
+    
+    //filter out all users that have an ignore-relationship with the sender
+    let ignored = UserService::get_blocked_users(state.clone(), &token.subject, &payload.invited_users).await?;
+    let filter_set: HashSet<_> = ignored.iter().collect();
+    payload.invited_users.retain(|uuid| !filter_set.contains(uuid));
+    
 
     match payload.room_type {
         RoomType::Single => {
             if payload.invited_users.len() != 2 {
                 return Err(AppError::ValidationError("Personal rooms must have exactly two IDs (sender + one other).".to_string()));
+            }
+            let other_user = payload.invited_users.iter().find(|&&el| el != token.subject).ok_or_else(|| {
+                AppError::ValidationError("Personal rooms must contain another user.".to_string())
+            })?;
+            let has_active_chat = RoomService::find_existing_single_room(state.clone(), &token.subject, other_user).await?;
+            if has_active_chat.is_some() {
+                return Err(AppError::ValidationError("User already has an active personal chat.".to_string()));
             }
         }
         RoomType::Group => {
@@ -126,10 +142,15 @@ pub async fn handle_invite_to_room(
     State(state): State<Arc<AppState>>,
     Path((room_id, user_id)): Path<(Uuid, Uuid)>
 ) -> Result<(), AppError> {
+
+    let ignored = UserService::get_blocked_users(state.clone(), &token.subject, &vec!(user_id)).await?;
+    if ignored.contains(&user_id) {
+        return Err(AppError::Blocked("User is blocked.".to_string()));
+    }
+
     RoomService::invite_to_room(state, token.subject, room_id, user_id).await?;
     Ok(())
 }
-
 
 
 pub async fn handle_search_existing_single_room(
@@ -137,7 +158,7 @@ pub async fn handle_search_existing_single_room(
     State(state): State<Arc<AppState>>,
     Query(params): Query<RoomSearchQueryParam>,
 ) -> Result<Json<Option<Uuid>>, AppError> {
-    let result = RoomService::find_existing_single_room(state, token.subject, params.with_user).await?;
+    let result = RoomService::find_existing_single_room(state, &token.subject, &params.with_user).await?;
     Ok(Json(result))
 }
 

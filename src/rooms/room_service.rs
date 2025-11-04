@@ -178,8 +178,8 @@ impl RoomService {
         Ok(())
     }
 
-    pub async fn find_existing_single_room(state: Arc<AppState>, client_id: Uuid, with_user: Uuid) -> Result<Option<Uuid>, AppError> {
-        let room_id = state.room_repository.find_room_between_users(&client_id, &with_user).await?;
+    pub async fn find_existing_single_room(state: Arc<AppState>, client_id: &Uuid, with_user: &Uuid) -> Result<Option<Uuid>, AppError> {
+        let room_id = state.room_repository.find_room_between_users(client_id, with_user).await?;
         Ok(room_id)
     }
 

@@ -251,4 +251,24 @@ impl UserRepository {
         Ok(())
     }
 
+    pub async fn find_blocked_relationships(&self, client_id: &Uuid, users_to_validate: &Vec<Uuid>) -> Result<Vec<Uuid>, Error> {
+        let blocked_states_str: [&str; 3] = ["A_BLOCKED", "B_BLOCKED", "ALL_BLOCKED"];
+        let blocked_states_string_vec: Vec<String> = blocked_states_str.map(String::from).to_vec();
+
+        let blocked_users_optional: Vec<Option<Uuid>> = sqlx::query_scalar!(
+            r#"
+                SELECT user_b_id FROM user_relationship
+                WHERE user_a_id = $1 AND user_b_id = ANY($2) AND state = ANY($3)
+                UNION
+                SELECT user_a_id FROM user_relationship
+                WHERE user_b_id = $1 AND user_a_id = ANY($2) AND state = ANY($3)
+            "#,
+            client_id,
+            users_to_validate,
+            &blocked_states_string_vec
+        ).fetch_all(&self.pool).await?;
+        let blocked_users: Vec<Uuid> = blocked_users_optional.into_iter().flatten().collect();
+        Ok(blocked_users)
+    }
+
 }

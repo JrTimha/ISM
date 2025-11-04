@@ -12,19 +12,17 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactoring Service Layer">
-      <change afterPath="$PROJECT_DIR$/src/rooms/handler.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/rooms/timeline_service.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Modularize rooms service and handler logic">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/database/message_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_database.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/queries.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rooms/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/handler.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/rooms/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/rooms.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/routes.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/timeline.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/user_relationship/user_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,46 +74,46 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
-    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
-    &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
-    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Run ISM.executor": "Run",
+    "Cargo.Run.executor": "Run",
+    "Cargo.sqlx.executor": "Run",
+    "Docker.Dockerfile runtime.executor": "Run",
+    "Docker.Dockerfile.executor": "Run",
+    "Docker.compose.yaml.cassandra: Compose Deployment.executor": "Run",
+    "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
+    "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
+    "Docker.compose.yaml: Compose Deployment.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "/Users/timvosskuehler/RustroverProjects/ISM/src/repository",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.first.attach.projects": "true",
+    "settings.editor.selected.configurable": "language.rust.cargo.check",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   },
-  &quot;keyToStringList&quot;: {
-    &quot;DatabaseDriversLRU&quot;: [
-      &quot;postgresql&quot;
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "postgresql"
     ]
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src/repository" />
@@ -129,7 +127,7 @@
       <recent name="$PROJECT_DIR$/src/user_relationship/model" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.Run ISM">
+  <component name="RunManager" selected="Cargo.sqlx">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -223,10 +221,10 @@
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
-        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
@@ -397,15 +395,7 @@
       <workItem from="1762248465667" duration="259000" />
       <workItem from="1762248727309" duration="30000" />
       <workItem from="1762248809929" duration="17269000" />
-      <workItem from="1762266608463" duration="22832000" />
-    </task>
-    <task id="LOCAL-00028" summary="Implementation of a custom notification endpoint">
-      <option name="closed" value="true" />
-      <created>1738952779271</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1738952779271</updated>
+      <workItem from="1762266608463" duration="30177000" />
     </task>
     <task id="LOCAL-00029" summary="fixed read-endpoint from get to post">
       <option name="closed" value="true" />
@@ -791,7 +781,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762282455807</updated>
     </task>
-    <option name="localTasksCounter" value="77" />
+    <task id="LOCAL-00077" summary="Modularize rooms service and handler logic">
+      <option name="closed" value="true" />
+      <created>1762289529687</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1762289529687</updated>
+    </task>
+    <option name="localTasksCounter" value="78" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -812,7 +810,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
     <MESSAGE value="sqlx update" />
     <MESSAGE value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
     <MESSAGE value="changing room invite broadcasting" />
@@ -837,7 +834,8 @@
     <MESSAGE value="folder restructure" />
     <MESSAGE value="implement user relationships" />
     <MESSAGE value="Refactoring Service Layer" />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactoring Service Layer" />
+    <MESSAGE value="Modularize rooms service and handler logic" />
+    <option name="LAST_COMMIT_MESSAGE" value="Modularize rooms service and handler logic" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

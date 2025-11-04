@@ -6,6 +6,7 @@ use crate::core::AppState;
 use crate::core::cursor::{decode_cursor, CursorResults};
 use crate::errors::{AppError};
 use crate::keycloak::decode::KeycloakToken;
+use crate::rooms::room_service::RoomService;
 use crate::user_relationship::model::{User, UserPaginationCursor, UserWithRelationshipDto};
 use crate::user_relationship::query_param::UserSearchParams;
 use crate::user_relationship::user_service::UserService;
@@ -73,6 +74,9 @@ pub async fn handle_add_friend(
     Extension(token): Extension<KeycloakToken<String>>,
 ) -> Result<(), AppError> {
 
+    if token.subject == user_id {
+        return Err(AppError::ValidationError("Cannot friendship yourself.".to_string()));
+    }
     UserService::add_friend(state, token.subject, user_id).await?;
     Ok(())
 }
@@ -110,7 +114,15 @@ pub async fn handle_ignore_user(
     Path(user_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
 )-> Result<(), AppError> {
-    UserService::ignore_user(state, token.subject, user_id).await?;
+
+    if token.subject == user_id {
+       return Err(AppError::ValidationError("Cannot ignore yourself.".to_string()));
+    }
+    UserService::ignore_user(state.clone(), token.subject.clone(), user_id.clone()).await?;
+    let room = RoomService::find_existing_single_room(state.clone(), &token.subject, &user_id).await?;
+    if let Some(room) = room {
+        RoomService::leave_room(state, token.subject, room).await?;
+    }
     Ok(())
 }
 

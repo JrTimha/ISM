@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE app_user\n                    SET friends_count = friends_count + 1\n                WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "880728c09ffbad8a14258d0437dff6270e06aceaa4db5e38bf0919f186cda1dd"
+}

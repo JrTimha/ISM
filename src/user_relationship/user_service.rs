@@ -357,4 +357,13 @@ impl UserService {
         Ok(())
     }
 
+    pub async fn get_blocked_users(
+        state: Arc<AppState>,
+        current_user_id: &Uuid,
+        users_to_validate: &Vec<Uuid>
+    ) -> Result<Vec<Uuid>, AppError> {
+        let users = state.user_repository.find_blocked_relationships(current_user_id, users_to_validate).await?;
+        Ok(users)
+    }
+
 }

@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    u.id,\n                    u.display_name,\n                    u.profile_picture,\n                    u.street_credits,\n                    u.description,\n                    u.friends_count\n                FROM\n                    app_user u\n                INNER JOIN\n                    user_relationship rl ON u.id = (\n                        CASE\n                            WHEN rl.user_a_id = $1 THEN rl.user_b_id\n                            WHEN rl.user_b_id = $1 THEN rl.user_a_id\n                            ELSE NULL\n                        END\n                    )\n                WHERE\n                    rl.state = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "profile_picture",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "street_credits",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "friends_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3aaa9068f9e71cce0b23ce8db90da0cc12d275c79850b6349bb783c661003132"
+}

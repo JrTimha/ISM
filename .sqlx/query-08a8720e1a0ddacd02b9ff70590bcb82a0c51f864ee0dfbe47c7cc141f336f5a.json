@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)\n                VALUES ($1, $2, $3, $4)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08a8720e1a0ddacd02b9ff70590bcb82a0c51f864ee0dfbe47c7cc141f336f5a"
+}

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::routing::{delete, get, post};
 use crate::core::AppState;
-use crate::user_relationship::user_handler::{handle_accept_friend_request, handle_add_friend, handle_get_friends, handle_get_open_friend_requests, handle_ignore_user, handle_reject_friend_request, handle_remove_friend, handle_search_user_by_id, handle_search_user_by_name, handle_undo_ignore_user};
+use crate::user_relationship::handler::{handle_accept_friend_request, handle_add_friend, handle_get_friends, handle_get_open_friend_requests, handle_ignore_user, handle_reject_friend_request, handle_remove_friend, handle_search_user_by_id, handle_search_user_by_name, handle_undo_ignore_user};
 
 pub fn create_user_routes() -> Router<Arc<AppState>> {
 

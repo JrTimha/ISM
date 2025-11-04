@@ -1,6 +1,5 @@
 use chrono::Utc;
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
-use sqlx::error::BoxDynError;
 use uuid::Uuid;
 use crate::model::room_member::{RoomMember, MembershipStatus};
 use crate::model::{ChatRoomEntity, ChatRoom, NewRoom, RoomType};
@@ -270,7 +269,7 @@ impl RoomRepository {
     /// Like this: state.room_repository.get_connection().acquire().await.unwrap();
     ///
     /// [workaround]: https://github.com/launchbadge/sqlx/issues/1015#issuecomment-767787777
-    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, BoxDynError>
+    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error>
     {
         let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", sender_id).fetch_one(&mut *conn).await?;
         let text = format!("{}{}", name.display_name, preview_text);

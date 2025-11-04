@@ -122,7 +122,8 @@ pub enum AppError {
     /// Ein interner Fehler bei der Verarbeitung, z.B. beim Kodieren/Dekodieren.
     ProcessingError(String),
 
-    Blocked(String),
+    Blocked(String)
+    
 }
 
 impl fmt::Debug for AppError {
@@ -144,13 +145,19 @@ impl Display for AppError {
             AppError::NotFound(msg) => write!(f, "Entity not found: {}", msg),
             AppError::DatabaseError(err) => write!(f, "Ein Datenbankfehler ist aufgetreten: {}", err),
             AppError::ProcessingError(msg) => write!(f, "Ein Verarbeitungsfehler ist aufgetreten: {}", msg),
-            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
+            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg)
         }
     }
 }
 
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> AppError {
+        AppError::DatabaseError(Box::new(err))
+    }
+}
+
+impl From<scylla::errors::ExecutionError> for AppError {
+    fn from(err: scylla::errors::ExecutionError) -> AppError {
         AppError::DatabaseError(Box::new(err))
     }
 }
@@ -178,8 +185,8 @@ impl IntoResponse for AppError {
                 tracing::error!("Database error: {:?}", internal_err);
                 HttpError::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorCode::ServiceUnavailable,
-                    "Internal service outage."
+                    ErrorCode::UnexpectedError,
+                    "Internal Server Error. Try again."
                 )
             }
             AppError::ProcessingError(msg) => {
@@ -192,7 +199,7 @@ impl IntoResponse for AppError {
             }
             AppError::Blocked(msg) => {
                 HttpError::new(
-                    StatusCode::FORBIDDEN,
+                    StatusCode::UNAUTHORIZED,
                     ErrorCode::InsufficientPermissions,
                     msg
                 )

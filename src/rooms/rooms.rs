@@ -8,13 +8,13 @@ use log::{error, info};
 use uuid::Uuid;
 use bytes::Bytes;
 use crate::errors::{ErrorCode, HttpError};
-use crate::rooms::timeline::{msg_to_dto};
 use crate::keycloak::decode::KeycloakToken;
-use crate::model::{ChatRoomWithUserDTO, MembershipStatus, Message, MessageBody, NewRoom as UploadRoom, RoomType, RoomChangeBody, ChatRoomEntity, RoomMember, UploadResponse, SingleRoomSearchUserParams};
+use crate::model::{ChatRoomWithUserDTO, MembershipStatus, NewRoom as UploadRoom, RoomType, ChatRoomEntity, RoomMember, UploadResponse, SingleRoomSearchUserParams};
 use crate::utils::{check_user_in_room, crop_image_from_center};
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, NewRoom, RoomChangeEvent};
 use crate::core::AppState;
+use crate::messaging::model::{Message, MessageBody, RoomChangeBody};
 
 
 pub async fn get_users_in_room(
@@ -390,7 +390,7 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
         return HttpError::bad_request(ErrorCode::UnexpectedError,"Unable to persist the message.").into_response();
     };
 
-    let mapped_msg = match msg_to_dto(message) {
+    let mapped_msg = match message.to_dto() {
         Ok(msg) => msg,
         Err(err) => {
             return HttpError::bad_request(ErrorCode::UnexpectedError,format!("Can't serialize message: {}", err)).into_response()

@@ -12,22 +12,28 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="folder restructure">
-      <change afterPath="$PROJECT_DIR$/src/core/cursor.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/query_param.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="implement user relationships">
+      <change afterPath="$PROJECT_DIR$/src/messaging/handler.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/messaging/message_service.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/database/message_database.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/database/message_database.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/messages.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/routes.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/message.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/model.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/room_repository.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rooms/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rooms/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/timeline.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/user_relationship/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/user_relationship/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/user_relationship/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/user_relationship/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/utils.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
     </list>
@@ -127,8 +133,8 @@
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$/src/messaging" />
+      <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/src/rooms" />
       <recent name="$PROJECT_DIR$/src/user_relationship/model" />
@@ -402,15 +408,7 @@
       <workItem from="1762248465667" duration="259000" />
       <workItem from="1762248727309" duration="30000" />
       <workItem from="1762248809929" duration="17269000" />
-      <workItem from="1762266608463" duration="10813000" />
-    </task>
-    <task id="LOCAL-00026" summary="rename refactor">
-      <option name="closed" value="true" />
-      <created>1737935471753</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1737935471753</updated>
+      <workItem from="1762266608463" duration="15718000" />
     </task>
     <task id="LOCAL-00027" summary="Entity updates">
       <option name="closed" value="true" />
@@ -796,7 +794,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762254673423</updated>
     </task>
-    <option name="localTasksCounter" value="75" />
+    <task id="LOCAL-00075" summary="implement user relationships">
+      <option name="closed" value="true" />
+      <created>1762277703709</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1762277703709</updated>
+    </task>
+    <option name="localTasksCounter" value="76" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -817,7 +823,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="readme change" />
     <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
     <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
     <MESSAGE value="sqlx update" />
@@ -842,7 +847,8 @@
     <MESSAGE value="App State Refactor" />
     <MESSAGE value="Update dependencies, update tu rust 1.91" />
     <MESSAGE value="folder restructure" />
-    <option name="LAST_COMMIT_MESSAGE" value="folder restructure" />
+    <MESSAGE value="implement user relationships" />
+    <option name="LAST_COMMIT_MESSAGE" value="implement user relationships" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::{ChatRoom, MessageDTO};
+use crate::messaging::model::MessageDTO;
+use crate::model::{ChatRoom};
 use crate::user_relationship::model::User;
 
 

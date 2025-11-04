@@ -14,7 +14,7 @@ pub struct FriendRequestResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct UserRelationship {
+pub struct UserRelationshipEntity {
     pub user_a_id: Uuid,
     pub user_b_id: Uuid,
     pub state: RelationshipState,
@@ -22,7 +22,7 @@ pub struct UserRelationship {
 }
 
 #[derive(Debug)]
-pub struct UserWithRelationship {
+pub struct UserWithRelationshipEntity {
     pub r_user: User,
     user_a_id: Option<Uuid>,
     user_b_id: Option<Uuid>,
@@ -30,10 +30,11 @@ pub struct UserWithRelationship {
     relationship_change_timestamp: Option<DateTime<Utc>>,
 }
 
-impl UserWithRelationship {
-    pub fn get_relationship(&self) -> Option<UserRelationship> {
+impl UserWithRelationshipEntity {
+    
+    pub fn get_relationship(&self) -> Option<UserRelationshipEntity> {
         if self.user_a_id.is_some() && self.user_b_id.is_some() && self.relationship_state.is_some() && self.relationship_change_timestamp.is_some() {
-            Some(UserRelationship {
+            Some(UserRelationshipEntity {
                 user_a_id: self.user_a_id.unwrap(),
                 user_b_id: self.user_b_id.unwrap(),
                 state: self.relationship_state.clone().unwrap(),
@@ -43,9 +44,69 @@ impl UserWithRelationship {
             None
         }
     }
+    
+    pub fn to_dto(&self, client_id: &Uuid) -> UserWithRelationshipDto {
+        UserWithRelationshipDto {
+            user: self.r_user.clone(),
+            relationship_type: self.resolve_relationship_state(client_id),
+        }
+    }
+
+    pub fn resolve_relationship_state(
+        &self,
+        client_id: &Uuid
+    ) -> Option<Relationship> {
+
+        let relationship = self.get_relationship()?;
+        
+        match relationship.state {
+
+            RelationshipState::FRIEND => Some(Relationship::Friend),
+
+            RelationshipState::A_BLOCKED => {
+                if relationship.user_a_id == *client_id {
+                    Some(Relationship::ClientBlocked)
+                } else {
+                    Some(Relationship::ClientGotBlocked)
+                }
+            }
+
+            RelationshipState::B_BLOCKED => {
+                if relationship.user_b_id == *client_id {
+                    Some(Relationship::ClientBlocked)
+                } else {
+                    Some(Relationship::ClientGotBlocked)
+                }
+            }
+
+            RelationshipState::ALL_BLOCKED => {
+                if relationship.user_b_id == *client_id || relationship.user_a_id == *client_id {
+                    Some(Relationship::ClientBlocked)
+                } else {
+                    Some(Relationship::ClientGotBlocked)
+                }
+            }
+
+            RelationshipState::A_INVITED => {
+                if relationship.user_a_id == *client_id {
+                    Some(Relationship::InviteSent)
+                } else {
+                    Some(Relationship::InviteReceived)
+                }
+            }
+
+            RelationshipState::B_INVITED => {
+                if relationship.user_b_id == *client_id {
+                    Some(Relationship::InviteSent)
+                } else {
+                    Some(Relationship::InviteReceived)
+                }
+            }
+        }
+    }
 }
 
-impl<'r, R: Row> FromRow<'r, R> for UserWithRelationship
+impl<'r, R: Row> FromRow<'r, R> for UserWithRelationshipEntity
 where
     &'r str: sqlx::ColumnIndex<R>,
     Uuid: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
@@ -68,7 +129,7 @@ where
         let user_b_id = row.try_get("user_b_id")?;
         let relationship_change_timestamp = row.try_get("relationship_change_timestamp")?;
 
-        Ok(UserWithRelationship {
+        Ok(UserWithRelationshipEntity {
             r_user,
             user_a_id,
             user_b_id,

@@ -1,6 +1,6 @@
 pub mod model;
 mod utils;
-mod user_handler;
+mod handler;
 pub mod routes;
 mod query_param;
 mod user_service;

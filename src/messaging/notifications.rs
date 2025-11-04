@@ -1,17 +1,12 @@
-use std::sync::Arc;
 use std::time::Duration;
 use axum::{Extension, Json};
-use axum::extract::State;
 use axum::response::{IntoResponse, Sse};
 use axum::response::sse::Event;
 use futures::Stream;
-use http::StatusCode;
 use log::error;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use crate::errors::{ErrorCode, HttpError};
-use crate::broadcast::{BroadcastChannel, SendNotification};
-use crate::core::AppState;
+use crate::broadcast::{BroadcastChannel};
 use crate::keycloak::decode::KeycloakToken;
 
 
@@ -42,38 +37,8 @@ pub async fn stream_server_events(
     )
 }
 
-//todo: query latest events
-pub async fn poll_for_new_notifications() -> impl IntoResponse {
+pub async fn get_latest_notification_events() -> impl IntoResponse {
+    //todo: query latest events
     //placeholder
     Json::<Vec<String>>(vec![]).into_response()
-}
-
-
-pub async fn add_notification(
-    State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
-    Json(payload): Json<SendNotification>,
-) -> impl IntoResponse {
-
-    let client = match state.env.token_issuer.valid_admin_client.clone() {
-        Some(client) => client,
-        None => {
-            return HttpError::new(
-                StatusCode::UNAUTHORIZED,
-                ErrorCode::InsufficientPermissions,
-                "A valid admin client is not provided."
-            ).into_response()
-        }
-    };
-
-    if token.authorized_party != client {
-        return HttpError::new(
-            StatusCode::UNAUTHORIZED,
-            ErrorCode::InsufficientPermissions,
-            "This client is not allowed to add a notification!"
-        ).into_response()
-    }
-    
-    BroadcastChannel::get().send_event(payload.body, &payload.to_user).await;
-    StatusCode::OK.into_response()
 }

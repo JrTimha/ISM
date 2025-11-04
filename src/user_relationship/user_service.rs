@@ -6,8 +6,8 @@ use crate::broadcast::NotificationEvent::{FriendRequestAccepted, FriendRequestRe
 use crate::core::AppState;
 use crate::core::cursor::{encode_cursor, CursorResults};
 use crate::errors::{AppError};
-use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationship, UserWithRelationshipDto};
-use crate::user_relationship::utils::resolve_relationship_state;
+use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
+
 
 pub struct UserService;
 
@@ -50,10 +50,7 @@ impl UserService {
         };
 
         let mapped_users = users.iter().map(|item| {
-            UserWithRelationshipDto {
-                user: item.r_user.clone(),
-                relationship_type: resolve_relationship_state(current_user_id, item.get_relationship()),
-            }
+            item.to_dto(current_user_id)
         }).collect();
 
         Ok(CursorResults {
@@ -76,13 +73,8 @@ impl UserService {
         let user = db_user.ok_or_else(|| {
             AppError::NotFound(format!("User with ID {} not found.", user_id))
         })?;
-
-        let response_dto = UserWithRelationshipDto {
-            user: user.r_user.clone(),
-            relationship_type: resolve_relationship_state(current_user_id, user.get_relationship()),
-        };
-
-        Ok(response_dto)
+        
+        Ok(user.to_dto(current_user_id))
     }
 
     pub async fn get_open_friend_requests(
@@ -130,7 +122,7 @@ impl UserService {
             RelationshipState::B_INVITED
         };
 
-        let init_relationship = UserRelationship {
+        let init_relationship = UserRelationshipEntity {
             user_a_id,
             user_b_id,
             state: relationship_state,
@@ -299,7 +291,7 @@ impl UserService {
                 RelationshipState::B_BLOCKED
             };
 
-            let init_relationship = UserRelationship {
+            let init_relationship = UserRelationshipEntity {
                 user_a_id,
                 user_b_id,
                 state: relationship_state,

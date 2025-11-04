@@ -1,6 +1,6 @@
 use sqlx::{query_as, Error, PgConnection, Pool, Postgres, Transaction};
 use uuid::Uuid;
-use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationship, UserWithRelationship};
+use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -18,8 +18,8 @@ impl UserRepository {
         Ok(tx)
     }
 
-    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationship>, Error> {
-        let user = query_as::<_, UserWithRelationship>(
+    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationshipEntity>, Error> {
+        let user = query_as::<_, UserWithRelationshipEntity>(
             r#"SELECT
                 r_user.id,
                 r_user.display_name,
@@ -61,8 +61,8 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn find_user_by_name_with_relationship_type(&self, client_id: &Uuid, username: &str, page_size: i64, cursor: UserPaginationCursor) -> Result<Vec<UserWithRelationship>, Error> {
-        let user = query_as::<_, UserWithRelationship>(
+    pub async fn find_user_by_name_with_relationship_type(&self, client_id: &Uuid, username: &str, page_size: i64, cursor: UserPaginationCursor) -> Result<Vec<UserWithRelationshipEntity>, Error> {
+        let user = query_as::<_, UserWithRelationshipEntity>(
             r#"SELECT
                 r_user.id,
                 r_user.display_name,
@@ -149,10 +149,10 @@ impl UserRepository {
         Ok(users)
     }
 
-    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationship>, Error>
+    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationshipEntity>, Error>
     {
         let relationship = sqlx::query_as!(
-            UserRelationship,
+            UserRelationshipEntity,
             r#"
                 SELECT
                     ur.user_a_id,
@@ -169,7 +169,7 @@ impl UserRepository {
         Ok(relationship)
     }
 
-    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: UserRelationship) -> Result<(), Error> {
+    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: UserRelationshipEntity) -> Result<(), Error> {
             sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
@@ -206,7 +206,7 @@ impl UserRepository {
     pub async fn delete_relationship_state(
         &self,
         conn: &mut PgConnection,
-        user_relationship: UserRelationship
+        user_relationship: UserRelationshipEntity
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"

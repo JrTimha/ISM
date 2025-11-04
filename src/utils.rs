@@ -5,7 +5,7 @@ use std::io::Cursor;
 use http::StatusCode;
 use image::GenericImageView;
 use log::error;
-use crate::errors::{ErrorCode, HttpError};
+use crate::errors::{AppError, ErrorCode, HttpError};
 use crate::core::AppState;
 
 
@@ -13,22 +13,12 @@ pub async fn check_user_in_room(
     state: &Arc<AppState>,
     user_id: &Uuid,
     room_id: &Uuid,
-) -> Result<(), HttpError> {
-    let is_in = match state
-        .room_repository
-        .is_user_in_room(user_id, room_id)
-        .await {
-        Ok(is_in) => is_in,
-        Err(err) => {
-            error!("{}", err);
-            return Err(HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::UnexpectedError, "Unable to check if user is in room"))
-        }
-    };
-
+) -> Result<(), AppError> {
+    let is_in = state.room_repository.is_user_in_room(user_id, room_id).await?;
     if is_in {
         Ok(())
     } else {
-        Err(HttpError::new(StatusCode::UNAUTHORIZED, ErrorCode::InsufficientPermissions, "Unable to check if user is in room"))
+        Err(AppError::Blocked("Invalid permissions to interact with this room".to_string()))
     }
 }
 

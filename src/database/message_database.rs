@@ -9,7 +9,7 @@ use scylla::client::session_builder::SessionBuilder;
 use scylla::errors::{ExecutionError, UseKeyspaceError};
 use scylla::response::query_result::QueryResult;
 use uuid::Uuid;
-use crate::model::Message;
+use crate::messaging::model::Message;
 
 #[derive(Debug, Clone)]
 pub struct MessageDatabase {

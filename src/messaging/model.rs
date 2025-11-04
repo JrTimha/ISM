@@ -49,6 +49,18 @@ impl Message {
         Ok(msg)
     }
     
+    pub fn to_dto(&self) -> Result<MessageDTO, Box<dyn std::error::Error>> {
+        let message = MessageDTO {
+            chat_room_id: self.chat_room_id,
+            message_id: self.message_id,
+            sender_id: self.sender_id,
+            msg_body: serde_json::from_str(&self.msg_body)?,
+            msg_type: self.msg_type.parse()?,
+            created_at: self.created_at
+        };
+        Ok(message)
+    }
+    
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

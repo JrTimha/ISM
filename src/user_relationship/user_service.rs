@@ -73,7 +73,7 @@ impl UserService {
         let user = db_user.ok_or_else(|| {
             AppError::NotFound(format!("User with ID {} not found.", user_id))
         })?;
-        
+
         Ok(user.to_dto(current_user_id))
     }
 
@@ -335,7 +335,7 @@ impl UserService {
                     RelationshipState::A_BLOCKED,
                 ).await?;
             },
-            
+
             (RelationshipState::A_BLOCKED, true) | (RelationshipState::B_BLOCKED, false) => { // Fall 2: only client blocked, remove relationship
                 state.user_repository.delete_relationship_state(
                     &mut tx,
@@ -353,7 +353,7 @@ impl UserService {
                 ));
             }
         }
-        
+
         Ok(())
     }
 

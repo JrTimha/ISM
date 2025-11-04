@@ -122,7 +122,9 @@ pub enum AppError {
     /// Ein interner Fehler bei der Verarbeitung, z.B. beim Kodieren/Dekodieren.
     ProcessingError(String),
 
-    Blocked(String)
+    Blocked(String),
+    
+    S3Error(String),
     
 }
 
@@ -134,6 +136,7 @@ impl fmt::Debug for AppError {
             Self::DatabaseError(err) => write!(f, "DatabaseError: {}", err),
             Self::ProcessingError(msg) => write!(f, "ProcessingError: {}", msg),
             Self::Blocked(msg) => write!(f, "Blocked: {}", msg),
+            Self::S3Error(msg) => write!(f, "S3Error: {}", msg),
         }
     }
 }
@@ -145,7 +148,8 @@ impl Display for AppError {
             AppError::NotFound(msg) => write!(f, "Entity not found: {}", msg),
             AppError::DatabaseError(err) => write!(f, "Ein Datenbankfehler ist aufgetreten: {}", err),
             AppError::ProcessingError(msg) => write!(f, "Ein Verarbeitungsfehler ist aufgetreten: {}", msg),
-            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg)
+            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
+            AppError::S3Error(msg) => write!(f, "S3Error: {}", msg),
         }
     }
 }
@@ -201,6 +205,13 @@ impl IntoResponse for AppError {
                 HttpError::new(
                     StatusCode::UNAUTHORIZED,
                     ErrorCode::InsufficientPermissions,
+                    msg
+                )
+            }
+            AppError::S3Error(msg) => {
+                HttpError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorCode::UnexpectedError,
                     msg
                 )
             }

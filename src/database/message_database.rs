@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use crate::core::{MessageDbConfig};
@@ -44,7 +45,7 @@ impl MessageDatabase {
         repository
     }
 
-    pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
+    pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn Error + Send + Sync>> {
         let session = self.session.clone();
         let mut iter: TypedRowStream<Message> = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
             .await?.rows_stream::<Message>()?;

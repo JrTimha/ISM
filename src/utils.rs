@@ -2,10 +2,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use uuid::Uuid;
 use std::io::Cursor;
-use http::StatusCode;
-use image::GenericImageView;
-use log::error;
-use crate::errors::{AppError, ErrorCode, HttpError};
+use image::{GenericImageView, ImageError};
+use crate::errors::{AppError};
 use crate::core::AppState;
 
 
@@ -26,14 +24,11 @@ pub fn crop_image_from_center(
     data: &Bytes,
     target_width: u32,
     target_height: u32,
-) -> Result<Bytes, HttpError> {
+) -> Result<Bytes, ImageError> {
 
     let img = match image::load_from_memory(data) {
         Ok(img) => img,
-        Err(err) => {
-            error!("{}", err);
-            return Err(HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::FileProcessingError, "Unable to load the image."))
-        }
+        Err(err) => return Err(err)
     };
 
     let (original_width, original_height) = img.dimensions();
@@ -51,10 +46,7 @@ pub fn crop_image_from_center(
         Ok(_) => {
             Ok(Bytes::from(buffer.into_inner()))
         },
-        Err(err) => {
-            error!("{}", err);
-            Err(HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::FileProcessingError, "Image processing failed."))
-        }
+        Err(err) => Err(err)
     }
 }
 

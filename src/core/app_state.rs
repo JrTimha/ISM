@@ -7,6 +7,7 @@ use crate::kafka::start_consumer;
 use crate::repository::room_repository::RoomRepository;
 use crate::repository::user_repository::UserRepository;
 
+
 #[derive(Clone)]
 pub struct AppState {
     pub env: ISMConfig,

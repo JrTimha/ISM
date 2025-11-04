@@ -4,21 +4,19 @@ use axum::{Router};
 use axum::extract::DefaultBodyLimit;
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::{get};
 use http::header::{CONNECTION, CONTENT_LENGTH, ORIGIN};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
-use crate::api::messages::send_message;
-use crate::api::notifications::{add_notification, poll_for_new_notifications, stream_server_events};
-use crate::api::rooms::{create_room, get_joined_rooms, get_room_list_item_by_id, get_room_with_details, get_users_in_room, invite_to_room, leave_room, mark_room_as_read, save_room_image, search_existing_single_room};
-use crate::api::timeline::scroll_chat_timeline;
 use crate::core::{AppState, TokenIssuer};
 use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
 use crate::keycloak::layer::KeycloakAuthLayer;
 use crate::keycloak::PassthroughMode;
-
+use crate::messaging::routes::create_messaging_routes;
+use crate::rooms::routes::create_room_routes;
+use crate::user_relationship::routes::create_user_routes;
 
 /**
  * Initializing the api routes.
@@ -35,23 +33,12 @@ pub async fn init_router(app_state: AppState) -> Router {
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
         .route("/health", get(|| async { (StatusCode::OK, "Healthy").into_response() }));
 
+    
     let protected_routing = Router::new() //add new routes here
-        .route("/api/notify", get(poll_for_new_notifications))
-        .route("/api/sse", get(stream_server_events))
-        .route("/api/notify", post(add_notification))
-        .route("/api/send-msg", post(send_message))
-        .route("/api/rooms/create-room", post(create_room))
-        .route("/api/rooms/{room_id}/users", get(get_users_in_room))
-        .route("/api/rooms/{room_id}/detailed", get(get_room_with_details))
-        .route("/api/rooms/{room_id}/timeline", get(scroll_chat_timeline))
-        .route("/api/rooms/{room_id}/mark-read", post(mark_room_as_read))
-        .route("/api/rooms/{room_id}", get(get_room_list_item_by_id))
-        .route("/api/rooms/{room_id}/leave", post(leave_room))
-        .route("/api/rooms/search", get(search_existing_single_room))
-        .route("/api/rooms/{room_id}/invite/{user_id}", post(invite_to_room))
-        .route("/api/rooms/{room_id}/upload-img", post(save_room_image))
-        .route("/api/rooms", get(get_joined_rooms))
-
+        .merge(create_room_routes())
+        .merge(create_user_routes())
+        .merge(create_messaging_routes())
+        
         //layering bottom to top middleware
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware

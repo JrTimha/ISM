@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::model::{ChatRoom, MessageDTO};
+use crate::user_relationship::model::User;
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -16,10 +18,10 @@ pub struct Notification {
 pub enum NotificationEvent {
     
     #[serde(rename_all = "camelCase")]
-    FriendRequestReceived {from_user: serde_json::Value},
+    FriendRequestReceived {from_user: User},
 
     #[serde(rename_all = "camelCase")]
-    FriendRequestAccepted {from_user: serde_json::Value},
+    FriendRequestAccepted {from_user: User},
 
     /**
     * Different chat messages, sent to all active users in a room

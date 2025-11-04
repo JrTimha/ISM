@@ -7,25 +7,40 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
       <package file="$PROJECT_DIR$">
         <feature name="default" enabled="true" />
+        <feature name="rustls-tls" enabled="true" />
       </package>
     </cargoProject>
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Update dependencies, update tu rust 1.91">
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/messaging/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/messaging/routes.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/rooms/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/rooms/routes.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/user_handler.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/user_relationship/utils.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/messages.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/notifications.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/rooms.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/timeline.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/utils.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/keycloak/decode.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/keycloak/decode.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/room_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/messages.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/messages.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/rooms.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/rooms.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/router.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/router.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/timeline.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/timeline.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/api/utils.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/util.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/util.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/sql/import.sql" beforeDir="false" afterPath="$PROJECT_DIR$/sql/import.sql" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -119,11 +134,11 @@
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/src/repository" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\assets" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\src\model" />
-      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
+      <recent name="$PROJECT_DIR$/src" />
+      <recent name="$PROJECT_DIR$/src/messaging" />
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/src/rooms" />
+      <recent name="$PROJECT_DIR$/src/user_relationship/model" />
     </key>
   </component>
   <component name="RunManager" selected="Cargo.Run ISM">
@@ -390,14 +405,10 @@
       <workItem from="1761651805658" duration="856000" />
       <workItem from="1762200076734" duration="12623000" />
       <workItem from="1762212725451" duration="47000" />
-    </task>
-    <task id="LOCAL-00024" summary="Room read support, room list dto endpoint with more details">
-      <option name="closed" value="true" />
-      <created>1737918648975</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1737918648975</updated>
+      <workItem from="1762212794011" duration="6731000" />
+      <workItem from="1762248465667" duration="259000" />
+      <workItem from="1762248727309" duration="30000" />
+      <workItem from="1762248809929" duration="5086000" />
     </task>
     <task id="LOCAL-00025" summary="Room read fix, room set read on send message">
       <option name="closed" value="true" />
@@ -783,7 +794,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762209897658</updated>
     </task>
-    <option name="localTasksCounter" value="73" />
+    <task id="LOCAL-00073" summary="Update dependencies, update tu rust 1.91">
+      <option name="closed" value="true" />
+      <created>1762212839073</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1762212839073</updated>
+    </task>
+    <option name="localTasksCounter" value="74" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

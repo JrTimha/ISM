@@ -9,7 +9,7 @@ use http::StatusCode;
 use log::error;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use crate::api::errors::{ErrorCode, HttpError};
+use crate::errors::{ErrorCode, HttpError};
 use crate::broadcast::{BroadcastChannel, SendNotification};
 use crate::core::AppState;
 use crate::keycloak::decode::KeycloakToken;

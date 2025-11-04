@@ -5,7 +5,7 @@ use std::io::Cursor;
 use http::StatusCode;
 use image::GenericImageView;
 use log::error;
-use crate::api::errors::{ErrorCode, HttpError};
+use crate::errors::{ErrorCode, HttpError};
 use crate::core::AppState;
 
 

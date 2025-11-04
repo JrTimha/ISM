@@ -5,9 +5,9 @@ use tokio::{signal};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use ism::core::{AppState, ISMConfig};
-use ism::api::{init_router};
 use tracing_subscriber::filter::LevelFilter;
 use ism::broadcast::BroadcastChannel;
+use ism::router::init_router;
 
 //learn to code rust axum here:
 //https://gitlab.com/famedly/conduit/-/tree/next?ref_type=heads

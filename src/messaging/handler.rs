@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use axum::{Extension, Json};
 use axum::extract::State;
+use validator::Validate;
 use crate::core::AppState;
 use crate::errors::AppError;
 use crate::keycloak::decode::KeycloakToken;
@@ -13,6 +14,7 @@ pub async fn handle_send_message(
     Json(payload): Json<NewMessage>
 ) -> Result<Json<MessageDTO>, AppError> {
 
+    payload.validate().map_err(AppError::from)?;
     let response_msg = MessageService::send_message(state, payload, token.subject).await?;
     Ok(Json(response_msg))
 }

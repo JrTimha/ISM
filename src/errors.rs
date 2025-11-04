@@ -6,6 +6,7 @@ use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use serde::Serialize;
+use validator::ValidationErrors;
 
 #[derive(Serialize)]
 pub struct ErrorResponse {
@@ -123,9 +124,11 @@ pub enum AppError {
     ProcessingError(String),
 
     Blocked(String),
-    
+
     S3Error(String),
-    
+
+    BadRequest(String),
+
 }
 
 impl fmt::Debug for AppError {
@@ -137,6 +140,7 @@ impl fmt::Debug for AppError {
             Self::ProcessingError(msg) => write!(f, "ProcessingError: {}", msg),
             Self::Blocked(msg) => write!(f, "Blocked: {}", msg),
             Self::S3Error(msg) => write!(f, "S3Error: {}", msg),
+            Self::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
         }
     }
 }
@@ -150,6 +154,7 @@ impl Display for AppError {
             AppError::ProcessingError(msg) => write!(f, "Ein Verarbeitungsfehler ist aufgetreten: {}", msg),
             AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
             AppError::S3Error(msg) => write!(f, "S3Error: {}", msg),
+            AppError::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
         }
     }
 }
@@ -172,6 +177,12 @@ impl Error for AppError {
             AppError::DatabaseError(err) => Some(err.as_ref()),
             _ => None,
         }
+    }
+}
+
+impl From<ValidationErrors> for AppError {
+    fn from(errors: ValidationErrors) -> Self {
+        AppError::BadRequest(errors.to_string())
     }
 }
 
@@ -212,6 +223,13 @@ impl IntoResponse for AppError {
                 HttpError::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ErrorCode::UnexpectedError,
+                    msg
+                )
+            }
+            AppError::BadRequest(msg) => {
+                HttpError::new(
+                    StatusCode::BAD_REQUEST,
+                    ErrorCode::ValidationError,
                     msg
                 )
             }

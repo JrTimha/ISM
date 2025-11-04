@@ -12,17 +12,13 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Modularize rooms service and handler logic">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Introduce blocked user validation and improve room creation flow">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/queries.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/handler.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/handler.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/model.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -127,7 +123,7 @@
       <recent name="$PROJECT_DIR$/src/user_relationship/model" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.sqlx">
+  <component name="RunManager" selected="Cargo.Run ISM">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -221,8 +217,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
@@ -395,15 +391,7 @@
       <workItem from="1762248465667" duration="259000" />
       <workItem from="1762248727309" duration="30000" />
       <workItem from="1762248809929" duration="17269000" />
-      <workItem from="1762266608463" duration="30177000" />
-    </task>
-    <task id="LOCAL-00029" summary="fixed read-endpoint from get to post">
-      <option name="closed" value="true" />
-      <created>1740226371859</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1740226371859</updated>
+      <workItem from="1762266608463" duration="32102000" />
     </task>
     <task id="LOCAL-00030" summary="big one: support for server side events with broadcast events for realtime notifications">
       <option name="closed" value="true" />
@@ -789,7 +777,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762289529687</updated>
     </task>
-    <option name="localTasksCounter" value="78" />
+    <task id="LOCAL-00078" summary="Introduce blocked user validation and improve room creation flow">
+      <option name="closed" value="true" />
+      <created>1762296943259</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1762296943259</updated>
+    </task>
+    <option name="localTasksCounter" value="79" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -810,7 +806,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="sqlx update" />
     <MESSAGE value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
     <MESSAGE value="changing room invite broadcasting" />
     <MESSAGE value="sqlx updates" />
@@ -835,7 +830,8 @@
     <MESSAGE value="implement user relationships" />
     <MESSAGE value="Refactoring Service Layer" />
     <MESSAGE value="Modularize rooms service and handler logic" />
-    <option name="LAST_COMMIT_MESSAGE" value="Modularize rooms service and handler logic" />
+    <MESSAGE value="Introduce blocked user validation and improve room creation flow" />
+    <option name="LAST_COMMIT_MESSAGE" value="Introduce blocked user validation and improve room creation flow" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

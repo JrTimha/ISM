@@ -26,6 +26,7 @@ minio = { version = "0.3.0", features = ["default"] }
 image = { version = "0.25.8"}
 bytes = "1.10.1"
 base64 = "0.22.1"
+validator = { version = "0.20.0", features = ["derive"] }
 
 #keycloak:
 atomic-time = "0.1.5"

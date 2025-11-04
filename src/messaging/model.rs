@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 use crate::model::RoomMember;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -48,7 +49,7 @@ impl Message {
         };
         Ok(msg)
     }
-    
+
     pub fn to_dto(&self) -> Result<MessageDTO, Box<dyn std::error::Error>> {
         let message = MessageDTO {
             chat_room_id: self.chat_room_id,
@@ -96,16 +97,19 @@ pub enum MessageBody {
     RoomChange(RoomChangeBody)
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct TextBody {
+    #[validate(length(min = 1, max = 4000, message = "must be between 1 and 4000 characters long."))]
     pub text: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaBody {
+    #[validate(length(min = 1, max = 250, message = "must be between 1 and 250 characters long."))]
     pub media_url: String,
+    #[validate(length(min = 1, max = 80, message = "must be between 1 and 80 characters long."))]
     pub media_type: String,
     pub mime_type: Option<String>,
     pub alt_text: Option<String>,
@@ -140,10 +144,11 @@ pub enum RoomChangeBody {
 }
 
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct NewMessage {
     pub chat_room_id: Uuid,
+    #[validate(nested)]
     pub msg_body: NewMessageBody,
     pub msg_type: MsgType
 }
@@ -156,11 +161,22 @@ pub enum NewMessageBody {
     Reply(NewReplyBody)
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+impl Validate for NewMessageBody {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        match self {
+            NewMessageBody::Text(body) => body.validate(),
+            NewMessageBody::Media(body) => body.validate(),
+            NewMessageBody::Reply(body) => body.validate(),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct NewReplyBody {
     pub reply_msg_id: Uuid,
     pub reply_created_at: DateTime<Utc>,
+    #[validate(length(min = 1, max = 4000, message = "must be between 1 and 4000 characters long."))]
     pub reply_text: String
 }
 

@@ -19,7 +19,7 @@ impl BroadcastChannel {
     pub async fn init() {
         BROADCAST_INSTANCE.get_or_init(|| async {
             let channel = Arc::new(BroadcastChannel::new());
-            channel.clone().start_cleanup_task();
+            //channel.clone().start_cleanup_task();
             channel
         }).await;
     }
@@ -39,6 +39,7 @@ impl BroadcastChannel {
         }
     }
 
+    #[allow(dead_code)]
     fn start_cleanup_task(self: Arc<Self>) {
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(60));
@@ -95,6 +96,8 @@ impl BroadcastChannel {
                         error!("Unable to broadcast notification: {}", err);
                     }
                 }
+            } else {
+                //todo: send notification or save to redis?
             }
         }
     }
@@ -102,6 +105,14 @@ impl BroadcastChannel {
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
         let mut lock = self.channel.write().await;
-        lock.remove(&user_id);
+        if let Some(sender) = lock.get(&user_id) {
+            if sender.receiver_count() > 0 {
+                return
+            } else {
+                lock.remove(&user_id);
+                debug!("Removed stale sender for user {:?}", user_id);
+            }
+        }
     }
+
 }

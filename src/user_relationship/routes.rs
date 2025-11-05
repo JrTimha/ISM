@@ -17,6 +17,5 @@ pub fn create_user_routes() -> Router<Arc<AppState>> {
         .route("/api/users/friends/{friend_id}", delete(handle_remove_friend))
         .route("/api/users/ignore/{user_id}", post(handle_ignore_user))
         .route("/api/users/ignore/{user_id}", delete(handle_undo_ignore_user))
-
-
+    
 }

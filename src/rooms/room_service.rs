@@ -199,7 +199,7 @@ impl RoomService {
         state.room_repository.update_room_img_url(&room_id, &object_id).await?;
         let response = UploadResponse {
             image_url: object_id.clone(),
-            image_name: format!("{}.png", object_id),
+            image_name: format!("{}.jpeg", object_id),
         };
         Ok(response)
     }

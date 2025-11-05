@@ -21,6 +21,63 @@ pub struct UserRelationshipEntity {
     pub relationship_change_timestamp: DateTime<Utc>
 }
 
+impl UserRelationshipEntity {
+
+    pub fn resolve_relationship_state(
+        &self,
+        client_id: &Uuid
+    ) -> Relationship {
+
+        let relationship = self;
+
+        match relationship.state {
+
+            RelationshipState::FRIEND => Relationship::Friend,
+
+            RelationshipState::A_BLOCKED => {
+                if relationship.user_a_id == *client_id {
+                    Relationship::ClientBlocked
+                } else { 
+                    Relationship::ClientGotBlocked
+                }
+            }
+
+            RelationshipState::B_BLOCKED => {
+                if relationship.user_b_id == *client_id {
+                    Relationship::ClientBlocked
+                } else {
+                    Relationship::ClientGotBlocked
+                }
+            }
+
+            RelationshipState::ALL_BLOCKED => {
+                if relationship.user_b_id == *client_id || relationship.user_a_id == *client_id {
+                    Relationship::ClientBlocked
+                } else {
+                    Relationship::ClientGotBlocked
+                }
+            }
+
+            RelationshipState::A_INVITED => {
+                if relationship.user_a_id == *client_id {
+                    Relationship::InviteSent
+                } else {
+                    Relationship::InviteReceived
+                }
+            }
+
+            RelationshipState::B_INVITED => {
+                if relationship.user_b_id == *client_id {
+                    Relationship::InviteSent
+                } else {
+                    Relationship::InviteReceived
+                }
+            }
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub struct UserWithRelationshipEntity {
     pub r_user: User,
@@ -29,6 +86,7 @@ pub struct UserWithRelationshipEntity {
     relationship_state: Option<RelationshipState>,
     relationship_change_timestamp: Option<DateTime<Utc>>,
 }
+
 
 impl UserWithRelationshipEntity {
     
@@ -46,64 +104,18 @@ impl UserWithRelationshipEntity {
     }
     
     pub fn to_dto(&self, client_id: &Uuid) -> UserWithRelationshipDto {
+        
+        let rel_type = match self.get_relationship() {
+            Some(rel) => Some(rel.resolve_relationship_state(client_id)),
+            None => None
+        };
+        
         UserWithRelationshipDto {
             user: self.r_user.clone(),
-            relationship_type: self.resolve_relationship_state(client_id),
+            relationship_type: rel_type,
         }
     }
 
-    pub fn resolve_relationship_state(
-        &self,
-        client_id: &Uuid
-    ) -> Option<Relationship> {
-
-        let relationship = self.get_relationship()?;
-        
-        match relationship.state {
-
-            RelationshipState::FRIEND => Some(Relationship::Friend),
-
-            RelationshipState::A_BLOCKED => {
-                if relationship.user_a_id == *client_id {
-                    Some(Relationship::ClientBlocked)
-                } else {
-                    Some(Relationship::ClientGotBlocked)
-                }
-            }
-
-            RelationshipState::B_BLOCKED => {
-                if relationship.user_b_id == *client_id {
-                    Some(Relationship::ClientBlocked)
-                } else {
-                    Some(Relationship::ClientGotBlocked)
-                }
-            }
-
-            RelationshipState::ALL_BLOCKED => {
-                if relationship.user_b_id == *client_id || relationship.user_a_id == *client_id {
-                    Some(Relationship::ClientBlocked)
-                } else {
-                    Some(Relationship::ClientGotBlocked)
-                }
-            }
-
-            RelationshipState::A_INVITED => {
-                if relationship.user_a_id == *client_id {
-                    Some(Relationship::InviteSent)
-                } else {
-                    Some(Relationship::InviteReceived)
-                }
-            }
-
-            RelationshipState::B_INVITED => {
-                if relationship.user_b_id == *client_id {
-                    Some(Relationship::InviteSent)
-                } else {
-                    Some(Relationship::InviteReceived)
-                }
-            }
-        }
-    }
 }
 
 impl<'r, R: Row> FromRow<'r, R> for UserWithRelationshipEntity
@@ -149,7 +161,7 @@ pub struct UserWithRelationshipDto {
 
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq, Copy)]
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RelationshipState {
     A_BLOCKED,
@@ -225,4 +237,10 @@ pub struct User {
 pub struct UserPaginationCursor {
     pub last_seen_name: Option<String>,
     pub last_seen_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationshipStateResponse {
+    pub state: Option<Relationship>
 }

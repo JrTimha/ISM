@@ -6,7 +6,7 @@ use crate::broadcast::NotificationEvent::{FriendRequestAccepted, FriendRequestRe
 use crate::core::AppState;
 use crate::core::cursor::{encode_cursor, CursorResults};
 use crate::errors::{AppError};
-use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
+use crate::user_relationship::model::{Relationship, RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
 
 
 pub struct UserService;
@@ -129,7 +129,7 @@ impl UserService {
             relationship_change_timestamp: Utc::now(),
         };
 
-        state.user_repository.insert_relationship(&mut tx, init_relationship).await?;
+        state.user_repository.insert_relationship(&mut tx, &init_relationship).await?;
 
         tx.commit().await?;
         let client_dto = state.user_repository.find_user_by_id(&sender_id).await?.ok_or_else(|| {
@@ -240,7 +240,7 @@ impl UserService {
         state: Arc<AppState>,
         client_id: Uuid,
         ignored_user_id: Uuid,
-    ) -> Result<(), AppError> {
+    ) -> Result<Relationship, AppError> {
         let mut tx = state.user_repository.start_transaction().await?;
         let relationship = state.user_repository.search_for_relationship(&mut tx, &client_id, &ignored_user_id).await?;
 
@@ -249,9 +249,9 @@ impl UserService {
             let is_client_user_a = client_id == rel.user_a_id;
 
             let new_state = match (rel.state, is_client_user_a) {
-                (RelationshipState::ALL_BLOCKED, _) => return Ok(()), //Both blocked
-                (RelationshipState::A_BLOCKED, true) => return Ok(()), //client is A and blocked B
-                (RelationshipState::B_BLOCKED, false) => return Ok(()), //client is B and blocked A
+                (RelationshipState::ALL_BLOCKED, _) => return Ok(Relationship::ClientBlocked), //Both blocked
+                (RelationshipState::A_BLOCKED, true) => return Ok(Relationship::ClientBlocked), //client is A and blocked B
+                (RelationshipState::B_BLOCKED, false) => return Ok(Relationship::ClientBlocked), //client is B and blocked A
                 (RelationshipState::A_BLOCKED, false) => RelationshipState::ALL_BLOCKED,
                 (RelationshipState::B_BLOCKED, true) => RelationshipState::ALL_BLOCKED,
                 (RelationshipState::FRIEND, _) => {
@@ -272,12 +272,14 @@ impl UserService {
                     }
                 }
             };
-            state.user_repository.update_relationship_state(
+            let entity = state.user_repository.update_relationship_state(
                 &mut tx,
                 &rel.user_a_id,
                 &rel.user_b_id,
                 new_state
             ).await?;
+            tx.commit().await?;
+            Ok(entity.resolve_relationship_state(&client_id))
         } else { //no relationship found, create one
             let (user_a_id, user_b_id) = if client_id < ignored_user_id {
                 (client_id, ignored_user_id)
@@ -294,21 +296,20 @@ impl UserService {
             let init_relationship = UserRelationshipEntity {
                 user_a_id,
                 user_b_id,
-                state: relationship_state,
+                state: relationship_state.clone(),
                 relationship_change_timestamp: Utc::now(),
             };
-            state.user_repository.insert_relationship(&mut tx, init_relationship).await?;
+            state.user_repository.insert_relationship(&mut tx, &init_relationship).await?;
+            tx.commit().await?;
+            Ok(init_relationship.resolve_relationship_state(&client_id))
         }
-
-        tx.commit().await?;
-        Ok(())
     }
 
     pub async fn undo_ignore(
         state: Arc<AppState>,
         client_id: Uuid,
         ignored_user_id: Uuid,
-    ) -> Result<(), AppError> {
+    ) -> Result<Option<Relationship>, AppError> {
         let mut tx = state.user_repository.start_transaction().await?;
         let relationship = state
             .user_repository
@@ -318,22 +319,24 @@ impl UserService {
                 AppError::NotFound("No block relationship found to undo.".to_string())
             })?;
         let is_client_user_a = client_id == relationship.user_a_id;
-        match (relationship.state.clone(), is_client_user_a) {
+        let state = match (relationship.state.clone(), is_client_user_a) {
             (RelationshipState::ALL_BLOCKED, true) => { // Client was A, only B blocking now
-                state.user_repository.update_relationship_state(
+                let entity = state.user_repository.update_relationship_state(
                     &mut tx,
                     &relationship.user_a_id,
                     &relationship.user_b_id,
                     RelationshipState::B_BLOCKED,
                 ).await?;
+                Some(entity)
             },
             (RelationshipState::ALL_BLOCKED, false) => { // Client was B, only A blocking now
-                state.user_repository.update_relationship_state(
+                let entity = state.user_repository.update_relationship_state(
                     &mut tx,
                     &relationship.user_a_id,
                     &relationship.user_b_id,
                     RelationshipState::A_BLOCKED,
                 ).await?;
+                Some(entity)
             },
 
             (RelationshipState::A_BLOCKED, true) | (RelationshipState::B_BLOCKED, false) => { // Fall 2: only client blocked, remove relationship
@@ -341,6 +344,7 @@ impl UserService {
                     &mut tx,
                     relationship
                 ).await?;
+                None
             },
             (RelationshipState::A_BLOCKED, false) | (RelationshipState::B_BLOCKED, true) => { //client was blocked by another user
                 return Err(AppError::Blocked(
@@ -352,9 +356,12 @@ impl UserService {
                     "No active block from your side found to undo.".to_string(),
                 ));
             }
+        };
+        tx.commit().await?;
+        match state {
+            Some(entity) => { Ok(Some(entity.resolve_relationship_state(&client_id))) },
+            None => Ok(None)
         }
-
-        Ok(())
     }
 
     pub async fn get_blocked_users(

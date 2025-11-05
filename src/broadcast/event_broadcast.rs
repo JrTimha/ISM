@@ -10,6 +10,25 @@ use crate::broadcast::Notification;
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
+/// A `BroadcastChannel` struct is responsible for managing a collection of channels that are used
+/// for broadcasting notifications to subscribers. Each channel is uniquely identified by a `Uuid`,
+/// and messages are sent through a `Sender<Notification>`.
+///
+/// The struct uses an `RwLock` for thread-safe, concurrent access to the underlying `HashMap`.
+///
+/// # Fields
+/// - `channel`: An `RwLock`-protected `HashMap` that maps a `Uuid` (unique identifier) to a `Sender<Notification>`.
+///   - `Uuid`: A unique identifier for each channel.
+///   - `Sender<Notification>`: A sender handle for sending `Notification` messages to the corresponding receiver.
+///
+/// The `BroadcastChannel` is designed to support multi-threaded operations where multiple threads
+/// may add, retrieve, or remove channels or broadcast messages safely.
+///
+///
+/// # Thread Safety
+/// The usage of `RwLock` ensures that the operations on the `HashMap` are synchronized
+/// and can safely be used across multiple threads. Readers can access the map concurrently,
+/// while write operations are exclusive to ensure data integrity.
 pub struct BroadcastChannel {
     channel: RwLock<HashMap<Uuid, Sender<Notification>>>
 }

@@ -4,10 +4,10 @@ use axum::{Extension, Json};
 use uuid::Uuid;
 use crate::core::AppState;
 use crate::core::cursor::{decode_cursor, CursorResults};
-use crate::errors::{AppError};
+use crate::errors::{AppError, AppResponse};
 use crate::keycloak::decode::KeycloakToken;
 use crate::rooms::room_service::RoomService;
-use crate::user_relationship::model::{User, UserPaginationCursor, UserWithRelationshipDto};
+use crate::user_relationship::model::{RelationshipStateResponse, User, UserPaginationCursor, UserWithRelationshipDto};
 use crate::user_relationship::query_param::UserSearchParams;
 use crate::user_relationship::user_service::UserService;
 
@@ -113,24 +113,30 @@ pub async fn handle_ignore_user(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-)-> Result<(), AppError> {
+)-> AppResponse<Json<RelationshipStateResponse>> {
 
     if token.subject == user_id {
        return Err(AppError::ValidationError("Cannot ignore yourself.".to_string()));
     }
-    UserService::ignore_user(state.clone(), token.subject.clone(), user_id.clone()).await?;
+    let updated_state = UserService::ignore_user(state.clone(), token.subject.clone(), user_id.clone()).await?;
     let room = RoomService::find_existing_single_room(state.clone(), &token.subject, &user_id).await?;
     if let Some(room) = room {
         RoomService::leave_room(state, token.subject, room).await?;
     }
-    Ok(())
+    let response = RelationshipStateResponse {
+        state: Some(updated_state)
+    };
+    Ok(Json(response))
 }
 
 pub async fn handle_undo_ignore_user(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-)-> Result<(), AppError> {
-    UserService::undo_ignore(state, token.subject, user_id).await?;
-    Ok(())
+)-> AppResponse<Json<RelationshipStateResponse>> {
+    let updated_state = UserService::undo_ignore(state, token.subject, user_id).await?;
+    let response = RelationshipStateResponse {
+        state: updated_state
+    };
+    Ok(Json(response))
 }

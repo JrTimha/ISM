@@ -169,7 +169,7 @@ impl UserRepository {
         Ok(relationship)
     }
 
-    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: UserRelationshipEntity) -> Result<(), Error> {
+    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipEntity) -> Result<(), Error> {
             sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
@@ -189,18 +189,24 @@ impl UserRepository {
         user_a_id: &Uuid,
         user_b_id: &Uuid,
         new_state: RelationshipState,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
+    ) -> Result<UserRelationshipEntity, sqlx::Error> {
+        let entity = sqlx::query_as!(
+            UserRelationshipEntity,
             r#"
                 UPDATE user_relationship
                     SET state = $1, relationship_change_timestamp = NOW()
                 WHERE user_a_id = $2 AND user_b_id = $3
+                RETURNING
+                    user_a_id,
+                    user_b_id,
+                    state as "state: RelationshipState",
+                    relationship_change_timestamp
             "#,
             new_state.to_string(),
             user_a_id,
             user_b_id
-        ).execute(&mut *conn).await?;
-        Ok(())
+        ).fetch_one(&mut *conn).await?;
+        Ok(entity)
     }
 
     pub async fn delete_relationship_state(

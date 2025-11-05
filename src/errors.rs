@@ -238,3 +238,5 @@ impl IntoResponse for AppError {
         http_error.into_response()
     }
 }
+
+pub type AppResponse<T> = Result<T, AppError>;

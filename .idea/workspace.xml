@@ -12,10 +12,16 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add input validation for messaging API using `validator` library">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/messaging/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/handler.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -388,15 +394,9 @@
       <workItem from="1762248465667" duration="259000" />
       <workItem from="1762248727309" duration="30000" />
       <workItem from="1762248809929" duration="17269000" />
-      <workItem from="1762266608463" duration="34439000" />
-    </task>
-    <task id="LOCAL-00031" summary="Sending notifications with optional display value">
-      <option name="closed" value="true" />
-      <created>1740786299930</created>
-      <option name="number" value="00031" />
-      <option name="presentableId" value="LOCAL-00031" />
-      <option name="project" value="LOCAL" />
-      <updated>1740786299930</updated>
+      <workItem from="1762266608463" duration="35456000" />
+      <workItem from="1762342271775" duration="2524000" />
+      <workItem from="1762346168774" duration="12075000" />
     </task>
     <task id="LOCAL-00032" summary="added dockerfile">
       <option name="closed" value="true" />
@@ -782,7 +782,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762298845833</updated>
     </task>
-    <option name="localTasksCounter" value="80" />
+    <task id="LOCAL-00080" summary="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling">
+      <option name="closed" value="true" />
+      <created>1762301418915</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1762301418915</updated>
+    </task>
+    <option name="localTasksCounter" value="81" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -803,7 +811,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="changing room invite broadcasting" />
     <MESSAGE value="sqlx updates" />
     <MESSAGE value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
     <MESSAGE value="fixing bugs in the join room logic" />
@@ -828,7 +835,19 @@
     <MESSAGE value="Modularize rooms service and handler logic" />
     <MESSAGE value="Introduce blocked user validation and improve room creation flow" />
     <MESSAGE value="Add input validation for messaging API using `validator` library" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add input validation for messaging API using `validator` library" />
+    <MESSAGE value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/user_relationship/user_service.rs</url>
+          <line>360</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

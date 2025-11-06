@@ -7,8 +7,8 @@ pub mod keycloak;
 pub mod repository;
 pub mod user_relationship;
 pub mod rooms;
-
 pub mod messaging;
 pub mod utils;
 pub mod errors;
 pub mod router;
+pub mod cache;

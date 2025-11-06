@@ -7,6 +7,7 @@ use uuid::Uuid;
 use tokio::sync::broadcast::{Sender, channel, Receiver};
 use tokio::time::interval;
 use crate::broadcast::Notification;
+use crate::cache::redis_cache::Cache;
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
@@ -30,15 +31,17 @@ static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new
 /// and can safely be used across multiple threads. Readers can access the map concurrently,
 /// while write operations are exclusive to ensure data integrity.
 pub struct BroadcastChannel {
-    channel: RwLock<HashMap<Uuid, Sender<Notification>>>
+    channel: RwLock<HashMap<Uuid, Sender<Notification>>>,
+    notification_cache: Arc<dyn Cache>
 }
 
 impl BroadcastChannel {
 
-    pub async fn init() {
+    pub async fn init(cache: Arc<dyn Cache>) {
         BROADCAST_INSTANCE.get_or_init(|| async {
-            let channel = Arc::new(BroadcastChannel::new());
+            let channel = Arc::new(BroadcastChannel::new(cache));
             //channel.clone().start_cleanup_task();
+            info!("BroadcastChannel initialized.");
             channel
         }).await;
     }
@@ -52,9 +55,10 @@ impl BroadcastChannel {
         }
     }
 
-    fn new() -> Self {
+    fn new(cache: Arc<dyn Cache>) -> Self {
         BroadcastChannel {
             channel: RwLock::new(HashMap::new()),
+            notification_cache: cache
         }
     }
 
@@ -116,7 +120,9 @@ impl BroadcastChannel {
                     }
                 }
             } else {
-                //todo: send notification or save to redis?
+                if let Err(error) = self.notification_cache.add_notification_for_user(&user_id, &notification).await {
+                    error!("Failed to cache notification: {}", error);
+                };
             }
         }
     }

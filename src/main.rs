@@ -6,7 +6,6 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 use ism::core::{AppState, ISMConfig};
 use tracing_subscriber::filter::LevelFilter;
-use ism::broadcast::BroadcastChannel;
 use ism::router::init_router;
 
 //learn to code rust axum here:
@@ -15,18 +14,19 @@ use ism::router::init_router;
 //https://github.com/rust-lang/crates.io/
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    let config = init_configuration();
-
-    //init broadcaster channel
-    BroadcastChannel::init().await;
     
-    //init the app state including database connections, kafka etc.
+    let config = init_configuration();
+    
+    //init the app state including database connections, broadcast channels, kafka etc.
     let app_state = AppState::new(config.clone()).await;
 
     //init api router:
     let app = init_router(app_state).await;
     let url = format!("{}:{}", config.ism_url, config.ism_port);
-    let listener = TcpListener::bind(url.clone()).await.unwrap();
+    let listener = TcpListener::bind(url.clone())
+        .await
+        .unwrap_or_else(|err| panic!("Unable to start TCP-Listener at URL: {}, error is: {}", url, err));
+    
     info!("ISM-Server up and is listening on: {url}");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())//only working when there aren't active connections

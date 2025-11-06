@@ -10,6 +10,7 @@ pub struct ISMConfig {
     pub use_kafka: bool,
     pub log_level: String,
     pub cors_origin: String,
+    pub redis_cache_url: Option<String>,
     pub user_db_config: UserDbConfig,
     pub object_db_config: ObjectStorageConfig,
     pub message_db_config: MessageDbConfig,

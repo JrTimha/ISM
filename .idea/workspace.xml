@@ -12,16 +12,21 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Update user_relationship query to return updated state and timestamp fields">
+      <change afterPath="$PROJECT_DIR$/src/cache/cache_cleanup.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/cache/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/cache/redis_cache.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/handler.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/routes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/routes.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/user_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/user_service.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,7 +68,7 @@
     <option name="directoryName" value="dNDGtvHU" />
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedTabId" value="CurrentFile" />
+    <option name="selectedTabId" value="AISelfReview" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
@@ -82,6 +87,7 @@
     "Docker.Dockerfile.executor": "Run",
     "Docker.compose.yaml.cassandra: Compose Deployment.executor": "Run",
     "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
+    "Docker.compose.yaml.redis: Compose Deployment.executor": "Run",
     "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
     "Docker.compose.yaml: Compose Deployment.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -162,17 +168,6 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Dockerfile runtime" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
-      <deployment type="dockerfile">
-        <settings>
-          <option name="imageTag" value="debianbookworm-slim_runtime" />
-          <option name="buildCliOptions" value="--target runtime" />
-          <option name="buildOnly" value="true" />
-          <option name="sourceFilePath" value="Dockerfile" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -198,6 +193,19 @@
       </deployment>
       <method v="2" />
     </configuration>
+    <configuration name="compose.yaml.redis: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="redis" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="compose.yaml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
     <configuration name="compose.yaml.redpanda-0: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
@@ -214,17 +222,17 @@
     <list>
       <item itemvalue="Cargo.Run ISM" />
       <item itemvalue="Cargo.sqlx" />
-      <item itemvalue="Docker.Dockerfile runtime" />
+      <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
-        <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
   </component>
@@ -396,23 +404,9 @@
       <workItem from="1762248809929" duration="17269000" />
       <workItem from="1762266608463" duration="35456000" />
       <workItem from="1762342271775" duration="2524000" />
-      <workItem from="1762346168774" duration="12075000" />
-    </task>
-    <task id="LOCAL-00032" summary="added dockerfile">
-      <option name="closed" value="true" />
-      <created>1741395611427</created>
-      <option name="number" value="00032" />
-      <option name="presentableId" value="LOCAL-00032" />
-      <option name="project" value="LOCAL" />
-      <updated>1741395611427</updated>
-    </task>
-    <task id="LOCAL-00033" summary="added dockerfile">
-      <option name="closed" value="true" />
-      <created>1741545558184</created>
-      <option name="number" value="00033" />
-      <option name="presentableId" value="LOCAL-00033" />
-      <option name="project" value="LOCAL" />
-      <updated>1741545558184</updated>
+      <workItem from="1762346168774" duration="13423000" />
+      <workItem from="1762427568416" duration="8520000" />
+      <workItem from="1762437177281" duration="9445000" />
     </task>
     <task id="LOCAL-00034" summary="change pipeline">
       <option name="closed" value="true" />
@@ -790,7 +784,23 @@
       <option name="project" value="LOCAL" />
       <updated>1762301418915</updated>
     </task>
-    <option name="localTasksCounter" value="81" />
+    <task id="LOCAL-00081" summary="Refactor relationship handling to improve consistency and return meaningful states">
+      <option name="closed" value="true" />
+      <created>1762383084214</created>
+      <option name="number" value="00081" />
+      <option name="presentableId" value="LOCAL-00081" />
+      <option name="project" value="LOCAL" />
+      <updated>1762383084214</updated>
+    </task>
+    <task id="LOCAL-00082" summary="Update user_relationship query to return updated state and timestamp fields">
+      <option name="closed" value="true" />
+      <created>1762383108693</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1762383108693</updated>
+    </task>
+    <option name="localTasksCounter" value="83" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -811,8 +821,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="sqlx updates" />
-    <MESSAGE value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
     <MESSAGE value="fixing bugs in the join room logic" />
     <MESSAGE value="Add room deletion functionality and improve message handling&#10;&#10;Implemented the ability to delete rooms, including clearing associated messages and broadcasting leave events to users. Refactored message creation logic by introducing a factory method in the `Message` struct. Enhanced room leave/join workflows and transitioned from &quot;System&quot; message type to &quot;RoomChange&quot; for better clarity." />
     <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
@@ -836,18 +844,9 @@
     <MESSAGE value="Introduce blocked user validation and improve room creation flow" />
     <MESSAGE value="Add input validation for messaging API using `validator` library" />
     <MESSAGE value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/user_relationship/user_service.rs</url>
-          <line>360</line>
-          <option name="timeStamp" value="3" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+    <MESSAGE value="Refactor relationship handling to improve consistency and return meaningful states" />
+    <MESSAGE value="Update user_relationship query to return updated state and timestamp fields" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update user_relationship query to return updated state and timestamp fields" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -1,6 +1,8 @@
 ism_url = "127.0.0.1"
 ism_port= 7800
 use_kafka = false
+redis_cache_url = "redis://127.0.0.1/"
+
 
 [token_issuer]
 valid_admin_client = "api-client"

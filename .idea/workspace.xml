@@ -12,21 +12,9 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Update user_relationship query to return updated state and timestamp fields">
-      <change afterPath="$PROJECT_DIR$/src/cache/cache_cleanup.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/cache/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/cache/redis_cache.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability.">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/compose.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/messaging/notifications.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/notifications.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,47 +66,47 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run ISM.executor": "Run",
-    "Cargo.Run.executor": "Run",
-    "Cargo.sqlx.executor": "Run",
-    "Docker.Dockerfile runtime.executor": "Run",
-    "Docker.Dockerfile.executor": "Run",
-    "Docker.compose.yaml.cassandra: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redis: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml: Compose Deployment.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/Users/timvosskuehler/RustroverProjects/ISM/src/repository",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "language.rust.cargo.check",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redis: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src/repository" />
@@ -406,15 +394,8 @@
       <workItem from="1762342271775" duration="2524000" />
       <workItem from="1762346168774" duration="13423000" />
       <workItem from="1762427568416" duration="8520000" />
-      <workItem from="1762437177281" duration="9445000" />
-    </task>
-    <task id="LOCAL-00034" summary="change pipeline">
-      <option name="closed" value="true" />
-      <created>1741545941772</created>
-      <option name="number" value="00034" />
-      <option name="presentableId" value="LOCAL-00034" />
-      <option name="project" value="LOCAL" />
-      <updated>1741545941772</updated>
+      <workItem from="1762437177281" duration="12121000" />
+      <workItem from="1762516207464" duration="5565000" />
     </task>
     <task id="LOCAL-00035" summary="dockerfile updated">
       <option name="closed" value="true" />
@@ -800,7 +781,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762383108693</updated>
     </task>
-    <option name="localTasksCounter" value="83" />
+    <task id="LOCAL-00083" summary="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability.">
+      <option name="closed" value="true" />
+      <created>1762449710761</created>
+      <option name="number" value="00083" />
+      <option name="presentableId" value="LOCAL-00083" />
+      <option name="project" value="LOCAL" />
+      <updated>1762449710761</updated>
+    </task>
+    <option name="localTasksCounter" value="84" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -821,7 +810,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="fixing bugs in the join room logic" />
     <MESSAGE value="Add room deletion functionality and improve message handling&#10;&#10;Implemented the ability to delete rooms, including clearing associated messages and broadcasting leave events to users. Refactored message creation logic by introducing a factory method in the `Message` struct. Enhanced room leave/join workflows and transitioned from &quot;System&quot; message type to &quot;RoomChange&quot; for better clarity." />
     <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
     <MESSAGE value="Readme improved" />
@@ -846,7 +834,8 @@
     <MESSAGE value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
     <MESSAGE value="Refactor relationship handling to improve consistency and return meaningful states" />
     <MESSAGE value="Update user_relationship query to return updated state and timestamp fields" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update user_relationship query to return updated state and timestamp fields" />
+    <MESSAGE value="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -27,6 +27,7 @@ impl UserRepository {
                 r_user.street_credits,
                 r_user.description,
                 r_user.friends_count,
+                r_user.role,
                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
                 user_relationship.state,
@@ -53,7 +54,8 @@ impl UserRepository {
                     r_user.profile_picture,
                     r_user.street_credits,
                     r_user.description,
-                    r_user.friends_count
+                    r_user.friends_count,
+                    r_user.role
                     FROM app_user r_user
                     WHERE r_user.id = $1
                 "#, user_id
@@ -70,6 +72,7 @@ impl UserRepository {
                 r_user.street_credits,
                 r_user.description,
                 r_user.friends_count,
+                r_user.role,
                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
                 user_relationship.state,
@@ -104,7 +107,8 @@ impl UserRepository {
                 u.profile_picture,
                 u.street_credits,
                 u.description,
-                u.friends_count
+                u.friends_count,
+                u.role
                 FROM app_user u
                 INNER JOIN user_relationship ur ON
                     (ur.user_a_id = u.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR
@@ -129,7 +133,8 @@ impl UserRepository {
                     u.profile_picture,
                     u.street_credits,
                     u.description,
-                    u.friends_count
+                    u.friends_count,
+                    u.role
                 FROM
                     app_user u
                 INNER JOIN

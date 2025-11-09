@@ -104,6 +104,10 @@ impl BroadcastChannel {
                     error!("Unable to broadcast notification: {}", err);
                 }
             }
+        } else {
+            if let Err(error) = self.notification_cache.add_notification_for_user(to_user, &notification).await {
+                error!("Failed to cache notification: {}", error);
+            };
         }
     }
 

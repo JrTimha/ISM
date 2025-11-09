@@ -3,8 +3,7 @@ use redis::aio::MultiplexedConnection;
 use redis::{Client, RedisResult};
 use redis::{AsyncCommands};
 use tracing::{debug, error};
-
-const MASTER_INDEX_SET: &str = "active_user_notification_indices";
+use crate::cache::util::MASTER_INDEX_SET;
 
 pub async fn periodic_cleanup_task(client: Client) {
 

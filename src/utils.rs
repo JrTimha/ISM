@@ -3,6 +3,7 @@ use bytes::Bytes;
 use uuid::Uuid;
 use std::io::Cursor;
 use image::{GenericImageView, ImageError};
+use serde::Serializer;
 use crate::errors::{AppError};
 use crate::core::AppState;
 
@@ -50,4 +51,15 @@ pub fn crop_image_from_center(
     }
 }
 
-
+pub fn truncate_and_serialize<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if text.chars().count() > 50 {
+        let mut truncated = text.chars().take(40).collect::<String>();
+        truncated.push_str("...");
+        serializer.serialize_str(&truncated)
+    } else {
+        serializer.serialize_str(text)
+    }
+}

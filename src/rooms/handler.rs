@@ -11,7 +11,7 @@ use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::keycloak::decode::KeycloakToken;
 use crate::messaging::model::MessageDTO;
-use crate::model::{ChatRoom, ChatRoomWithUserDTO, NewRoom, RoomMember, RoomType, UploadResponse};
+use crate::model::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomMember, RoomType, UploadResponse};
 use crate::rooms::room_service::RoomService;
 use crate::rooms::timeline_service::TimelineService;
 use crate::user_relationship::user_service::UserService;
@@ -54,7 +54,7 @@ pub async fn handle_get_users_in_room(
 pub async fn handle_get_joined_rooms(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>
-) -> Result<Json<Vec<ChatRoom>>, AppError> {
+) -> Result<Json<Vec<ChatRoomDto>>, AppError> {
 
     let rooms = RoomService::get_joined_rooms(state, token.subject).await?;
     Ok(Json(rooms))
@@ -83,7 +83,7 @@ pub async fn handle_create_room(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
     Json(mut payload): Json<NewRoom>
-) -> Result<Json<ChatRoom>, AppError> {
+) -> Result<Json<ChatRoomDto>, AppError> {
 
     if !payload.invited_users.contains(&token.subject) {
         return Err(AppError::ValidationError("Sender ID is not in the list of invited users.".to_string()));
@@ -123,7 +123,7 @@ pub async fn handle_get_room_list_item_by_id(
     Extension(token): Extension<KeycloakToken<String>>,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>
-) -> Result<Json<ChatRoom>, AppError> {
+) -> Result<Json<ChatRoomDto>, AppError> {
     let room = RoomService::get_room_list_item_by_id(state, token.subject, room_id).await?;
     Ok(Json(room))
 }

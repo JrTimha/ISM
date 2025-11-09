@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::messaging::model::MessageDTO;
-use crate::model::{ChatRoom};
+use crate::model::{ChatRoomDto, LastMessagePreviewText};
 use crate::user_relationship::model::User;
 
 
@@ -28,7 +28,7 @@ pub enum NotificationEvent {
     * Different chat messages, sent to all active users in a room
     */
     #[serde(rename_all = "camelCase")]
-    ChatMessage {message: MessageDTO, display_value: String},
+    ChatMessage {message: MessageDTO, room_preview_text: LastMessagePreviewText },
 
     /**
     * A system message is a message not sent by a user, but by the system, whatever you want
@@ -38,7 +38,7 @@ pub enum NotificationEvent {
     /**
     * Sending this event to a newly invited user
     */
-    NewRoom {room: ChatRoom },
+    NewRoom {room: ChatRoomDto },
 
     /**
     * Sending this event to a user who has left a room
@@ -49,7 +49,8 @@ pub enum NotificationEvent {
     /**
     * Sending this event to all users in a room where a member has left
     */
-    RoomChangeEvent {message: MessageDTO}
+    #[serde(rename_all = "camelCase")]
+    RoomChangeEvent {message: MessageDTO, room_preview_text: LastMessagePreviewText}
 }
 
 

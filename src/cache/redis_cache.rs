@@ -3,8 +3,7 @@ use chrono::{DateTime, Utc};
 use redis::{AsyncCommands, Client, ErrorKind, RedisError, RedisResult};
 use uuid::Uuid;
 use crate::broadcast::Notification;
-
-const MASTER_INDEX_SET: &str = "active_user_notification_indices";
+use crate::cache::util::MASTER_INDEX_SET;
 
 #[async_trait]
 pub trait Cache: Send + Sync {

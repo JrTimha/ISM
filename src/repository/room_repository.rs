@@ -2,7 +2,7 @@ use chrono::Utc;
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use uuid::Uuid;
 use crate::model::room_member::{RoomMember, MembershipStatus};
-use crate::model::{ChatRoomEntity, ChatRoom, NewRoom, RoomType};
+use crate::model::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomType};
 
 #[derive(Clone)]
 pub struct RoomRepository {
@@ -52,15 +52,32 @@ impl RoomRepository {
                 participants.last_message_read_at,
                 participants.participant_state AS "membership_status: MembershipStatus"
             FROM chat_room_participant AS participants
-            JOIN app_user AS users ON participants.user_id = users.id
+                JOIN app_user AS users ON participants.user_id = users.id
             WHERE participants.room_id = $1 AND participants.participant_state = 'Joined'
             "#, room_id).fetch_all(&self.pool).await?;
         Ok(users)
     }
 
-    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoom>, sqlx::Error> {
+    pub async fn select_joined_user_by_id(&self, room_id: &Uuid, user_id: &Uuid) -> Result<RoomMember, sqlx::Error> {
+        let users = sqlx::query_as!(RoomMember,
+            r#"
+            SELECT
+                app_user.id,
+                app_user.display_name,
+                app_user.profile_picture,
+                chat_room_participant.joined_at,
+                chat_room_participant.last_message_read_at,
+                chat_room_participant.participant_state AS "membership_status: MembershipStatus"
+            FROM chat_room_participant
+                JOIN app_user ON chat_room_participant.user_id = app_user.id
+            WHERE chat_room_participant.room_id = $1 AND chat_room_participant.participant_state = 'Joined' AND chat_room_participant.user_id = $2
+            "#, room_id, user_id).fetch_one(&self.pool).await?;
+        Ok(users)
+    }
+
+    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-            ChatRoom,
+            ChatRoomEntity,
             r#"
             WITH room_selection AS (
                 SELECT DISTINCT ON (room.id)
@@ -101,9 +118,9 @@ impl RoomRepository {
         Ok(())
     }
 
-    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoom>, sqlx::Error> {
+    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomEntity>, sqlx::Error> {
         let room = sqlx::query_as!(
-            ChatRoom,
+            ChatRoomEntity,
             r#"
             SELECT
                 room.id,
@@ -136,6 +153,13 @@ impl RoomRepository {
     }
 
     pub async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
+
+        let preview_text = serde_json::to_string(
+            &LastMessagePreviewText::New
+        ).map_err(|_| {
+            sqlx::Error::InvalidArgument("Can't serialize room preview text".to_string())
+        })?;
+
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
@@ -143,7 +167,8 @@ impl RoomRepository {
             room_image_url: None,
             created_at: Utc::now(),
             latest_message: Option::from(Utc::now()),
-            latest_message_preview_text: Option::from(String::from("Chat wurde erstellt.")),
+            latest_message_preview_text: Option::from(preview_text),
+            unread: None
         };
 
         //https://docs.rs/sqlx/latest/sqlx/struct.Transaction.html
@@ -154,7 +179,7 @@ impl RoomRepository {
             r#"
             INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text, room_image_url
+            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text, room_image_url, NULL::boolean as "unread: _"
             "#,
             room_entity.id,
             room_entity.room_type.to_string(),
@@ -183,7 +208,7 @@ impl RoomRepository {
         let room_details = sqlx::query_as!(
             ChatRoomEntity,
             r#"
-            SELECT id, room_type as "room_type: RoomType", room_name, created_at, latest_message, room_image_url, latest_message_preview_text
+            SELECT id, room_type as "room_type: RoomType", room_name, created_at, latest_message, room_image_url, latest_message_preview_text, NULL::boolean as "unread: _"
             FROM chat_room
             WHERE id = $1
             "#, room_id).fetch_one(&self.pool).await?;
@@ -219,10 +244,21 @@ impl RoomRepository {
         }
     }
 
-    pub async fn add_user_to_room(&self, user_id: &Uuid, room_id: &Uuid) -> Result<RoomMember, sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-        sqlx::query!("INSERT INTO chat_room_participant (user_id, room_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, room_id) DO UPDATE SET joined_at = $3, participant_state = 'Joined'",
-            user_id, room_id, Utc::now()).execute(&mut *tx).await?;
+    pub async fn add_user_to_room(&self, conn: &mut PgConnection, user_id: &Uuid, room_id: &Uuid) -> Result<RoomMember, sqlx::Error> {
+        sqlx::query!(
+            r#"
+                INSERT INTO chat_room_participant (user_id, room_id, joined_at, participant_state)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id, room_id)
+                DO UPDATE SET joined_at = $3, participant_state = $4
+                "#,
+                user_id,
+                room_id,
+                Utc::now(),
+                MembershipStatus::Joined.to_string()
+            )
+            .execute(&mut *conn)
+            .await?;
 
         let user = sqlx::query_as!(RoomMember,
            r#"
@@ -236,10 +272,10 @@ impl RoomRepository {
             FROM chat_room_participant AS participants
             JOIN app_user AS users ON participants.user_id = users.id
             WHERE participants.user_id = $1 AND participants.room_id = $2
-            "#, user_id, room_id).fetch_one(&mut *tx).await?;
-        let text = format!("{}{}", user.display_name, String::from(" ist in dem Chat beigetreten.")); //todo: think about a better latest msg logic
-        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *tx).await?;
-        tx.commit().await?;
+            "#,
+            user_id,
+            room_id
+        ).fetch_one(&mut *conn).await?;
         Ok(user)
     }
 
@@ -269,16 +305,14 @@ impl RoomRepository {
     /// Like this: state.room_repository.get_connection().acquire().await.unwrap();
     ///
     /// [workaround]: https://github.com/launchbadge/sqlx/issues/1015#issuecomment-767787777
-    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, sender_id: &Uuid, preview_text: String) -> Result<String, sqlx::Error>
+    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, preview_text: &String) -> Result<(), sqlx::Error>
     {
-        let name = sqlx::query!("SELECT display_name FROM app_user WHERE id = $1", sender_id).fetch_one(&mut *conn).await?;
-        let text = format!("{}{}", name.display_name, preview_text);
         sqlx::query!(
             "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
             room_id,
-            &text
+            preview_text
         ).execute(&mut *conn).await?;
-        Ok(text)
+        Ok(())
     }
 
     pub async fn update_user_read_status<'e, E>(&self, exec: E, room_id: &Uuid, user_id: &Uuid) -> Result<(), sqlx::Error>
@@ -294,10 +328,9 @@ impl RoomRepository {
     }
 
 
-    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user: &RoomMember) -> Result<(), sqlx::Error> {
-        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user.id, room_id).execute(&mut *conn).await?;
-        let text = format!("{}{}", user.display_name, String::from(" hat den Chat verlassen.")); //todo: think about a better latest msg logic
-        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, text).execute(&mut *conn).await?;
+    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user_id: &Uuid, preview_text: &String) -> Result<(), sqlx::Error> {
+        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&mut *conn).await?;
+        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, preview_text).execute(&mut *conn).await?;
         Ok(())
     }
 

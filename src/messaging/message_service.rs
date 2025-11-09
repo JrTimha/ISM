@@ -7,6 +7,7 @@ use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::messaging::model::{Message, MessageBody, MessageDTO, MsgType, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
+use crate::model::LastMessagePreviewText;
 
 pub struct MessageService;
 
@@ -41,11 +42,20 @@ impl MessageService {
         let msg = Message::new(message.chat_room_id, client_id, msg_body).map_err(|_err| {
             AppError::ProcessingError("Can't create chat message.".to_string())
         })?;
-
+        //save to nosql:
         state.message_repository.insert_data(msg.clone()).await?;
 
+
+        let client_entity = state.room_repository.select_joined_user_by_id(&message.chat_room_id, &client_id).await?;
+
+        let room_preview_text = MessageService::generate_room_preview_text(&message, client_entity.display_name);
+        let preview_str = serde_json::to_string(&room_preview_text).map_err(|err| {
+            AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
+        })?;
+
+
         let mut tx = state.room_repository.start_transaction().await?;
-        let displayed = state.room_repository.update_last_room_message(&mut *tx, &message.chat_room_id, &msg.sender_id, MessageService::generate_room_preview_text(&message)).await?;
+        state.room_repository.update_last_room_message(&mut *tx, &message.chat_room_id, &preview_str).await?;
         state.room_repository.update_user_read_status(&mut *tx, &message.chat_room_id, &msg.sender_id).await?;
         tx.commit().await?;
         
@@ -57,7 +67,7 @@ impl MessageService {
         BroadcastChannel::get().send_event_to_all(
             users,
             Notification {
-                body: ChatMessage {message: mapped_msg.clone(), display_value: displayed },
+                body: ChatMessage {message: mapped_msg.clone(), room_preview_text },
                 created_at: Utc::now()
             }
         ).await;
@@ -95,16 +105,16 @@ impl MessageService {
         Ok(new_body)
     }
 
-    fn generate_room_preview_text(msg: &NewMessage) -> String {
+    fn generate_room_preview_text(msg: &NewMessage, username: String) -> LastMessagePreviewText {
         match &msg.msg_body {
             NewMessageBody::Text(body) => {
-                format!(": {}", body.text)
+                LastMessagePreviewText::Text { sender_username: username, text: body.text.clone()}
             }
-            NewMessageBody::Media(_) => {
-                String::from(" hat etwas geteilt.")
+            NewMessageBody::Media(body) => {
+                LastMessagePreviewText::Media { sender_username: username, media_type: body.media_type.clone()}
             }
-            NewMessageBody::Reply(_) => {
-                String::from(" hat auf eine Nachricht geantwortet.")
+            NewMessageBody::Reply(body) => {
+                LastMessagePreviewText::Reply { sender_username: username, reply_text: body.reply_text.clone()}
             }
         }
     }

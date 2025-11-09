@@ -229,7 +229,8 @@ pub struct User {
     pub street_credits: i64,
     pub profile_picture: Option<String>,
     pub description: Option<String>,
-    pub friends_count: i64
+    pub friends_count: i64,
+    pub role: String
 }
 
 #[derive(Deserialize, Serialize, Default)]

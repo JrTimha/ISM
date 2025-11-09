@@ -8,7 +8,7 @@ use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent};
 use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::messaging::model::{Message, MessageBody, RoomChangeBody};
-use crate::model::{ChatRoom, ChatRoomEntity, ChatRoomWithUserDTO, MembershipStatus, NewRoom, RoomMember, RoomType, UploadResponse};
+use crate::model::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, MembershipStatus, NewRoom, RoomChangeType, RoomMember, RoomType, UploadResponse};
 use crate::utils::crop_image_from_center;
 
 pub struct RoomService;
@@ -20,9 +20,9 @@ impl RoomService {
         Ok(users)
     }
 
-    pub async fn get_joined_rooms(state: Arc<AppState>, client_id: Uuid, ) -> Result<Vec<ChatRoom>, AppError> {
+    pub async fn get_joined_rooms(state: Arc<AppState>, client_id: Uuid, ) -> Result<Vec<ChatRoomDto>, AppError> {
         let rooms =  state.room_repository.get_joined_rooms(&client_id).await?;
-        Ok(rooms)
+        Ok(rooms.iter().map(|room| room.to_dto()).collect())
     }
 
     pub async fn get_room_with_details(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<ChatRoomWithUserDTO, AppError> {
@@ -34,17 +34,7 @@ impl RoomService {
 
         match chat_room {
             Some(room) => {
-                let room_details = ChatRoomWithUserDTO {
-                    id: room.id,
-                    room_type: room.room_type,
-                    room_name: room.room_name.unwrap_or(String::from("Unnamed Chat")),
-                    room_image_url: room.room_image_url,
-                    created_at: room.created_at,
-                    latest_message: room.latest_message,
-                    unread: room.unread,
-                    latest_message_preview_text: room.latest_message_preview_text,
-                    users: users,
-                };
+                let room_details = ChatRoomWithUserDTO { room: room.to_dto(), users };
                 Ok(room_details)
             },
             None => Err(AppError::NotFound("Room not found:".to_string()))
@@ -57,7 +47,7 @@ impl RoomService {
         Ok(())
     }
 
-    pub async fn create_room(state: Arc<AppState>, client_id: Uuid, new_room: NewRoom) -> Result<ChatRoom, AppError> {
+    pub async fn create_room(state: Arc<AppState>, client_id: Uuid, new_room: NewRoom) -> Result<ChatRoomDto, AppError> {
         let room_entity = state.room_repository.insert_room(new_room.clone()).await?;
         let users = new_room.invited_users;
 
@@ -73,21 +63,21 @@ impl RoomService {
                 state.room_repository.find_specific_joined_room(&room_entity.id, other_user)
             )?;
 
-            if let (Some(creator_dto), Some(participator_dto)) = (room_client, room_receiver) {
+            if let (Some(creator_room), Some(participator_room)) = (room_client, room_receiver) {
 
                 let broadcast = BroadcastChannel::get();
 
                 broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: participator_dto},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: participator_room.to_dto()},
                     created_at: Utc::now()
                 }, other_user).await;
 
                 broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: creator_dto.clone()},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: creator_room.to_dto()},
                     created_at: Utc::now()
                 }, &client_id).await;
 
-                Ok(creator_dto)
+                Ok(creator_room.to_dto())
             } else {
                 Err(AppError::ProcessingError("Newly created room is null.".to_string()))
             }
@@ -100,19 +90,19 @@ impl RoomService {
             BroadcastChannel::get().send_event_to_all(
                 users,
                 Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: room.clone()},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: room.to_dto()},
                     created_at: Utc::now()
                 }
             ).await;
-            Ok(room)
+            Ok(room.to_dto())
         }
     }
 
-    pub async fn get_room_list_item_by_id(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<ChatRoom, AppError> {
+    pub async fn get_room_list_item_by_id(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<ChatRoomDto, AppError> {
         let room = state.room_repository.find_specific_joined_room(&room_id, &client_id).await?.ok_or_else(|| {
             AppError::NotFound("Room not found.".to_string())
         })?;
-        Ok(room)
+        Ok(room.to_dto())
     }
 
     pub async fn leave_room(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
@@ -144,16 +134,25 @@ impl RoomService {
             return Err(AppError::ValidationError("Private rooms doesn't allow invites!.".to_string()))
         };
         //we have to check if the inviter is in the room and the invited user isn't!
-        let user_to_find = users.iter().find(|user| user.id == client_id);
+        users.iter().find(|user| user.id == client_id).ok_or_else(|| {
+            AppError::Blocked("Client is not in this room.".to_string())
+        })?;
+
+
         let user_to_exclude = users.iter().find(|user| user.id == user_id);
-        match (user_to_find, user_to_exclude) {
-            (Some(_inviter), None) => {} //we have checked the invite rules and continue
-            _ => {
-                return Err(AppError::ValidationError("User conditions not met in this room.".to_string()))
-            }
-        };
+        if user_to_exclude.is_some() {
+            return Err(AppError::BadRequest("User is already in this room.".to_string()))
+        }
+
         //add him to the room
-        let user = state.room_repository.add_user_to_room(&user_id, &room_id).await?;
+        let mut tx = state.room_repository.start_transaction().await?;
+        let user = state.room_repository.add_user_to_room(&mut *tx, &user_id, &room_id).await?;
+        let preview_text = LastMessagePreviewText::RoomChange { sender_username: user.display_name.clone(), room_change_type: RoomChangeType::JOIN};
+        let preview_str = serde_json::to_string(&preview_text).map_err(|_| {
+            AppError::ProcessingError("Can't serialize room preview text".to_string())
+        })?;
+        state.room_repository.update_last_room_message(&mut *tx, &room_id, &preview_str).await?;
+        tx.commit().await?;
 
         //build room change message
         let message = Message::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}))
@@ -161,15 +160,16 @@ impl RoomService {
 
         //sending room change event to all previous users in the room
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-        save_message_and_broadcast(message, &state, send_to).await?;
+        save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
 
         //sending new room event to invited user
         let room_for_user = state.room_repository.find_specific_joined_room(&room_id, &user_id).await?.ok_or_else(|| {
             AppError::ProcessingError("Unable to find room for the invited user.".to_string())
         })?;
+
         BroadcastChannel::get().send_event(
             Notification {
-                body: crate::broadcast::NotificationEvent::NewRoom {room: room_for_user},
+                body: crate::broadcast::NotificationEvent::NewRoom {room: room_for_user.to_dto()},
                 created_at: Utc::now()
             },
             &user.id
@@ -207,11 +207,10 @@ impl RoomService {
 }
 
 async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>) -> Result<(), AppError> {
-    state.message_repository.clear_chat_room_messages(&room.id).await?;
-
     let mut tx = state.room_repository.start_transaction().await?;
     state.room_repository.delete_room(&mut *tx, &room.id).await?;
     tx.commit().await?;
+    state.message_repository.clear_chat_room_messages(&room.id).await?;
 
     let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
     BroadcastChannel::get().send_event_to_all(
@@ -226,7 +225,13 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
 
 async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>, mut leaving_user: RoomMember) -> Result<(), AppError> {
     let mut tx = state.room_repository.start_transaction().await?;
-    state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user).await?;
+
+    let preview_message = LastMessagePreviewText::RoomChange { sender_username: leaving_user.display_name.clone(), room_change_type: RoomChangeType::LEAVE };
+    let preview_text = serde_json::to_string(&preview_message).map_err(|err| {
+        AppError::ProcessingError(format!("Unable to serialize last message preview text: {}", err.to_string()))
+    })?;
+
+    state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user.id, &preview_text).await?;
     leaving_user.membership_status = MembershipStatus::Left;
 
     if users.len() == 1 { //last user, delete this room now
@@ -250,13 +255,15 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 
         Ok(())
     } else { //find and handle the leaving user
+
         let message = Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}))
             .map_err(|_err| AppError::ProcessingError("Unable to create room message".to_string()))?;
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-        save_message_and_broadcast(message, &state, send_to).await?;
+        save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
         tx.commit().await?;
 
+        //send ack to the leaving user
         BroadcastChannel::get().send_event(
             Notification {
                 body: LeaveRoom {room_id: room.id},
@@ -269,7 +276,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     }
 }
 
-async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>) -> Result<(), AppError> {
+async fn save_room_change_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
     state.message_repository.insert_data(message.clone()).await?;
 
     let mapped_msg = message.to_dto().map_err(|_| {
@@ -277,7 +284,7 @@ async fn save_message_and_broadcast(message: Message, state: &Arc<AppState>, to_
     })?;
 
     let notification = Notification {
-        body: RoomChangeEvent{message: mapped_msg},
+        body: RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text},
         created_at: Utc::now()
     };
 

@@ -1,11 +1,11 @@
 use std::time::Duration;
-use redis::aio::MultiplexedConnection;
-use redis::{Client, RedisResult};
+use redis::aio::{ConnectionManager};
+use redis::{RedisResult};
 use redis::{AsyncCommands};
 use tracing::{debug, error};
 use crate::cache::util::MASTER_INDEX_SET;
 
-pub async fn periodic_cleanup_task(client: Client) {
+pub async fn periodic_cleanup_task(mut con: ConnectionManager) {
 
     let cleanup_interval = Duration::from_secs(3600); //atm each 1hr
 
@@ -14,13 +14,6 @@ pub async fn periodic_cleanup_task(client: Client) {
     loop {
         tokio::time::sleep(cleanup_interval).await;
         debug!("Starting periodic cache cleanup...");
-        let mut con = match client.get_multiplexed_async_connection().await {
-            Ok(c) => c,
-            Err(e) => {
-                error!("Can't connect to cache: {}", e);
-                continue;
-            }
-        };
 
         // getting all user ids from the master index set
         let user_ids: Vec<String> = match con.smembers(MASTER_INDEX_SET).await {
@@ -41,7 +34,7 @@ pub async fn periodic_cleanup_task(client: Client) {
 }
 
 async fn cleanup_user_index(
-    con: &mut MultiplexedConnection,
+    con: &mut ConnectionManager,
     user_id: &str,
 ) -> RedisResult<()> {
     let sorted_set_key = format!("user_notifications:{}", user_id);

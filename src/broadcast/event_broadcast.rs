@@ -9,6 +9,7 @@ use tokio::time::interval;
 use crate::broadcast::Notification;
 use crate::cache::redis_cache::Cache;
 
+
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
 /// A `BroadcastChannel` struct is responsible for managing a collection of channels that are used
@@ -31,9 +32,12 @@ static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new
 /// and can safely be used across multiple threads. Readers can access the map concurrently,
 /// while write operations are exclusive to ensure data integrity.
 pub struct BroadcastChannel {
-    channel: RwLock<HashMap<Uuid, Sender<Notification>>>,
-    notification_cache: Arc<dyn Cache>
+    channel: UserConnectionMap,
+    cache: Arc<dyn Cache>
 }
+
+type UserConnectionMap = RwLock<HashMap<Uuid, Sender<Notification>>>;
+
 
 impl BroadcastChannel {
 
@@ -58,7 +62,7 @@ impl BroadcastChannel {
     fn new(cache: Arc<dyn Cache>) -> Self {
         BroadcastChannel {
             channel: RwLock::new(HashMap::new()),
-            notification_cache: cache
+            cache
         }
     }
 
@@ -105,7 +109,7 @@ impl BroadcastChannel {
                 }
             }
         } else {
-            if let Err(error) = self.notification_cache.add_notification_for_user(to_user, &notification).await {
+            if let Err(error) = self.cache.add_notification_for_user(to_user, &notification).await {
                 error!("Failed to cache notification: {}", error);
             };
         }
@@ -124,7 +128,7 @@ impl BroadcastChannel {
                     }
                 }
             } else {
-                if let Err(error) = self.notification_cache.add_notification_for_user(&user_id, &notification).await {
+                if let Err(error) = self.cache.add_notification_for_user(&user_id, &notification).await {
                     error!("Failed to cache notification: {}", error);
                 };
             }

@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use chrono::Utc;
 use uuid::Uuid;
-use crate::broadcast::{BroadcastChannel, Notification};
+use crate::broadcast::{Notification};
 use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
 use crate::errors::{AppError};
@@ -18,8 +18,18 @@ impl MessageService {
         message: NewMessage,
         client_id: Uuid
     ) -> Result<MessageDTO, AppError>  {
-        
-        let users = state.room_repository.select_room_participants_ids(&message.chat_room_id).await?;
+
+        let mut users = state.cache.get_user_for_room(&message.chat_room_id).await.map_err(|err| {
+            AppError::ProcessingError(format!("Can't get user for room: {}", err.to_string()))
+        })?;
+
+        if users.is_empty() {
+            users = state.room_repository.select_room_participants_ids(&message.chat_room_id).await?;
+            state.cache.set_user_for_room(&message.chat_room_id, &users).await.map_err(|err| {
+                AppError::ProcessingError(format!("Can't set user for room: {}", err.to_string()))
+            })?;
+        }
+
         if !users.contains(&client_id) {
             return Err(AppError::Blocked("User has not access to this room.".to_string()));
         };
@@ -59,18 +69,21 @@ impl MessageService {
         state.room_repository.update_user_read_status(&mut *tx, &message.chat_room_id, &msg.sender_id).await?;
         tx.commit().await?;
         
-        
+
         let mapped_msg = msg.to_dto().map_err(|err| {
             AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
         })?;
 
-        BroadcastChannel::get().send_event_to_all(
-            users,
+        state.cache.publish_notification(
             Notification {
                 body: ChatMessage {message: mapped_msg.clone(), room_preview_text },
                 created_at: Utc::now()
-            }
-        ).await;
+            },
+            &format!("chat_room:{}", mapped_msg.chat_room_id)
+        ).await.map_err(|err| {
+            AppError::ProcessingError(format!("Can't publish notification: {}", err.to_string()))
+        })?;
+
         Ok(mapped_msg)
     }
 

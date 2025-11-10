@@ -12,30 +12,18 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="fix env">
-      <change afterPath="$PROJECT_DIR$/src/cache/util.rs" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality.">
+      <change afterPath="$PROJECT_DIR$/src/cache/redis_subscriber.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-2655a4f7a524b25d411b5509b7396623c4c86c3769fc349d59dab3b498aeeed3.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-3aaa9068f9e71cce0b23ce8db90da0cc12d275c79850b6349bb783c661003132.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-3cdb7869c622b1a72d81d09d8a7fef227e3f6f0e7e9e1d0d0b9899549fe2d415.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-b7fab8640b6c1bfd96b4349ebbaf6152fbe3a7d62a7c91fa094065eed27a15e9.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-bb17f3e5e740cddc97820e7c313bee11f5821b93c96aa5c89c278476eb865b56.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-d0779c2f67e104b4387537026a1f6aba2f314490466d6994d515699cafd2ca2f.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-dc6adb7aec669bb8f852086eda6599089a8e1477393e05847bde581ba2d8caa1.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sqlx/query-e5c42af39823f474b703f3ed0449280b18cfb8f2aeae4d7eb347e09c7c9c258a.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/broadcast/notification.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/notification.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/cache/cache_cleanup.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cache/cache_cleanup.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/cache/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cache/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/cache/redis_cache.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cache/redis_cache.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/messaging/message_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/message_service.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/room.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/room.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/room_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/room_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/repository/user_repository.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/repository/user_repository.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/handler.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/handler.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/user_relationship/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/user_relationship/model.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/messaging/model.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/messaging/model.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -141,7 +129,7 @@
       <recent name="$PROJECT_DIR$/src/user_relationship/model" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.sqlx">
+  <component name="RunManager" selected="Cargo.Run ISM">
     <configuration name="Run ISM" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package ism --bin ism" />
@@ -237,8 +225,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
@@ -420,15 +408,7 @@
       <workItem from="1762563331844" duration="1136000" />
       <workItem from="1762604371543" duration="2349000" />
       <workItem from="1762642617617" duration="1996000" />
-      <workItem from="1762696062524" duration="19572000" />
-    </task>
-    <task id="LOCAL-00036" summary="updating create dependencies">
-      <option name="closed" value="true" />
-      <created>1744154420854</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1744154420854</updated>
+      <workItem from="1762696062524" duration="36345000" />
     </task>
     <task id="LOCAL-00037" summary="refactoring &amp; kafka support">
       <option name="closed" value="true" />
@@ -814,7 +794,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762529827380</updated>
     </task>
-    <option name="localTasksCounter" value="85" />
+    <task id="LOCAL-00085" summary="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality.">
+      <option name="closed" value="true" />
+      <created>1762722013611</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1762722013612</updated>
+    </task>
+    <option name="localTasksCounter" value="86" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -835,7 +823,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
     <MESSAGE value="Readme improved" />
     <MESSAGE value="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly." />
     <MESSAGE value="Refactor database modules and update dependencies&#10;&#10;Renamed `message_repository` to `message_database` and `room_repository` to `room_database` for better consistency. Updated `sqlx` and other dependencies to newer versions, removing unnecessary ones. Adjusted Cargo metadata and configuration to reflect these changes." />
@@ -860,7 +847,8 @@
     <MESSAGE value="Update user_relationship query to return updated state and timestamp fields" />
     <MESSAGE value="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability." />
     <MESSAGE value="fix env" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix env" />
+    <MESSAGE value="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

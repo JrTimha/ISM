@@ -3,7 +3,6 @@ use log::info;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use tokio::task;
 use crate::broadcast::BroadcastChannel;
-use crate::cache::cache_cleanup::periodic_cleanup_task;
 use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
 use crate::core::ISMConfig;
 use crate::database::{MessageDatabase, ObjectStorage};
@@ -48,11 +47,9 @@ impl AppState {
 
         let cache: Arc<dyn Cache> = match config.redis_cache_url.clone() {
             Some(url) => {
-                let client = redis::Client::open(url)
+                let cache = RedisCache::new(url).await
                     .unwrap_or_else(|err| panic!("Unable to init redis cache: {}", err));
-                info!("Established connection to the redis cache.");
-                tokio::spawn(periodic_cleanup_task(client.clone()));
-                Arc::new(RedisCache { client })
+                Arc::new(cache)
             },
             None => {
                 info!("Redis is deactivated. Initializing NoOpCache...");

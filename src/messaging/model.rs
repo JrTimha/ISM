@@ -6,6 +6,7 @@ use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
+use crate::errors::AppError;
 use crate::model::RoomMember;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -73,6 +74,21 @@ pub struct MessageDTO {
     pub msg_body: MessageBody,
     pub msg_type: MsgType,
     pub created_at: DateTime<Utc>
+}
+
+impl MessageDTO {
+
+    pub fn from_json_str(s: &str) -> Result<MessageDTO, AppError> {
+        serde_json::from_str(s).map_err(|err| {
+            AppError::ProcessingError(format!("Error parsing message: {}", err))
+        })
+    }
+
+    pub fn json_str(&self) -> Result<String, AppError> {
+        serde_json::to_string(self).map_err(|err| {
+            AppError::ProcessingError(format!("Error parsing message: {}", err))
+        })
+    }
 }
 
 

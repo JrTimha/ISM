@@ -7,6 +7,7 @@ use tracing_subscriber::EnvFilter;
 use ism::core::{AppState, ISMConfig};
 use tracing_subscriber::filter::LevelFilter;
 use ism::router::init_router;
+use ism::welcome::welcome;
 
 //learn to code rust axum here:
 //https://gitlab.com/famedly/conduit/-/tree/next?ref_type=heads
@@ -16,7 +17,7 @@ use ism::router::init_router;
 async fn main() {
     
     let config = init_configuration();
-    
+    welcome();
     //init the app state including database connections, broadcast channels, kafka etc.
     let app_state = AppState::new(config.clone()).await;
 
@@ -73,8 +74,6 @@ fn init_configuration() -> ISMConfig {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .init();
-
-    info!("Starting up ISM in {run_mode} mode.");
-
+    
     config
 }

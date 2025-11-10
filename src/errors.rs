@@ -1,10 +1,11 @@
 use std::error::Error;
-use std::fmt;
+use std::{fmt};
 use std::fmt::{Display, Formatter};
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
+use redis::RedisError;
 use serde::Serialize;
 use validator::ValidationErrors;
 
@@ -100,7 +101,7 @@ impl IntoResponse for HttpError {
             timestamp: Utc::now().to_rfc3339(),
             status: status.as_u16(),
             error: status.canonical_reason().unwrap_or("Unknown Status").to_string(),
-            message: self.message.clone(),
+            message: self.message,
             path: None,
             error_code: self.error_code,
         };
@@ -129,6 +130,10 @@ pub enum AppError {
 
     BadRequest(String),
 
+    CacheError(RedisError),
+
+    Generic(Box<dyn Error + Send + Sync>),
+
 }
 
 impl fmt::Debug for AppError {
@@ -141,6 +146,8 @@ impl fmt::Debug for AppError {
             Self::Blocked(msg) => write!(f, "Blocked: {}", msg),
             Self::S3Error(msg) => write!(f, "S3Error: {}", msg),
             Self::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
+            Self::CacheError(err) => write!(f, "CacheError: {}", err),
+            Self::Generic(err) => write!(f, "An Generic unexpected error occurred: {}", err),
         }
     }
 }
@@ -155,6 +162,8 @@ impl Display for AppError {
             AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
             AppError::S3Error(msg) => write!(f, "S3Error: {}", msg),
             AppError::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
+            AppError::CacheError(err) => write!(f, "CacheError: {}", err),
+            AppError::Generic(err) => write!(f, "An Generic unexpected error occurred: {}", err),
         }
     }
 }
@@ -168,6 +177,12 @@ impl From<sqlx::Error> for AppError {
 impl From<scylla::errors::ExecutionError> for AppError {
     fn from(err: scylla::errors::ExecutionError) -> AppError {
         AppError::DatabaseError(Box::new(err))
+    }
+}
+
+impl From<redis::RedisError> for AppError {
+    fn from(err: RedisError) -> AppError {
+        AppError::CacheError(err)
     }
 }
 
@@ -199,9 +214,9 @@ impl IntoResponse for AppError {
             AppError::DatabaseError(internal_err) => {
                 tracing::error!("Database error: {:?}", internal_err);
                 HttpError::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::SERVICE_UNAVAILABLE,
                     ErrorCode::UnexpectedError,
-                    "Internal Server Error. Try again."
+                    "Internal Database Error. Try again."
                 )
             }
             AppError::ProcessingError(msg) => {
@@ -221,7 +236,7 @@ impl IntoResponse for AppError {
             }
             AppError::S3Error(msg) => {
                 HttpError::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::SERVICE_UNAVAILABLE,
                     ErrorCode::UnexpectedError,
                     msg
                 )
@@ -231,6 +246,21 @@ impl IntoResponse for AppError {
                     StatusCode::BAD_REQUEST,
                     ErrorCode::ValidationError,
                     msg
+                )
+            }
+            AppError::CacheError(err) => {
+                tracing::error!("Cache error: {:?}", err.to_string());
+                HttpError::new(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    ErrorCode::UnexpectedError,
+                    "Internal Cache Error. Try again."
+                )
+            }
+            AppError::Generic(err) => {
+                HttpError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorCode::UnexpectedError,
+                    format!("An unexpected error occurred: {}", err)
                 )
             }
         };

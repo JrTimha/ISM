@@ -1,9 +1,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
-use chrono::Utc;
 use uuid::Uuid;
-use crate::broadcast::{Notification};
-use crate::broadcast::NotificationEvent::ChatMessage;
+use crate::broadcast::{BroadcastChannel};
 use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::messaging::model::{Message, MessageBody, MessageDTO, MsgType, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
@@ -19,19 +17,15 @@ impl MessageService {
         client_id: Uuid
     ) -> Result<MessageDTO, AppError>  {
 
-        let mut users = state.cache.get_user_for_room(&message.chat_room_id).await.map_err(|err| {
-            AppError::ProcessingError(format!("Can't get user for room: {}", err.to_string()))
-        })?;
+        let mut users = state.cache.get_user_for_room(&message.chat_room_id).await?;
 
         if users.is_empty() {
             users = state.room_repository.select_room_participants_ids(&message.chat_room_id).await?;
-            state.cache.set_user_for_room(&message.chat_room_id, &users).await.map_err(|err| {
-                AppError::ProcessingError(format!("Can't set user for room: {}", err.to_string()))
-            })?;
+            state.cache.set_user_for_room(&message.chat_room_id, &users).await?;
         }
 
         if !users.contains(&client_id) {
-            return Err(AppError::Blocked("User has not access to this room.".to_string()));
+            return Err(AppError::Blocked("User hasn't access to this room.".to_string()));
         };
 
         let msg_body = match message.msg_body.clone() {
@@ -52,39 +46,29 @@ impl MessageService {
         let msg = Message::new(message.chat_room_id, client_id, msg_body).map_err(|_err| {
             AppError::ProcessingError("Can't create chat message.".to_string())
         })?;
-        //save to nosql:
+
+        //1. save message to nosql db:
         state.message_repository.insert_data(msg.clone()).await?;
 
-
+        //2. generate new room preview text and save it to sql db:
         let client_entity = state.room_repository.select_joined_user_by_id(&message.chat_room_id, &client_id).await?;
-
         let room_preview_text = MessageService::generate_room_preview_text(&message, client_entity.display_name);
         let preview_str = serde_json::to_string(&room_preview_text).map_err(|err| {
             AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
         })?;
 
-
         let mut tx = state.room_repository.start_transaction().await?;
         state.room_repository.update_last_room_message(&mut *tx, &message.chat_room_id, &preview_str).await?;
         state.room_repository.update_user_read_status(&mut *tx, &message.chat_room_id, &msg.sender_id).await?;
         tx.commit().await?;
-        
 
-        let mapped_msg = msg.to_dto().map_err(|err| {
+        //3. broadcast message to all room members:
+        let message_dto = msg.to_dto().map_err(|err| {
             AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
         })?;
-
-        state.cache.publish_notification(
-            Notification {
-                body: ChatMessage {message: mapped_msg.clone(), room_preview_text },
-                created_at: Utc::now()
-            },
-            &format!("chat_room:{}", mapped_msg.chat_room_id)
-        ).await.map_err(|err| {
-            AppError::ProcessingError(format!("Can't publish notification: {}", err.to_string()))
-        })?;
-
-        Ok(mapped_msg)
+        let notification = msg.to_notification(room_preview_text)?;
+        BroadcastChannel::get().send_event_to_all(users, notification).await;
+        Ok(message_dto)
     }
 
     async fn create_reply_message(msg: &NewReplyBody, state: &Arc<AppState>, room_id: &Uuid) -> Result<ReplyBody, Box<dyn std::error::Error>> {

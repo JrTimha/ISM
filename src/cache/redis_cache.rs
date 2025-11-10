@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::broadcast::Notification;
 use crate::cache::cache_cleanup::periodic_cleanup_task;
 use crate::cache::redis_subscriber::run_event_processor;
-use crate::cache::util::MASTER_INDEX_SET;
+use crate::cache::util::{CHAT_CHANNEL, MASTER_INDEX_SET, NOTIFICATION, ROOM_MEMBERS, USER_NOTIFICATIONS};
 
 #[async_trait]
 pub trait Cache: Send + Sync {
@@ -26,6 +26,7 @@ pub trait Cache: Send + Sync {
 
 //docs: https://docs.rs/redis/latest/redis/
 #[derive(Clone)]
+#[allow(unused)]
 pub struct RedisCache {
     client: Client,
     pub connection: ConnectionManager
@@ -41,7 +42,7 @@ impl RedisCache {
             .set_automatic_resubscription();
 
         let mut connection_manager = redis_client.get_connection_manager_with_config(config).await?;
-        connection_manager.psubscribe("chat_room:*").await?;
+        connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?; //subscribe to all chat channels
 
         info!("Established connection to the redis cache.");
         tokio::spawn(periodic_cleanup_task(connection_manager.clone()));
@@ -57,7 +58,7 @@ impl Cache for RedisCache {
 
     async fn get_notifications_for_user(&self, user_id: &Uuid, latest_ts: DateTime<Utc>) -> RedisResult<Vec<Notification>> {
         let mut con = self.connection.clone();
-        let sorted_set_key = format!("user_notifications:{}", user_id);
+        let sorted_set_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
         let min_score = latest_ts.timestamp();
 
         let notification_keys: Vec<String> = con
@@ -83,7 +84,7 @@ impl Cache for RedisCache {
 
     async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()> {
         let mut con = self.connection.clone();
-        let notification_key = format!("notification:{}", Uuid::new_v4());
+        let notification_key = format!("{}{}", NOTIFICATION, Uuid::new_v4());
         let notification_json = serde_json::to_string(notification)
             .map_err(|err| {
                 RedisError::from((
@@ -94,7 +95,7 @@ impl Cache for RedisCache {
             })?;
 
         let score = notification.created_at.timestamp();
-        let sorted_set_key = format!("user_notifications:{}", user_id);
+        let sorted_set_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
 
         let mut pipe = redis::pipe(); //like a atomic transaction
         pipe.atomic()
@@ -115,21 +116,26 @@ impl Cache for RedisCache {
 
     async fn add_user_to_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()> {
         let mut con = self.connection.clone();
-        let key = format!("room_members:{}", room_id);
-        redis::cmd("SADD").arg(&key).arg(user_id.to_string()).exec_async(&mut con).await?;
+        let key = format!("{}{}", ROOM_MEMBERS, room_id);
+        let exists: bool = con.exists(&key).await?;
+
+        if !exists { //if the member list is empty, we don't need to add the user to it
+            return Ok(())
+        }
+        con.sadd(&key, user_id.to_string()).await?;
         Ok(())
     }
 
     async fn remove_user_from_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()> {
         let mut con = self.connection.clone();
-        let key = format!("room_members:{}", room_id);
-        redis::cmd("SREM").arg(&key).arg(user_id.to_string()).exec_async(&mut con).await?;
+        let key = format!("{}{}", ROOM_MEMBERS, room_id);
+        con.srem(&key, user_id.to_string()).await?;
         Ok(())
     }
 
     async fn get_user_for_room(&self, room_id: &Uuid) -> RedisResult<Vec<Uuid>> {
         let mut conn = self.connection.clone();
-        let key = format!("room_members:{}", room_id);
+        let key = format!("{}{}", ROOM_MEMBERS, room_id);
 
         let cached_user_ids: HashSet<String> = conn.smembers(&key).await?;
         if !cached_user_ids.is_empty() {
@@ -142,9 +148,10 @@ impl Cache for RedisCache {
         Ok(vec![])
     }
 
+
     async fn set_user_for_room(&self, room_id: &Uuid, user_ids: &Vec<Uuid>) -> RedisResult<()> {
         let mut conn = self.connection.clone();
-        let key = format!("room_members:{}", room_id);
+        let key = format!("{}{}", ROOM_MEMBERS, room_id);
 
         if user_ids.is_empty() {
             conn.del(&key).await?;
@@ -156,8 +163,7 @@ impl Cache for RedisCache {
         let mut pipe = redis::pipe();
         pipe.atomic()
             .del(&key)
-            .sadd(&key, user_id_strs)
-            .ignore();
+            .sadd(&key, user_id_strs);
 
         pipe.exec_async(&mut conn).await?;
         Ok(())

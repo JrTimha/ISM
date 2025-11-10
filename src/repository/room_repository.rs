@@ -77,35 +77,40 @@ impl RoomRepository {
 
     pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-            ChatRoomEntity,
-            r#"
-            WITH room_selection AS (
-                SELECT DISTINCT ON (room.id)
-                    room.id,
-                    room.room_type AS "room_type: RoomType",
-                    room.created_at,
-                    room.latest_message,
-                    room.latest_message_preview_text,
-                    CASE
-                        WHEN room.room_type = 'Single' THEN u.display_name
-                        ELSE room.room_name
-                    END AS room_name,
-                    CASE
-                        WHEN room.room_type = 'Single' THEN u.profile_picture
-                        ELSE room.room_image_url
-                    END AS room_image_url,
-                    CASE
-                        WHEN participants.last_message_read_at < room.latest_message THEN TRUE
-                        ELSE FALSE
-                    END AS unread
-                FROM chat_room_participant AS participants
-                JOIN chat_room AS room ON participants.room_id = room.id
-                LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
-                LEFT JOIN app_user u ON u.id = crp.user_id
-                WHERE participants.user_id = $1 AND participants.participant_state = 'Joined'
-            )
-            SELECT * FROM room_selection
-            ORDER BY latest_message DESC
+        ChatRoomEntity,
+        r#"
+            SELECT
+                room.id,
+                room.room_type AS "room_type: RoomType",
+                room.created_at,
+                room.latest_message,
+                room.latest_message_preview_text,
+                COALESCE(other_user.display_name, room.room_name) AS room_name,
+                COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
+                COALESCE(p1.last_message_read_at < room.latest_message, TRUE) AS unread
+            FROM
+                chat_room_participant AS p1
+            JOIN
+                chat_room AS room ON p1.room_id = room.id
+            -- 3. To find the other participant, only for single chat rooms!
+            LEFT JOIN LATERAL (
+                SELECT
+                    p2.user_id
+                FROM
+                    chat_room_participant p2
+                WHERE
+                    p2.room_id = room.id AND p2.user_id != $1
+                -- Only take the first match
+                LIMIT 1
+            ) AS other_participant ON room.room_type = 'Single'
+            -- Only executed when the lateral join has matched something:
+            LEFT JOIN
+                app_user AS other_user ON other_user.id = other_participant.user_id
+            WHERE
+                p1.user_id = $1
+                AND p1.participant_state = 'Joined'
+            ORDER BY
+                room.latest_message DESC
             "#,
             user_id
         ).fetch_all(&self.pool).await?;
@@ -128,23 +133,30 @@ impl RoomRepository {
                 room.created_at,
                 room.latest_message,
                 room.latest_message_preview_text,
-                CASE
-                    WHEN room.room_type = 'Single' THEN u.display_name
-                    ELSE room.room_name
-                END AS room_name,
-                CASE
-                    WHEN room.room_type = 'Single' THEN u.profile_picture
-                    ELSE room.room_image_url
-                END AS room_image_url,
-                CASE
-                    WHEN participants.last_message_read_at < room.latest_message THEN TRUE
-                    ELSE FALSE
-                END AS unread
-            FROM chat_room_participant AS participants
-            JOIN chat_room AS room ON participants.room_id = room.id
-            LEFT JOIN chat_room_participant crp ON crp.room_id = room.id AND crp.user_id != $1
-            LEFT JOIN app_user u ON u.id = crp.user_id
-            WHERE participants.user_id = $1 AND room.id = $2 AND participants.participant_state = 'Joined'
+                COALESCE(other_user.display_name, room.room_name) AS room_name,
+                COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
+                COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread
+            FROM
+                chat_room_participant AS participants
+            JOIN
+                chat_room AS room ON participants.room_id = room.id
+            -- 3. To find the other participant, only for single chat rooms!
+            LEFT JOIN LATERAL (
+                SELECT
+                    p2.user_id
+                FROM
+                    chat_room_participant p2
+                WHERE
+                    p2.room_id = room.id AND p2.user_id != $1
+                LIMIT 1
+            ) AS other_participant ON room.room_type = 'Single'
+            -- Only executed when the lateral join has matched something:
+            LEFT JOIN
+                app_user AS other_user ON other_user.id = other_participant.user_id
+            WHERE
+                participants.user_id = $1
+                AND room.id = $2
+                AND participants.participant_state = 'Joined'
             "#,
             user_id,
             room_id
@@ -179,7 +191,7 @@ impl RoomRepository {
             r#"
             INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text, room_image_url, NULL::boolean as "unread: _"
+            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text, room_image_url, TRUE as "unread: _"
             "#,
             room_entity.id,
             room_entity.room_type.to_string(),

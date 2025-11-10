@@ -45,7 +45,7 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
 }
 
 fn parse_push_message(mut push_message: PushInfo) -> Result<Notification, ProcessorError> {
-    // `let-else` flacht die `if let`-Pyramide elegant ab.
+    
     let Some(payload_value) = push_message.data.pop() else {
         return Err(ProcessorError::InvalidPushFormat);
     };

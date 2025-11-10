@@ -6,8 +6,10 @@ use scylla::{DeserializeRow};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
+use crate::broadcast::Notification;
+use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::errors::AppError;
-use crate::model::RoomMember;
+use crate::model::{LastMessagePreviewText, RoomMember};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum MsgType {
@@ -61,6 +63,17 @@ impl Message {
             created_at: self.created_at
         };
         Ok(message)
+    }
+
+    pub fn to_notification(&self, preview_text: LastMessagePreviewText) -> Result<Notification, AppError> {
+        let mapped_msg = self.to_dto().map_err(|err| {
+            AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
+        })?;
+        let notification = Notification {
+            body: ChatMessage {message: mapped_msg.clone(), room_preview_text: preview_text },
+            created_at: Utc::now()
+        };
+        Ok(notification)
     }
     
 }

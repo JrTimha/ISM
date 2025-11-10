@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                room.id,\n                room.room_type AS \"room_type: RoomType\",\n                room.created_at,\n                room.latest_message,\n                room.latest_message_preview_text,\n                COALESCE(other_user.display_name, room.room_name) AS room_name,\n                COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,\n                COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread\n            FROM\n                chat_room_participant AS participants\n            JOIN\n                chat_room AS room ON participants.room_id = room.id\n            -- 3. To find the other participant, only for single chat rooms!\n            LEFT JOIN LATERAL (\n                SELECT\n                    p2.user_id\n                FROM\n                    chat_room_participant p2\n                WHERE\n                    p2.room_id = room.id AND p2.user_id != $1\n                LIMIT 1\n            ) AS other_participant ON room.room_type = 'Single'\n            -- Only executed when the lateral join has matched something:\n            LEFT JOIN\n                app_user AS other_user ON other_user.id = other_participant.user_id\n            WHERE\n                participants.user_id = $1\n                AND room.id = $2\n                AND participants.participant_state = 'Joined'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "room_type: RoomType",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "latest_message",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "latest_message_preview_text",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "room_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "room_image_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "unread",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "7628c8241aad128f1875a2123845e4e36859c99d08373def23f2b5ac5eab1143"
+}

@@ -190,7 +190,7 @@ impl RoomService {
         })?;
 
         let object_id = format!("{}/{}", state.env.object_db_config.bucket_name, room_id);
-        if let Err(err) = state.s3_bucket.insert_object(&object_id, img).await {
+        if let Err(err) = state.s3_bucket.insert_object(&room_id.to_string(), img).await {
             error!("{}", err.to_string());
             return Err(AppError::S3Error("Unable save image in s3 bucket.".to_string()))
         };

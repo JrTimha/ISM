@@ -12,9 +12,8 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations.">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="change room img path">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rooms/room_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/rooms/room_service.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,12 +45,12 @@
     &quot;assignee&quot;: &quot;JrTimha&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/JrTimha/ISM.git",
-    "accountId": "a0cdf11b-08b2-491e-bf68-df1e7391a072"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/JrTimha/ISM.git&quot;,
+    &quot;accountId&quot;: &quot;a0cdf11b-08b2-491e-bf68-df1e7391a072&quot;
   }
-}]]></component>
+}</component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="dNDGtvHU" />
   </component>
@@ -210,8 +209,8 @@
     <list>
       <item itemvalue="Cargo.Run ISM" />
       <item itemvalue="Cargo.sqlx" />
-      <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
+      <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
     </list>
     <recent_temporary>
@@ -401,14 +400,6 @@
       <workItem from="1762642617617" duration="1996000" />
       <workItem from="1762696062524" duration="36596000" />
       <workItem from="1762786770564" duration="17671000" />
-    </task>
-    <task id="LOCAL-00039" summary="refactoring">
-      <option name="closed" value="true" />
-      <created>1744407383945</created>
-      <option name="number" value="00039" />
-      <option name="presentableId" value="LOCAL-00039" />
-      <option name="project" value="LOCAL" />
-      <updated>1744407383945</updated>
     </task>
     <task id="LOCAL-00040" summary="sqlx prepare exec">
       <option name="closed" value="true" />
@@ -794,7 +785,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762807152206</updated>
     </task>
-    <option name="localTasksCounter" value="88" />
+    <task id="LOCAL-00088" summary="change room img path">
+      <option name="closed" value="true" />
+      <created>1762912328721</created>
+      <option name="number" value="00088" />
+      <option name="presentableId" value="LOCAL-00088" />
+      <option name="project" value="LOCAL" />
+      <updated>1762912328721</updated>
+    </task>
+    <option name="localTasksCounter" value="89" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -815,7 +814,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Refactor database modules and update dependencies&#10;&#10;Renamed `message_repository` to `message_database` and `room_repository` to `room_database` for better consistency. Updated `sqlx` and other dependencies to newer versions, removing unnecessary ones. Adjusted Cargo metadata and configuration to reflect these changes." />
     <MESSAGE value="Updating important dependencies" />
     <MESSAGE value="Added S3 support" />
     <MESSAGE value="S3 Support implemented" />
@@ -840,7 +838,8 @@
     <MESSAGE value="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality." />
     <MESSAGE value="Implement Redis-based room membership caching and notification processing&#10;&#10;Introduces Redis-backed room membership caching to improve performance and reduce database calls. Adds event subscription handling for real-time processing of notifications via Redis channels. Updates related services, models, and configurations for seamless integration." />
     <MESSAGE value="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations." />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations." />
+    <MESSAGE value="change room img path" />
+    <option name="LAST_COMMIT_MESSAGE" value="change room img path" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -189,7 +189,7 @@ impl RoomService {
             AppError::ProcessingError("Unable to crop image.".to_string())
         })?;
 
-        let object_id = format!("rooms/{}", room_id);
+        let object_id = format!("{}/{}", state.env.object_db_config.bucket_name, room_id);
         if let Err(err) = state.s3_bucket.insert_object(&object_id, img).await {
             error!("{}", err.to_string());
             return Err(AppError::S3Error("Unable save image in s3 bucket.".to_string()))
@@ -250,8 +250,8 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         ).await;
 
         //delete room image if it exists:
-        if let Some(url) = room.room_image_url {
-            state.s3_bucket.delete_object(&url).await
+        if let Some(_url) = room.room_image_url {
+            state.s3_bucket.delete_object(&room.id.to_string()).await
                 .map_err(|_| AppError::ProcessingError("Unable to delete image from room".to_string()))?;
         }
 

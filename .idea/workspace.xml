@@ -12,14 +12,22 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations.">
-      <change afterPath="$PROJECT_DIR$/src/welcome.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility.">
+      <change afterPath="$PROJECT_DIR$/src/kafka/event_producer.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/kafka/model.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/kafka/push_notification_producer.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/default.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/default.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kafka/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/kafka/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -71,47 +79,47 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run ISM.executor": "Run",
-    "Cargo.Run.executor": "Run",
-    "Cargo.sqlx.executor": "Run",
-    "Docker.Dockerfile runtime.executor": "Run",
-    "Docker.Dockerfile.executor": "Run",
-    "Docker.compose.yaml.cassandra: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redis: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml: Compose Deployment.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/Users/timvosskuehler/RustroverProjects/ISM/src/repository",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "language.rust.cargo.check",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redis: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src/repository" />
@@ -186,12 +194,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml.redis: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml.console: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="redis" />
+              <option value="console" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -215,16 +223,16 @@
     <list>
       <item itemvalue="Cargo.Run ISM" />
       <item itemvalue="Cargo.sqlx" />
-      <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
+      <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
       <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Run ISM" />
+        <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
+        <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
-        <item itemvalue="Cargo.sqlx" />
-        <item itemvalue="Docker.compose.yaml.redis: Compose Deployment" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
@@ -405,15 +413,11 @@
       <workItem from="1762604371543" duration="2349000" />
       <workItem from="1762642617617" duration="1996000" />
       <workItem from="1762696062524" duration="36596000" />
-      <workItem from="1762786770564" duration="17671000" />
-    </task>
-    <task id="LOCAL-00039" summary="refactoring">
-      <option name="closed" value="true" />
-      <created>1744407383945</created>
-      <option name="number" value="00039" />
-      <option name="presentableId" value="LOCAL-00039" />
-      <option name="project" value="LOCAL" />
-      <updated>1744407383945</updated>
+      <workItem from="1762786770564" duration="21051000" />
+      <workItem from="1763151539989" duration="6200000" />
+      <workItem from="1763209425488" duration="3117000" />
+      <workItem from="1763334248771" duration="3518000" />
+      <workItem from="1763422793468" duration="5386000" />
     </task>
     <task id="LOCAL-00040" summary="sqlx prepare exec">
       <option name="closed" value="true" />
@@ -799,7 +803,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762807152206</updated>
     </task>
-    <option name="localTasksCounter" value="88" />
+    <task id="LOCAL-00088" summary="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility.">
+      <option name="closed" value="true" />
+      <created>1762813091688</created>
+      <option name="number" value="00088" />
+      <option name="presentableId" value="LOCAL-00088" />
+      <option name="project" value="LOCAL" />
+      <updated>1762813091688</updated>
+    </task>
+    <option name="localTasksCounter" value="89" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -820,7 +832,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="Refactor database modules and update dependencies&#10;&#10;Renamed `message_repository` to `message_database` and `room_repository` to `room_database` for better consistency. Updated `sqlx` and other dependencies to newer versions, removing unnecessary ones. Adjusted Cargo metadata and configuration to reflect these changes." />
     <MESSAGE value="Updating important dependencies" />
     <MESSAGE value="Added S3 support" />
     <MESSAGE value="S3 Support implemented" />
@@ -845,7 +856,8 @@
     <MESSAGE value="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality." />
     <MESSAGE value="Implement Redis-based room membership caching and notification processing&#10;&#10;Introduces Redis-backed room membership caching to improve performance and reduce database calls. Adds event subscription handling for real-time processing of notifications via Redis channels. Updates related services, models, and configurations for seamless integration." />
     <MESSAGE value="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations." />
-    <option name="LAST_COMMIT_MESSAGE" value="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations." />
+    <MESSAGE value="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

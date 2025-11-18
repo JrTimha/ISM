@@ -1,12 +1,11 @@
 use std::sync::Arc;
 use log::info;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use tokio::task;
 use crate::broadcast::BroadcastChannel;
 use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
 use crate::core::ISMConfig;
 use crate::database::{MessageDatabase, ObjectStorage};
-use crate::kafka::start_consumer;
+use crate::kafka::{PushNotificationProducer};
 use crate::repository::room_repository::RoomRepository;
 use crate::repository::user_repository::UserRepository;
 
@@ -22,6 +21,7 @@ pub struct AppState {
 }
 
 impl AppState {
+    
     pub async fn new(config: ISMConfig) -> Self {
 
         //1: setting up the postgre sql connection for all repositories:
@@ -32,7 +32,7 @@ impl AppState {
             .username(&config.user_db_config.db_user)
             .password(&config.user_db_config.db_password);
         let pool = match PgPoolOptions::new()
-            .max_connections(8)
+            .max_connections(20)
             .connect_with(options)
             .await
         {
@@ -56,9 +56,12 @@ impl AppState {
                 Arc::new(NoOpCache)
             }
         };
-
+        
         //init broadcaster channel
-        BroadcastChannel::init(cache.clone()).await;
+        BroadcastChannel::init(
+            cache.clone(),
+            PushNotificationProducer::new(config.use_kafka, config.kafka_config.clone())
+        ).await;
         
         //2. State struct:
         let state = Self {
@@ -69,14 +72,6 @@ impl AppState {
             s3_bucket: ObjectStorage::new(&config.object_db_config).await,
             cache: cache
         };
-
-        //3: kafka (optional)
-        if state.env.use_kafka == true {
-            let kafka_config = state.env.kafka_config.clone();
-            task::spawn(async move {
-                start_consumer(kafka_config).await;
-            });
-        }
 
         state
     }

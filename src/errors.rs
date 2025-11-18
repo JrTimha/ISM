@@ -186,6 +186,12 @@ impl From<redis::RedisError> for AppError {
     }
 }
 
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> AppError {
+        AppError::ProcessingError(err.to_string())
+    }
+}
+
 impl Error for AppError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {

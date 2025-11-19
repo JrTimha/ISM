@@ -4,7 +4,7 @@ use log::{debug, error, info};
 use tokio::sync::{OnceCell, RwLock};
 use uuid::Uuid;
 use tokio::sync::broadcast::{Sender, channel, Receiver};
-use crate::broadcast::Notification;
+use crate::broadcast::{Notification, NotificationEvent};
 use crate::cache::redis_cache::Cache;
 use crate::kafka::{EventProducer, PushNotificationProducer};
 
@@ -88,9 +88,7 @@ impl BroadcastChannel {
             if let Err(error) = self.cache.add_notification_for_user(to_user, &notification).await {
                 error!("Failed to cache notification: {}", error);
             };
-            if let Err(error ) = self.push_notification_producer.send_notification(notification, vec![to_user.clone()]).await {
-                error!("Failed to send push notification: {}", error);
-            }
+            self.send_undeliverable_notifications(notification, vec![to_user.clone()]).await;
         }
     }
 
@@ -115,12 +113,24 @@ impl BroadcastChannel {
             }
         }
         if not_deliverable.len() > 0 {
-            if let Err(error ) = self.push_notification_producer.send_notification(notification, not_deliverable).await {
+            self.send_undeliverable_notifications(notification, not_deliverable).await;
+        }
+    }
+
+    async fn send_undeliverable_notifications(&self, notification: Notification, to_user: Vec<Uuid>) {
+        let should_send = matches!( //Only sends push notifications for these notification types, add more if needed
+            notification.body,
+            NotificationEvent::ChatMessage { .. } |
+            NotificationEvent::FriendRequestReceived { .. } |
+            NotificationEvent::NewRoom { .. }
+        );
+
+        if should_send {
+            if let Err(error) = self.push_notification_producer.send_notification(notification, to_user).await {
                 error!("Failed to send push notification: {}", error);
             }
         }
     }
-    
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
         let mut lock = self.channel.write().await;

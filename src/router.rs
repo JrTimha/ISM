@@ -24,7 +24,7 @@ use crate::user_relationship::routes::create_user_routes;
 pub async fn init_router(app_state: AppState) -> Router {
     let origin = app_state.env.cors_origin.clone();
     let cors = CorsLayer::new()
-        .allow_origin(origin.parse::<HeaderValue>().unwrap())
+        .allow_origin(origin.parse::<HeaderValue>().expect("Invalid CORS Origin"))
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE, CONTENT_LENGTH, CONNECTION, ORIGIN])
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE]);
@@ -54,7 +54,7 @@ pub async fn init_router(app_state: AppState) -> Router {
 fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<String> {
     let keycloak_auth_instance = KeycloakAuthInstance::new(
         KeycloakConfig::builder()
-            .server(Url::parse(&config.iss_host).unwrap())
+            .server(Url::parse(&config.iss_host).expect("Invalid Keycloak Host"))
             .realm(config.iss_realm)
             .build(),
     );

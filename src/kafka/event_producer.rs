@@ -46,7 +46,7 @@ impl EventProducer for KafkaEventProducer {
                     OwnedHeaders::new()
                         .insert(Header {
                             key: "__TypeId__",
-                            value: Some("net.ism.PushNotification".as_bytes()),
+                            value: Some("com.meventure.api.notifications.model.UndeliveredMessage".as_bytes()),
                         })
                         .insert(Header {
                             key: "contentType",

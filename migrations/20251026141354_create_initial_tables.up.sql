@@ -9,7 +9,9 @@ create table app_user
     friends_count          bigint                      not null,
     last_modified_at       timestamp(6) with time zone,
     profile_picture        varchar(255),
-    raw_name               varchar(255)
+    street_credits         bigint                      not null,
+    raw_name               varchar(255),
+    role                   varchar(255)                not null
 );
 
 alter table app_user
@@ -74,3 +76,4 @@ create index idx_participants_user_room_id
 
 create index idx_participants_room_id_membership
     on chat_room_participant (room_id, participant_state);
+

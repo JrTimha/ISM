@@ -28,7 +28,7 @@ iss_realm = "meventure"
 access_key = "minioadmin"
 storage_url = "http://localhost:9000"
 secret_key = "minioadmin"
-bucket_name = "meventure"
+bucket_name = "mv-rooms"
 
 [kafka_config]
 bootstrap_host = "localhost"

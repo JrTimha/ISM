@@ -10,6 +10,15 @@ services:
     volumes:
       - cassandra-data:/var/lib/cassandra
 
+  redis:
+    image: 'redis:8.2.3-alpine'
+    container_name: redis-cache
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
   redpanda-0:
     command:
       - redpanda
@@ -75,6 +84,8 @@ volumes:
   cassandra-data:
     driver: local
   redpanda-0:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

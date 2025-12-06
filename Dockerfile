@@ -1,4 +1,4 @@
-FROM rust:1.86.0-slim-bookworm AS builder
+FROM rust:1.91.0-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -6,23 +6,28 @@ COPY .sqlx ./.sqlx/
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-# Installiere OpenSSL-Entwicklungspakete
 ENV SQLX_OFFLINE=true
 
-RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config
+# Install package requirements
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    pkg-config \
+    cmake
 
-# Baue Abhängigkeiten
-RUN cargo build --release --target x86_64-unknown-linux-gnu
+# compile ism
+RUN cargo build --release
 
 # Final Stage
-FROM debian:bookworm-slim AS runtime
+#https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config ca-certificates
 
 COPY default.config.toml ./
+COPY --from=builder --chown=nonroot:nonroot /app/target/release/ism ./
 
-COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/ism ./
+USER nonroot
 
 ENV RUST_LOG=info
 ENV ISM_MODE=production

@@ -2,7 +2,9 @@ ism_url = "localhost"
 ism_port= 5403
 log_level = "info"
 cors_origin = "http://localhost:4200"
-use_kafka = false
+use_kafka = true
+push_notification_access_token="oiqhfriuhf"
+push_notification_url="http://localhost:4200"
 
 [message_db_config]
 db_url = "localhost:9042"
@@ -21,18 +23,17 @@ db_name = "postgres"
 [token_issuer]
 iss_host = "http://localhost:8180/"
 iss_realm = "meventure"
-valid_admin_client = "api-client"
 
 [object_db_config]
-db_user = "minioadmin"
-db_url = "http://localhost:9000"
-db_password = "minioadmin"
+access_key = "minioadmin"
+storage_url = "http://localhost:9000"
+secret_key = "minioadmin"
 bucket_name = "meventure"
 
 [kafka_config]
 bootstrap_host = "localhost"
-bootstrap_port = 19192
-topic = "user-notification-events"
+bootstrap_port = 19092
+topic = "push-notifications.requested.v1"
 client_id = "ism-1"
 partition = [0]
 consumer_group = "ism"

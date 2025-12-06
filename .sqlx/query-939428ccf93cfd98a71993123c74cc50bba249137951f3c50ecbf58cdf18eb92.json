@@ -1,0 +1,69 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            RETURNING id, room_name, created_at, room_type as \"room_type: RoomType\", latest_message, latest_message_preview_text, room_image_url, TRUE as \"unread: _\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "room_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "room_type: RoomType",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "latest_message",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "latest_message_preview_text",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "room_image_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "unread: _",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Timestamptz",
+        "Timestamptz",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "939428ccf93cfd98a71993123c74cc50bba249137951f3c50ecbf58cdf18eb92"
+}

@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    ur.user_a_id,\n                    ur.user_b_id,\n                    ur.state as \"state: RelationshipState\",\n                    ur.relationship_change_timestamp\n                FROM user_relationship ur\n                    WHERE ur.user_a_id = $1 AND ur.user_b_id = $2 OR ur.user_b_id = $1 AND ur.user_a_id = $2\n                FOR UPDATE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_a_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_b_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "state: RelationshipState",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "relationship_change_timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b9e92541f06e0710e990ab226fdfc93e3b19d3fc5430db90c97086bbd0ad4fe1"
+}

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, OneOrMany};
 use snafu::ResultExt;
 use tracing::debug;
+use uuid::Uuid;
 use crate::keycloak::instance::KeycloakAuthInstance;
 use crate::keycloak::role::{ExpectRoles, KeycloakRole, NumRoles};
 use super::{error::AuthError, role::ExtractRoles, role::Role};
@@ -267,7 +268,7 @@ where
     /// Audience (who or what the token is intended for).
     pub audience: Vec<String>,
     /// Subject (whom the token refers to). This is the UUID which uniquely identifies this user inside Keycloak.
-    pub subject: String,
+    pub subject: Uuid,
     /// Authorized party (the party to which this token was issued).
     pub authorized_party: String,
 
@@ -301,7 +302,13 @@ where
             jwt_id: raw.jti,
             issuer: raw.iss,
             audience: raw.aud,
-            subject: raw.sub,
+            subject: Uuid::try_parse(&raw.sub).map_err(|err| {
+                AuthError::InvalidToken {
+                    reason: format!(
+                        "Could not parse 'sub' (subject) field as uuid: {err}"
+                    ),
+                }
+            })?,
             authorized_party: raw.azp,
             roles: {
                 let mut roles = Vec::new();

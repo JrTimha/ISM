@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::{ChatRoomListItemDTO, MessageDTO};
+use crate::messaging::model::MessageDTO;
+use crate::model::{ChatRoomDto, LastMessagePreviewText};
+use crate::user_relationship::model::User;
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -16,16 +19,16 @@ pub struct Notification {
 pub enum NotificationEvent {
     
     #[serde(rename_all = "camelCase")]
-    FriendRequestReceived {from_user: serde_json::Value},
+    FriendRequestReceived {from_user: User},
 
     #[serde(rename_all = "camelCase")]
-    FriendRequestAccepted {from_user: serde_json::Value},
+    FriendRequestAccepted {from_user: User},
 
     /**
     * Different chat messages, sent to all active users in a room
     */
     #[serde(rename_all = "camelCase")]
-    ChatMessage {message: MessageDTO, display_value: String},
+    ChatMessage {message: MessageDTO, room_preview_text: LastMessagePreviewText },
 
     /**
     * A system message is a message not sent by a user, but by the system, whatever you want
@@ -35,7 +38,7 @@ pub enum NotificationEvent {
     /**
     * Sending this event to a newly invited user
     */
-    NewRoom {room: ChatRoomListItemDTO},
+    NewRoom {room: ChatRoomDto },
 
     /**
     * Sending this event to a user who has left a room
@@ -46,7 +49,8 @@ pub enum NotificationEvent {
     /**
     * Sending this event to all users in a room where a member has left
     */
-    RoomChangeEvent {message: MessageDTO}
+    #[serde(rename_all = "camelCase")]
+    RoomChangeEvent {message: MessageDTO, room_preview_text: LastMessagePreviewText}
 }
 
 

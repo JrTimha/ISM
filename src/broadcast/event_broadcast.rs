@@ -1,25 +1,49 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use log::{debug, error, info};
 use tokio::sync::{OnceCell, RwLock};
 use uuid::Uuid;
 use tokio::sync::broadcast::{Sender, channel, Receiver};
-use tokio::time::interval;
-use crate::broadcast::Notification;
+use crate::broadcast::{Notification, NotificationEvent};
+use crate::cache::redis_cache::Cache;
+use crate::kafka::{EventProducer, PushNotificationProducer};
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
+/// A `BroadcastChannel` struct is responsible for managing a collection of channels that are used
+/// for broadcasting notifications to subscribers. Each channel is uniquely identified by a `Uuid`,
+/// and messages are sent through a `Sender<Notification>`.
+///
+/// The struct uses an `RwLock` for thread-safe, concurrent access to the underlying `HashMap`.
+///
+/// # Fields
+/// - `channel`: An `RwLock`-protected `HashMap` that maps a `Uuid` (unique identifier) to a `Sender<Notification>`.
+///   - `Uuid`: A unique identifier for each channel.
+///   - `Sender<Notification>`: A sender handle for sending `Notification` messages to the corresponding receiver.
+///
+/// The `BroadcastChannel` is designed to support multi-threaded operations where multiple threads
+/// may add, retrieve, or remove channels or broadcast messages safely.
+///
+///
+/// # Thread Safety
+/// The usage of `RwLock` ensures that the operations on the `HashMap` are synchronized
+/// and can safely be used across multiple threads. Readers can access the map concurrently,
+/// while write operations are exclusive to ensure data integrity.
 pub struct BroadcastChannel {
-    channel: RwLock<HashMap<Uuid, Sender<Notification>>>
+    channel: UserConnectionMap,
+    cache: Arc<dyn Cache>,
+    push_notification_producer: PushNotificationProducer
 }
+
+type UserConnectionMap = RwLock<HashMap<Uuid, Sender<Notification>>>;
+
 
 impl BroadcastChannel {
 
-    pub async fn init() {
+    pub async fn init(cache: Arc<dyn Cache>, producer: PushNotificationProducer) {
         BROADCAST_INSTANCE.get_or_init(|| async {
-            let channel = Arc::new(BroadcastChannel::new());
-            channel.clone().start_cleanup_task();
+            let channel = Arc::new(BroadcastChannel::new(cache,producer));
+            info!("BroadcastChannel initialized.");
             channel
         }).await;
     }
@@ -33,35 +57,15 @@ impl BroadcastChannel {
         }
     }
 
-    fn new() -> Self {
+    fn new(cache: Arc<dyn Cache>, producer: PushNotificationProducer) -> Self {
         BroadcastChannel {
             channel: RwLock::new(HashMap::new()),
+            push_notification_producer: producer,
+            cache
         }
     }
-
-    fn start_cleanup_task(self: Arc<Self>) {
-        tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(60));
-            loop {
-                interval.tick().await;
-                debug!("Starting broadcast garbage collection");
-                self.cleanup_senders().await;
-            }
-        });
-    }
-
-    async fn cleanup_senders(&self) {
-        let mut lock = self.channel.write().await;
-        lock.retain(|&user_id, sender| {
-            if sender.receiver_count() > 0 {
-                true
-            } else {
-                info!("Removing stale sender for user {:?}", user_id);
-                false
-            }
-        });
-    }
-
+    
+    
     pub async fn subscribe_to_user_events(&self, user_id: Uuid) -> Receiver<Notification> {
         let mut lock = self.channel.write().await;
         let sender = lock.entry(user_id)
@@ -80,11 +84,17 @@ impl BroadcastChannel {
                     error!("Unable to broadcast notification: {}", err);
                 }
             }
+        } else {
+            if let Err(error) = self.cache.add_notification_for_user(to_user, &notification).await {
+                error!("Failed to cache notification: {}", error);
+            };
+            self.send_undeliverable_notifications(notification, vec![to_user.clone()]).await;
         }
     }
 
     pub async fn send_event_to_all(&self, user_ids: Vec<Uuid>, notification: Notification) {
         let lock = self.channel.read().await;
+        let mut not_deliverable: Vec<Uuid> = Vec::new();
         for user_id in user_ids {
             if let Some(sender) = lock.get(&user_id) {
                 match sender.send(notification.clone()) {
@@ -95,13 +105,44 @@ impl BroadcastChannel {
                         error!("Unable to broadcast notification: {}", err);
                     }
                 }
+            } else {
+                if let Err(error) = self.cache.add_notification_for_user(&user_id, &notification).await {
+                    error!("Failed to cache notification: {}", error);
+                };
+                not_deliverable.push(user_id);
+            }
+        }
+        if not_deliverable.len() > 0 {
+            self.send_undeliverable_notifications(notification, not_deliverable).await;
+        }
+    }
+
+    async fn send_undeliverable_notifications(&self, notification: Notification, to_user: Vec<Uuid>) {
+        let should_send = matches!( //Only sends push notifications for these notification types, add more if needed
+            notification.body,
+            NotificationEvent::ChatMessage { .. } |
+            NotificationEvent::FriendRequestReceived { .. } |
+            NotificationEvent::NewRoom { .. }
+        );
+
+        if should_send {
+            if let Err(error) = self.push_notification_producer.send_notification(notification, to_user).await {
+                error!("Failed to send push notification: {}", error);
             }
         }
     }
-    
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
         let mut lock = self.channel.write().await;
-        lock.remove(&user_id);
+        if let Some(sender) = lock.get(&user_id) {
+            if sender.receiver_count() > 0 {
+                return
+            } else {
+                lock.remove(&user_id);
+                debug!("Removed stale sender for user {:?}", user_id);
+            }
+        }
     }
+
+
 }

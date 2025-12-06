@@ -1,3 +1,6 @@
-mod notification_consumer;
+mod event_producer;
+mod model;
+mod push_notification_producer;
 
-pub use notification_consumer::{start_consumer};
+pub use event_producer::{EventProducer};
+pub use push_notification_producer::PushNotificationProducer;

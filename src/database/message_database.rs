@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use crate::core::{MessageDbConfig};
@@ -9,7 +10,7 @@ use scylla::client::session_builder::SessionBuilder;
 use scylla::errors::{ExecutionError, UseKeyspaceError};
 use scylla::response::query_result::QueryResult;
 use uuid::Uuid;
-use crate::model::Message;
+use crate::messaging::model::Message;
 
 #[derive(Debug, Clone)]
 pub struct MessageDatabase {
@@ -44,7 +45,7 @@ impl MessageDatabase {
         repository
     }
 
-    pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn std::error::Error>> {
+    pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn Error + Send + Sync>> {
         let session = self.session.clone();
         let mut iter: TypedRowStream<Message> = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
             .await?.rows_stream::<Message>()?;
@@ -75,12 +76,12 @@ impl MessageDatabase {
         let queries = [
             "CREATE KEYSPACE IF NOT EXISTS messaging WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}",
             "CREATE TABLE IF NOT EXISTS messaging.chat_messages (
-            chat_room_id UUID,
-            message_id UUID,
-            sender_id UUID,
-            msg_body TEXT,
-            msg_type TEXT,
-            created_at TIMESTAMP,
+                chat_room_id UUID,
+                message_id UUID,
+                sender_id UUID,
+                msg_body TEXT,
+                msg_type TEXT,
+                created_at TIMESTAMP,
             PRIMARY KEY ((chat_room_id), created_at, message_id)
         )"
         ];

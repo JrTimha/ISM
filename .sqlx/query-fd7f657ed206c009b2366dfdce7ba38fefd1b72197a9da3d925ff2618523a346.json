@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO chat_room_participant (user_id, room_id, joined_at, participant_state)\n                VALUES ($1, $2, $3, $4)\n                ON CONFLICT (user_id, room_id)\n                DO UPDATE SET joined_at = $3, participant_state = $4\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fd7f657ed206c009b2366dfdce7ba38fefd1b72197a9da3d925ff2618523a346"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT user_b_id FROM user_relationship\n                WHERE user_a_id = $1 AND user_b_id = ANY($2) AND state = ANY($3)\n                UNION\n                SELECT user_a_id FROM user_relationship\n                WHERE user_b_id = $1 AND user_a_id = ANY($2) AND state = ANY($3)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_b_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4a571e9af27608388d0e88cbb4c4a4053b476890e251cd685e6d82f2cee83e51"
+}

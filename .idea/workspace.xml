@@ -7,12 +7,27 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
       <package file="$PROJECT_DIR$">
         <feature name="default" enabled="true" />
+        <feature name="rustls-tls" enabled="true" />
       </package>
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Install sqlx-cli">
+    <list default="true" id="fa7dfc34-80da-4873-8f35-f178b755f68b" name="Changes" comment="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility.">
+      <change afterPath="$PROJECT_DIR$/src/kafka/event_producer.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/kafka/model.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/kafka/push_notification_producer.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/default.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/default.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/development.config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/development.config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/broadcast/event_broadcast.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/app_state.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/app_state.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/config.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/config.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/errors.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/errors.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kafka/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/kafka/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kafka/notification_consumer.rs" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +51,7 @@
       </GitPushTagMode>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -53,7 +69,7 @@
     <option name="directoryName" value="dNDGtvHU" />
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedTabId" value="CurrentFile" />
+    <option name="selectedTabId" value="AISelfReview" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
@@ -63,54 +79,58 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run ISM.executor": "Run",
-    "Cargo.Run.executor": "Run",
-    "Cargo.sqlx.executor": "Run",
-    "Docker.Dockerfile runtime.executor": "Run",
-    "Docker.Dockerfile.executor": "Run",
-    "Docker.compose.yaml.KeycloakDB: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.cassandra: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.console: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.keycloak: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml.redpanda-0: Compose Deployment.executor": "Run",
-    "Docker.compose.yaml: Compose Deployment.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "feature/01-implement-robust-migration-setup",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "/Users/marcelpfeiffer/code/open_source/ISM",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "settings.editor.selected.configurable": "preferences.editor",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run ISM.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.sqlx.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile runtime.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.Dockerfile.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.cassandra: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.console: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redis: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml.redpanda-0: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/timvosskuehler/RustroverProjects/ISM/src/repository&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;language.rust.cargo.check&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/repository" />
       <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/messaging" />
+      <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\assets" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\src\broadcast" />
-      <recent name="C:\Users\Tim\IdeaProjects\ISM\src\model" />
-      <recent name="C:\Users\Tim\RustroverProjects\ISM\src\api" />
+      <recent name="$PROJECT_DIR$/src/rooms" />
+      <recent name="$PROJECT_DIR$/src/user_relationship/model" />
     </key>
   </component>
   <component name="RunManager" selected="Cargo.Run ISM">
@@ -161,20 +181,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
-      <deployment type="docker-compose.yml">
-        <settings>
-          <option name="sourceFilePath" value="compose.yaml" />
-        </settings>
-      </deployment>
-      <method v="2" />
-    </configuration>
-    <configuration name="compose.yaml.KeycloakDB: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml.cassandra: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="KeycloakDB" />
+              <option value="cassandra" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -182,12 +194,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="compose.yaml.keycloak: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="compose.yaml.console: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="keycloak" />
+              <option value="console" />
             </list>
           </option>
           <option name="sourceFilePath" value="compose.yaml" />
@@ -195,12 +207,32 @@
       </deployment>
       <method v="2" />
     </configuration>
+    <configuration name="compose.yaml.redpanda-0: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="services">
+            <list>
+              <option value="redpanda-0" />
+            </list>
+          </option>
+          <option name="sourceFilePath" value="compose.yaml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Cargo.Run ISM" />
+      <item itemvalue="Cargo.sqlx" />
+      <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
+      <item itemvalue="Docker.compose.yaml.cassandra: Compose Deployment" />
+      <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Cargo.Run ISM" />
-        <item itemvalue="Docker.compose.yaml.keycloak: Compose Deployment" />
-        <item itemvalue="Docker.compose.yaml.KeycloakDB: Compose Deployment" />
-        <item itemvalue="Docker.compose.yaml: Compose Deployment" />
+        <item itemvalue="Docker.compose.yaml.console: Compose Deployment" />
+        <item itemvalue="Docker.compose.yaml.redpanda-0: Compose Deployment" />
+        <item itemvalue="Cargo.sqlx" />
         <item itemvalue="Cargo.sqlx" />
       </list>
     </recent_temporary>
@@ -364,138 +396,28 @@
       <workItem from="1760519109514" duration="165000" />
       <workItem from="1760549682815" duration="123000" />
       <workItem from="1760550576774" duration="613000" />
-      <workItem from="1760823912901" duration="3219000" />
-      <workItem from="1760863334069" duration="116000" />
-      <workItem from="1760892263772" duration="690000" />
-      <workItem from="1761487307678" duration="1764000" />
-    </task>
-    <task id="LOCAL-00024" summary="Room read support, room list dto endpoint with more details">
-      <option name="closed" value="true" />
-      <created>1737918648975</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1737918648975</updated>
-    </task>
-    <task id="LOCAL-00025" summary="Room read fix, room set read on send message">
-      <option name="closed" value="true" />
-      <created>1737922424303</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1737922424303</updated>
-    </task>
-    <task id="LOCAL-00026" summary="rename refactor">
-      <option name="closed" value="true" />
-      <created>1737935471753</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1737935471753</updated>
-    </task>
-    <task id="LOCAL-00027" summary="Entity updates">
-      <option name="closed" value="true" />
-      <created>1738377946432</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1738377946432</updated>
-    </task>
-    <task id="LOCAL-00028" summary="Implementation of a custom notification endpoint">
-      <option name="closed" value="true" />
-      <created>1738952779271</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1738952779271</updated>
-    </task>
-    <task id="LOCAL-00029" summary="fixed read-endpoint from get to post">
-      <option name="closed" value="true" />
-      <created>1740226371859</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1740226371859</updated>
-    </task>
-    <task id="LOCAL-00030" summary="big one: support for server side events with broadcast events for realtime notifications">
-      <option name="closed" value="true" />
-      <created>1740785180676</created>
-      <option name="number" value="00030" />
-      <option name="presentableId" value="LOCAL-00030" />
-      <option name="project" value="LOCAL" />
-      <updated>1740785180676</updated>
-    </task>
-    <task id="LOCAL-00031" summary="Sending notifications with optional display value">
-      <option name="closed" value="true" />
-      <created>1740786299930</created>
-      <option name="number" value="00031" />
-      <option name="presentableId" value="LOCAL-00031" />
-      <option name="project" value="LOCAL" />
-      <updated>1740786299930</updated>
-    </task>
-    <task id="LOCAL-00032" summary="added dockerfile">
-      <option name="closed" value="true" />
-      <created>1741395611427</created>
-      <option name="number" value="00032" />
-      <option name="presentableId" value="LOCAL-00032" />
-      <option name="project" value="LOCAL" />
-      <updated>1741395611427</updated>
-    </task>
-    <task id="LOCAL-00033" summary="added dockerfile">
-      <option name="closed" value="true" />
-      <created>1741545558184</created>
-      <option name="number" value="00033" />
-      <option name="presentableId" value="LOCAL-00033" />
-      <option name="project" value="LOCAL" />
-      <updated>1741545558184</updated>
-    </task>
-    <task id="LOCAL-00034" summary="change pipeline">
-      <option name="closed" value="true" />
-      <created>1741545941772</created>
-      <option name="number" value="00034" />
-      <option name="presentableId" value="LOCAL-00034" />
-      <option name="project" value="LOCAL" />
-      <updated>1741545941772</updated>
-    </task>
-    <task id="LOCAL-00035" summary="dockerfile updated">
-      <option name="closed" value="true" />
-      <created>1741549344541</created>
-      <option name="number" value="00035" />
-      <option name="presentableId" value="LOCAL-00035" />
-      <option name="project" value="LOCAL" />
-      <updated>1741549344541</updated>
-    </task>
-    <task id="LOCAL-00036" summary="updating create dependencies">
-      <option name="closed" value="true" />
-      <created>1744154420854</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1744154420854</updated>
-    </task>
-    <task id="LOCAL-00037" summary="refactoring &amp; kafka support">
-      <option name="closed" value="true" />
-      <created>1744310375286</created>
-      <option name="number" value="00037" />
-      <option name="presentableId" value="LOCAL-00037" />
-      <option name="project" value="LOCAL" />
-      <updated>1744310375286</updated>
-    </task>
-    <task id="LOCAL-00038" summary="refactoring &amp; kafka support">
-      <option name="closed" value="true" />
-      <created>1744325574976</created>
-      <option name="number" value="00038" />
-      <option name="presentableId" value="LOCAL-00038" />
-      <option name="project" value="LOCAL" />
-      <updated>1744325574976</updated>
-    </task>
-    <task id="LOCAL-00039" summary="refactoring">
-      <option name="closed" value="true" />
-      <created>1744407383945</created>
-      <option name="number" value="00039" />
-      <option name="presentableId" value="LOCAL-00039" />
-      <option name="project" value="LOCAL" />
-      <updated>1744407383945</updated>
+      <workItem from="1761651805658" duration="856000" />
+      <workItem from="1762200076734" duration="12623000" />
+      <workItem from="1762212725451" duration="47000" />
+      <workItem from="1762212794011" duration="6731000" />
+      <workItem from="1762248465667" duration="259000" />
+      <workItem from="1762248727309" duration="30000" />
+      <workItem from="1762248809929" duration="17269000" />
+      <workItem from="1762266608463" duration="35456000" />
+      <workItem from="1762342271775" duration="2524000" />
+      <workItem from="1762346168774" duration="13423000" />
+      <workItem from="1762427568416" duration="8520000" />
+      <workItem from="1762437177281" duration="12121000" />
+      <workItem from="1762516207464" duration="7256000" />
+      <workItem from="1762563331844" duration="1136000" />
+      <workItem from="1762604371543" duration="2349000" />
+      <workItem from="1762642617617" duration="1996000" />
+      <workItem from="1762696062524" duration="36596000" />
+      <workItem from="1762786770564" duration="21051000" />
+      <workItem from="1763151539989" duration="6200000" />
+      <workItem from="1763209425488" duration="3117000" />
+      <workItem from="1763334248771" duration="3518000" />
+      <workItem from="1763422793468" duration="5386000" />
     </task>
     <task id="LOCAL-00040" summary="sqlx prepare exec">
       <option name="closed" value="true" />
@@ -753,15 +675,143 @@
       <option name="project" value="LOCAL" />
       <updated>1760550648768</updated>
     </task>
-    <task id="LOCAL-00072" summary="Install sqlx-cli">
+    <task id="LOCAL-00072" summary="App State Refactor">
       <option name="closed" value="true" />
-      <created>1761487763664</created>
+      <created>1762209897658</created>
       <option name="number" value="00072" />
       <option name="presentableId" value="LOCAL-00072" />
       <option name="project" value="LOCAL" />
-      <updated>1761487763664</updated>
+      <updated>1762209897658</updated>
     </task>
-    <option name="localTasksCounter" value="73" />
+    <task id="LOCAL-00073" summary="Update dependencies, update tu rust 1.91">
+      <option name="closed" value="true" />
+      <created>1762212839073</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1762212839073</updated>
+    </task>
+    <task id="LOCAL-00074" summary="folder restructure">
+      <option name="closed" value="true" />
+      <created>1762254673423</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1762254673423</updated>
+    </task>
+    <task id="LOCAL-00075" summary="implement user relationships">
+      <option name="closed" value="true" />
+      <created>1762277703709</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1762277703709</updated>
+    </task>
+    <task id="LOCAL-00076" summary="Refactoring Service Layer">
+      <option name="closed" value="true" />
+      <created>1762282455807</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1762282455807</updated>
+    </task>
+    <task id="LOCAL-00077" summary="Modularize rooms service and handler logic">
+      <option name="closed" value="true" />
+      <created>1762289529687</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1762289529687</updated>
+    </task>
+    <task id="LOCAL-00078" summary="Introduce blocked user validation and improve room creation flow">
+      <option name="closed" value="true" />
+      <created>1762296943259</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1762296943259</updated>
+    </task>
+    <task id="LOCAL-00079" summary="Add input validation for messaging API using `validator` library">
+      <option name="closed" value="true" />
+      <created>1762298845833</created>
+      <option name="number" value="00079" />
+      <option name="presentableId" value="LOCAL-00079" />
+      <option name="project" value="LOCAL" />
+      <updated>1762298845833</updated>
+    </task>
+    <task id="LOCAL-00080" summary="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling">
+      <option name="closed" value="true" />
+      <created>1762301418915</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1762301418915</updated>
+    </task>
+    <task id="LOCAL-00081" summary="Refactor relationship handling to improve consistency and return meaningful states">
+      <option name="closed" value="true" />
+      <created>1762383084214</created>
+      <option name="number" value="00081" />
+      <option name="presentableId" value="LOCAL-00081" />
+      <option name="project" value="LOCAL" />
+      <updated>1762383084214</updated>
+    </task>
+    <task id="LOCAL-00082" summary="Update user_relationship query to return updated state and timestamp fields">
+      <option name="closed" value="true" />
+      <created>1762383108693</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1762383108693</updated>
+    </task>
+    <task id="LOCAL-00083" summary="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability.">
+      <option name="closed" value="true" />
+      <created>1762449710761</created>
+      <option name="number" value="00083" />
+      <option name="presentableId" value="LOCAL-00083" />
+      <option name="project" value="LOCAL" />
+      <updated>1762449710761</updated>
+    </task>
+    <task id="LOCAL-00084" summary="fix env">
+      <option name="closed" value="true" />
+      <created>1762529827379</created>
+      <option name="number" value="00084" />
+      <option name="presentableId" value="LOCAL-00084" />
+      <option name="project" value="LOCAL" />
+      <updated>1762529827380</updated>
+    </task>
+    <task id="LOCAL-00085" summary="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality.">
+      <option name="closed" value="true" />
+      <created>1762722013611</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1762722013612</updated>
+    </task>
+    <task id="LOCAL-00086" summary="Implement Redis-based room membership caching and notification processing&#10;&#10;Introduces Redis-backed room membership caching to improve performance and reduce database calls. Adds event subscription handling for real-time processing of notifications via Redis channels. Updates related services, models, and configurations for seamless integration.">
+      <option name="closed" value="true" />
+      <created>1762739023599</created>
+      <option name="number" value="00086" />
+      <option name="presentableId" value="LOCAL-00086" />
+      <option name="project" value="LOCAL" />
+      <updated>1762739023599</updated>
+    </task>
+    <task id="LOCAL-00087" summary="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations.">
+      <option name="closed" value="true" />
+      <created>1762807152206</created>
+      <option name="number" value="00087" />
+      <option name="presentableId" value="LOCAL-00087" />
+      <option name="project" value="LOCAL" />
+      <updated>1762807152206</updated>
+    </task>
+    <task id="LOCAL-00088" summary="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility.">
+      <option name="closed" value="true" />
+      <created>1762813091688</created>
+      <option name="number" value="00088" />
+      <option name="presentableId" value="LOCAL-00088" />
+      <option name="project" value="LOCAL" />
+      <updated>1762813091688</updated>
+    </task>
+    <option name="localTasksCounter" value="89" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -782,22 +832,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
-    <MESSAGE value="fix serde bug with msg type media" />
-    <MESSAGE value="support for reply messages implemented" />
-    <MESSAGE value="readme change" />
-    <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
-    <MESSAGE value="Add room leave functionality and improve user model&#10;&#10;Implemented the ability for users to leave chat rooms, including updating membership status and broadcasting a system message. Enhanced the user model with a membership status field and introduced system message types for user-related events. Modified database queries and API routes to support these changes." />
-    <MESSAGE value="sqlx update" />
-    <MESSAGE value="Add support for inviting users to chat rooms&#10;&#10;Implemented a new endpoint to invite users to chat rooms, including updates to database queries and membership management logic. Added helper functions for message persistence and broadcasting system notifications. Adjusted participant filtering and improved room-related database operations." />
-    <MESSAGE value="changing room invite broadcasting" />
-    <MESSAGE value="sqlx updates" />
-    <MESSAGE value="Refactor notification system with enhanced event handling&#10;&#10;Replaces `NewNotification` with `SendNotification` for improved clarity and modularity in handling broadcasted events. Adjusted notification payload structures, updating enum `NotificationEvent` for more detailed event types. Streamlined message broadcasting and serialization logic across APIs and services." />
-    <MESSAGE value="fixing bugs in the join room logic" />
-    <MESSAGE value="Add room deletion functionality and improve message handling&#10;&#10;Implemented the ability to delete rooms, including clearing associated messages and broadcasting leave events to users. Refactored message creation logic by introducing a factory method in the `Message` struct. Enhanced room leave/join workflows and transitioned from &quot;System&quot; message type to &quot;RoomChange&quot; for better clarity." />
-    <MESSAGE value="Refactor room repository and implement transactional support&#10;&#10;Replaced `RoomRepository` trait with direct `RoomDatabaseClient` methods, enabling cleaner and more consistent usage. Introduced transactional support for room deletion, message updates, and user membership updates, ensuring atomic operations. Adjusted API endpoints to leverage the new transactional workflow for enhanced error handling and maintainability." />
-    <MESSAGE value="Readme improved" />
-    <MESSAGE value="Refactor database modules and enhance logging setup&#10;&#10;Renamed `MessageRepository` to `MessageDatabase` and `RoomDatabaseClient` to `RoomDatabase` for consistency. Replaced `log` with `tracing` and added `ISM_LOG_LEVEL` support for better log customization. Improved application shutdown handling with graceful signal handling and updated configuration files accordingly." />
-    <MESSAGE value="Refactor database modules and update dependencies&#10;&#10;Renamed `message_repository` to `message_database` and `room_repository` to `room_database` for better consistency. Updated `sqlx` and other dependencies to newer versions, removing unnecessary ones. Adjusted Cargo metadata and configuration to reflect these changes." />
     <MESSAGE value="Updating important dependencies" />
     <MESSAGE value="Added S3 support" />
     <MESSAGE value="S3 Support implemented" />
@@ -806,8 +840,24 @@
     <MESSAGE value="Change baseline sql schema, fixed room user insert state bug" />
     <MESSAGE value="Data Model improvements" />
     <MESSAGE value="Added tagging to pipeline.yml" />
-    <MESSAGE value="Install sqlx-cli" />
-    <option name="LAST_COMMIT_MESSAGE" value="Install sqlx-cli" />
+    <MESSAGE value="App State Refactor" />
+    <MESSAGE value="Update dependencies, update tu rust 1.91" />
+    <MESSAGE value="folder restructure" />
+    <MESSAGE value="implement user relationships" />
+    <MESSAGE value="Refactoring Service Layer" />
+    <MESSAGE value="Modularize rooms service and handler logic" />
+    <MESSAGE value="Introduce blocked user validation and improve room creation flow" />
+    <MESSAGE value="Add input validation for messaging API using `validator` library" />
+    <MESSAGE value="Add ConnectionGuard for automatic SSE unsubscription and improve user event handling" />
+    <MESSAGE value="Refactor relationship handling to improve consistency and return meaningful states" />
+    <MESSAGE value="Update user_relationship query to return updated state and timestamp fields" />
+    <MESSAGE value="Add Redis cache support for notifications and improve scalability&#10;&#10;Integrates Redis for caching user notifications, including background cleanup tasks and fallback mechanisms. Updates configuration, Docker setup, and application state to support caching features, enhancing performance and reliability." />
+    <MESSAGE value="fix env" />
+    <MESSAGE value="Add role handling to user queries and improve message preview serialization &#10;&#10;Enhances database queries to include user roles and updates room message preview serialization for better context representation. Refactors related models and services to support new data structures and functionality." />
+    <MESSAGE value="Implement Redis-based room membership caching and notification processing&#10;&#10;Introduces Redis-backed room membership caching to improve performance and reduce database calls. Adds event subscription handling for real-time processing of notifications via Redis channels. Updates related services, models, and configurations for seamless integration." />
+    <MESSAGE value="Refactor room and messaging services: simplify logic, enhance Redis caching integration, and optimize room queries&#10;&#10;Streamlines room creation, invitation, and messaging workflows. Improves synchronization between Redis caching and database operations. Updates room queries for better performance and consistency. Adds error handling for caching operations." />
+    <MESSAGE value="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add welcome message displaying app version and run mode&#10;&#10;Introduces a new `welcome` module to print a stylized app title, version, and run mode on startup. Updates main entry point to invoke the welcome message for better startup visibility." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

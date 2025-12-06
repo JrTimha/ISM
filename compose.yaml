@@ -141,6 +141,8 @@ volumes:
     driver: local
   room_data:
     driver: local
+  redpanda-0:
+    driver: local
 
 
 networks:

@@ -165,3 +165,14 @@ Here's a summary of the available API endpoints:
 ## Development:
 
 **Compiling the Project:** If you modify any SQL queries managed by sqlx, you must run `cargo sqlx prepare` before compiling the project to update the offline query data. This ensures compile-time checks for your SQL.
+
+### Migrations
+This project uses the sqlx-cli to handle migrations.
+ 
+```
+# Migrate up
+sqlx migrate run
+
+# Migrate down
+sqlx migrate revert
+```

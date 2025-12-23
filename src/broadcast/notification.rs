@@ -50,7 +50,13 @@ pub enum NotificationEvent {
     * Sending this event to all users in a room where a member has left
     */
     #[serde(rename_all = "camelCase")]
-    RoomChangeEvent {message: MessageDTO, room_preview_text: LastMessagePreviewText}
+    RoomChangeEvent {message: MessageDTO, room_preview_text: LastMessagePreviewText},
+
+    /**
+    * Sending this event to all users in a room when a user has read the latest message
+    */
+    #[serde(rename_all = "camelCase")]
+    UserReadChat {user_id: Uuid, room_id: Uuid}
 }
 
 

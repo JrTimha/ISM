@@ -4,7 +4,7 @@ use chrono::Utc;
 use log::{error};
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
-use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent};
+use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent, UserReadChat};
 use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::messaging::model::{Message, MessageBody, RoomChangeBody};
@@ -44,7 +44,51 @@ impl RoomService {
     pub async fn mark_room_as_read(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
         let pl = state.room_repository.get_connection();
         state.room_repository.update_user_read_status(pl, &room_id, &client_id).await?;
+
+        let room = state.room_repository.select_room(&room_id).await?;
+        if let Some(latest_msg_time) = room.latest_message {
+            let user = state.room_repository.select_joined_user_by_id(&room_id, &client_id).await?;
+            if let Some(read_time) = user.last_message_read_at {
+                if read_time >= latest_msg_time {
+                    let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
+                    BroadcastChannel::get().send_event_to_all(
+                        users_in_room,
+                        Notification {
+                            body: UserReadChat { user_id: client_id, room_id },
+                            created_at: Utc::now()
+                        }
+                    ).await;
+                }
+            }
+        } else {
+            let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
+            BroadcastChannel::get().send_event_to_all(
+                users_in_room,
+                Notification {
+                    body: UserReadChat { user_id: client_id, room_id },
+                    created_at: Utc::now()
+                }
+            ).await;
+        }
+
         Ok(())
+    }
+
+    pub async fn get_read_states(state: Arc<AppState>, room_id: Uuid) -> Result<Vec<RoomMember>, AppError> {
+        let users = state.room_repository.select_joined_user_in_room(&room_id).await?;
+        let room = state.room_repository.select_room(&room_id).await?;
+        let read_users: Vec<RoomMember> = users.into_iter().filter(|user| {
+            if let Some(latest_msg_time) = room.latest_message {
+                if let Some(read_time) = user.last_message_read_at {
+                    read_time >= latest_msg_time
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
+        }).collect();
+        Ok(read_users)
     }
 
     pub async fn create_room(state: Arc<AppState>, client_id: Uuid, new_room: NewRoom) -> Result<ChatRoomDto, AppError> {

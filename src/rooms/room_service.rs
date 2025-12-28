@@ -78,15 +78,7 @@ impl RoomService {
         let users = state.room_repository.select_joined_user_in_room(&room_id).await?;
         let room = state.room_repository.select_room(&room_id).await?;
         let read_users: Vec<RoomMember> = users.into_iter().filter(|user| {
-            if let Some(latest_msg_time) = room.latest_message {
-                if let Some(read_time) = user.last_message_read_at {
-                    read_time >= latest_msg_time
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
+            user_has_read(user, room.latest_message)
         }).collect();
         Ok(read_users)
     }
@@ -246,6 +238,68 @@ impl RoomService {
         Ok(response)
     }
 
+}
+
+// Helper used by `get_read_states` — extracted for easier unit testing of the read logic.
+fn user_has_read(user: &RoomMember, room_latest: Option<chrono::DateTime<chrono::Utc>>) -> bool {
+    if let Some(latest_msg_time) = room_latest {
+        if let Some(read_time) = user.last_message_read_at {
+            read_time >= latest_msg_time
+        } else {
+            false
+        }
+    } else {
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Utc, Duration};
+    use uuid::Uuid;
+    use crate::model::room_member::{RoomMember, MembershipStatus};
+
+    fn make_member(read_at: Option<chrono::DateTime<Utc>>) -> RoomMember {
+        RoomMember {
+            id: Uuid::new_v4(),
+            display_name: "test".to_string(),
+            profile_picture: None,
+            joined_at: Utc::now(),
+            last_message_read_at: read_at,
+            membership_status: MembershipStatus::Joined
+        }
+    }
+
+    #[test]
+    fn user_has_read_when_no_latest_message() {
+        let user = make_member(None);
+        let result = user_has_read(&user, None);
+        assert!(result, "When room has no latest message, every user should be considered read");
+    }
+
+    #[test]
+    fn user_has_read_when_read_time_ge_latest() {
+        let latest = Utc::now();
+        let read_time = latest + Duration::seconds(1);
+        let user = make_member(Some(read_time));
+        assert!(user_has_read(&user, Some(latest)));
+    }
+
+    #[test]
+    fn user_has_not_read_when_read_time_before_latest() {
+        let latest = Utc::now();
+        let read_time = latest - Duration::seconds(10);
+        let user = make_member(Some(read_time));
+        assert!(!user_has_read(&user, Some(latest)));
+    }
+
+    #[test]
+    fn user_has_not_read_when_no_read_time_and_latest_present() {
+        let latest = Utc::now();
+        let user = make_member(None);
+        assert!(!user_has_read(&user, Some(latest)));
+    }
 }
 
 async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>) -> Result<(), AppError> {

@@ -144,6 +144,7 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
 }
 
 #[cfg(test)]
+#[allow(unused)]
 mod test {
     use assertr::prelude::*;
 

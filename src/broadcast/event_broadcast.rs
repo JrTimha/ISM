@@ -35,6 +35,7 @@ pub struct BroadcastChannel {
     push_notification_producer: PushNotificationProducer
 }
 
+
 type UserConnectionMap = RwLock<HashMap<Uuid, Sender<Notification>>>;
 
 
@@ -144,5 +145,48 @@ impl BroadcastChannel {
         }
     }
 
+}
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::redis_cache::NoOpCache;
+    use crate::kafka::PushNotificationProducer;
+    use crate::core::KafkaConfig;
+    use crate::broadcast::Notification;
+    use crate::broadcast::NotificationEvent::UserReadChat;
+    use serde_json;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn send_event_to_subscribed_user_delivers_notification() {
+        // initialize broadcast channel singleton with NoOpCache and logger producer
+        let cache: Arc<dyn crate::cache::redis_cache::Cache> = Arc::new(NoOpCache);
+        let kafka_cfg = KafkaConfig { bootstrap_host: String::from(""), bootstrap_port: 0, topic: String::from(""), client_id: String::from(""), partition: vec![], consumer_group: String::from("") };
+        BroadcastChannel::init(cache, PushNotificationProducer::new(false, kafka_cfg)).await;
+
+        let bc = BroadcastChannel::get();
+
+        let user_id = uuid::Uuid::new_v4();
+        // subscribe
+        let mut rx = bc.subscribe_to_user_events(user_id).await;
+
+        let notification = Notification {
+            body: UserReadChat { user_id, room_id: uuid::Uuid::new_v4() },
+            created_at: chrono::Utc::now()
+        };
+
+        // send to all (only this user)
+        bc.send_event_to_all(vec![user_id], notification.clone()).await;
+
+        // receive
+        let received = rx.recv().await.expect("Should receive notification");
+
+        let sent_json = serde_json::to_string(&notification).expect("serialize sent");
+        let recv_json = serde_json::to_string(&received).expect("serialize recv");
+        println!("Sent: {}", sent_json);
+        println!("Received: {}", recv_json);
+        assert_eq!(sent_json, recv_json);
+    }
 }

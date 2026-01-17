@@ -21,6 +21,7 @@ extern crate alloc;
 /// Authentication happens by looking for the `Authorization` header on requests and parsing the contained JWT bearer token.
 /// See the crate level documentation for how this layer can be created and used.
 #[derive(Clone, TypedBuilder)]
+#[allow(unused_variables)]
 pub struct KeycloakAuthLayer<R, Extra = ProfileAndEmail>
 where
     R: Role,

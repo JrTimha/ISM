@@ -1,40 +1,40 @@
 [package]
 name = "ism"
-version = "0.7.2"
+version = "0.7.5"
 edition = "2024"
 
 [dependencies]
-log = "0.4.28"
-axum = { version = "0.8.6", features = ["multipart"] }
-tokio = {version = "1.48.0", features = ["full"]}
-tower = "0.5.2"
+log = "0.4.29"
+axum = { version = "0.8.8", features = ["multipart"] }
+tokio = {version = "1.49.0", features = ["full"]}
+tower = "0.5.3"
 config = "0.15.18"
 serde = "1.0.228"
-scylla = { version = "1.3.1", features = ["chrono-04"] }
+scylla = { version = "1.4.1", features = ["chrono-04"] }
 futures = "0.3.31"
-uuid = { version = "1.18.1", features = ["v4", "serde", "v7"] }
-chrono = { version = "0.4.42", features = ["serde"] }
-tower-http = { version = "0.6.6", features = ["cors", "trace"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+uuid = { version = "1.20.0", features = ["v4", "serde", "v7"] }
+chrono = { version = "0.4.43", features = ["serde"] }
+tower-http = { version = "0.6.8", features = ["cors", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 sqlx = {version = "0.8.6", features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"]}
 dotenv = "0.15.0"
-serde_json = "1.0.145"
-tokio-stream = { version = "0.1.17", features = ["sync"] }
-rdkafka = { version = "0.38.0", features = ["cmake-build", "tokio"] }
+serde_json = "1.0.149"
+tokio-stream = { version = "0.1.18", features = ["sync"] }
+rdkafka = { version = "0.39.0", features = ["cmake-build", "tokio"] }
 minio = { version = "0.3.0", features = ["default"] }
-image = { version = "0.25.8"}
+image = { version = "0.25.9"}
 bytes = "1.10.1"
 base64 = "0.22.1"
 validator = { version = "0.20.0", features = ["derive"] }
-redis = { version = "1.0.0-rc.3", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.0.3", features = ["tokio-comp", "connection-manager"] }
 
 
 #keycloak:
 atomic-time = "0.1.5"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
-http = "1.3.1"
-jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs"] }
+http = "1.4.0"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 nonempty = { version = "0.12.0", features = ["std"] }
 reqwest = { version = "0.12.24", features = ["json"], default-features = false }
 serde-querystring = "0.3.0"
@@ -45,7 +45,7 @@ try-again = "0.2.2"
 typed-builder = "0.23.0"
 url = "2.5.7"
 async-trait = "0.1.89"
-thiserror = "2.0.9"
+thiserror = "2.0.18"
 
 [features]
 default = ["default-tls", "reqwest/charset", "reqwest/http2", "reqwest/macos-system-configuration"]
@@ -55,7 +55,4 @@ rustls-tls = ["reqwest/rustls-tls"]
 
 [dev-dependencies]
 assertr = "0.4.2"
-tower-http = { version = "0.6.6", features = ["trace"] }
-tracing-subscriber = "0.3.20"
-uuid = { version = "1.18.1", features = ["v7", "serde"] }
 sqlx-cli =  { version = "0.8.6", features = ["postgres", "rustls"] }

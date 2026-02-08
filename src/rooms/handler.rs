@@ -201,3 +201,13 @@ pub async fn handle_save_room_image(
         Err(AppError::ValidationError("Required field 'image' not found in the upload.".to_string()))
     }
 }
+
+pub async fn handle_get_read_states(
+    Extension(token): Extension<KeycloakToken<String>>,
+    State(state): State<Arc<AppState>>,
+    Path(room_id): Path<Uuid>
+) -> Result<Json<Vec<RoomMember>>, AppError> {
+    check_user_in_room(&state, &token.subject, &room_id).await?;
+    let read_states = RoomService::get_read_states(state, room_id).await?;
+    Ok(Json(read_states))
+}

@@ -38,25 +38,22 @@ impl MessageDatabase {
         if config.with_db_init {
             repository.create_keyspace_with_tables().await;
         }
-        
-        if let Err(err) = repository.change_keyspace(&config.db_keyspace).await {
-            panic!("Failed to use keyspace {:?}", err);
-        }
+
         repository
     }
 
     pub async fn fetch_data(&self, timestamp: DateTime<Utc>, room_id: Uuid) -> Result<Vec<Message>,  Box<dyn Error + Send + Sync>> {
         let session = self.session.clone();
-        let mut iter: TypedRowStream<Message> = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
+        let mut iter: TypedRowStream<Message> = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM messaging.chat_messages WHERE chat_room_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 25", (room_id, timestamp))
             .await?.rows_stream::<Message>()?;
         let mut messages: Vec<Message> = Vec::new();
         while let Some(next) = iter.try_next().await? { messages.push(next) }
         Ok(messages)
     }
 
-    pub async fn fetch_specific_message(&self, message_id: &Uuid, room_id: &Uuid, created: &DateTime<Utc>) -> Result<Message, Box<dyn std::error::Error>> {
+    pub async fn fetch_specific_message(&self, message_id: &Uuid, room_id: &Uuid, created: &DateTime<Utc>) -> Result<Message, Box<dyn Error>> {
         let session = self.session.clone();
-        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM chat_messages WHERE chat_room_id = ? AND created_at = ? AND message_id = ?", (room_id, created, message_id))
+        let mut iter = session.query_iter("SELECT chat_room_id, message_id, sender_id, msg_body, created_at, msg_type FROM messaging.chat_messages WHERE chat_room_id = ? AND created_at = ? AND message_id = ?", (room_id, created, message_id))
             .await?.rows_stream::<Message>()?;
         match iter.try_next().await? {
             Some(message) => Ok(message),
@@ -67,7 +64,7 @@ impl MessageDatabase {
     pub async fn insert_data(&self, message: Message) -> Result<QueryResult, ExecutionError> {
        let session = self.session.clone();
        session.query_unpaged(
-            "INSERT INTO chat_messages (chat_room_id, message_id, sender_id, msg_body, msg_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO messaging.chat_messages (chat_room_id, message_id, sender_id, msg_body, msg_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (message.chat_room_id, message.message_id, message.sender_id, message.msg_body, message.msg_type, message.created_at)
        ).await
     }
@@ -96,7 +93,7 @@ impl MessageDatabase {
     
     pub async fn clear_chat_room_messages(&self, room_id: &Uuid) -> Result<(), ExecutionError> {
         let session = self.session.clone();
-        session.query_unpaged("DELETE FROM chat_messages WHERE chat_room_id = ?", (room_id,)).await?;
+        session.query_unpaged("DELETE FROM messaging.chat_messages WHERE chat_room_id = ?", (room_id,)).await?;
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 # ISM - Instant Messenger for SaaS Backends
 
 [![Version](https://img.shields.io/badge/version-0.7.9-blue.svg)](https://github.com/JrTimha/ism)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL%20v3-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
 
 **ISM (Instant SaaS Messenger)** is a high-performance, scalable messaging solution specifically designed for SaaS backends. Written in Rust, it leverages Tokio and Axum to provide an asynchronous, stable, and efficient infrastructure.
@@ -192,13 +192,13 @@ Authorization: Bearer <your_jwt_token>
       "msgType": "Text|Media|Reply",
       "msgBody": {
         // For Text messages:
-        "text": "string (1-4000 chars)"
+        "text": "string (1-4000 chars)",
 
         // For Media messages:
         "mediaUrl": "string (1-250 chars)",
         "mediaType": "string (1-80 chars)",
         "mimeType": "string (optional)",
-        "altText": "string (optional)"
+        "altText": "string (optional)",
 
         // For Reply messages:
         "replyMsgId": "uuid",
@@ -598,7 +598,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0) - see the [LICENSE](LICENSE) file for details.
 
 ---
 

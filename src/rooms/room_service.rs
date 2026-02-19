@@ -85,6 +85,9 @@ impl RoomService {
 
     pub async fn create_room(state: Arc<AppState>, client_id: Uuid, new_room: NewRoom) -> Result<ChatRoomDto, AppError> {
         let room_entity = state.room_repository.insert_room(new_room.clone()).await?;
+        let creator_entity = state.user_repository.find_user_by_id(&client_id).await?.ok_or_else(|| {
+            AppError::NotFound("UserID not found.".to_string())
+        })?;
         let users = new_room.invited_users;
 
         if room_entity.room_type == RoomType::Single {
@@ -104,12 +107,12 @@ impl RoomService {
                 let broadcast = BroadcastChannel::get();
 
                 broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: participator_room.to_dto()},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: participator_room.to_dto(), created_by: creator_entity.clone()},
                     created_at: Utc::now()
                 }, other_user).await;
 
                 broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: creator_room.to_dto()},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: creator_room.to_dto(), created_by: creator_entity},
                     created_at: Utc::now()
                 }, &client_id).await;
 
@@ -122,7 +125,7 @@ impl RoomService {
             BroadcastChannel::get().send_event_to_all(
                 users,
                 Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: room_dto.clone()},
+                    body: crate::broadcast::NotificationEvent::NewRoom {room: room_dto.clone(), created_by: creator_entity.clone()},
                     created_at: Utc::now()
                 }
             ).await;
@@ -159,10 +162,16 @@ impl RoomService {
     }
 
     pub async fn invite_to_room(state: Arc<AppState>, client_id: Uuid, room_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
-        let (room, users) = tokio::try_join!( //executing 2 queries async
+        let (room, users, creator) = tokio::try_join!( //executing 3 queries async
             state.room_repository.select_room(&room_id),
-            state.room_repository.select_joined_user_in_room(&room_id)
+            state.room_repository.select_joined_user_in_room(&room_id),
+            state.user_repository.find_user_by_id(&client_id)
         )?;
+
+        let creator_entity = creator.ok_or_else(|| {
+            AppError::NotFound("UserID not found.".to_string())
+        })?;
+
 
         if room.room_type == RoomType::Single {
             return Err(AppError::ValidationError("Private rooms doesn't allow invites!.".to_string()))
@@ -204,7 +213,7 @@ impl RoomService {
 
         BroadcastChannel::get().send_event(
             Notification {
-                body: crate::broadcast::NotificationEvent::NewRoom {room: room_for_user.to_dto()},
+                body: crate::broadcast::NotificationEvent::NewRoom {room: room_for_user.to_dto(), created_by: creator_entity},
                 created_at: Utc::now()
             },
             &user.id

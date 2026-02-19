@@ -12,6 +12,7 @@ ENV SQLX_OFFLINE=true
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libssl-dev \
+    libcurl4-openssl-dev \
     pkg-config \
     cmake
 

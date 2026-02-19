@@ -38,7 +38,8 @@ pub enum NotificationEvent {
     /**
     * Sending this event to a newly invited user
     */
-    NewRoom {room: ChatRoomDto },
+    #[serde(rename_all = "camelCase")]
+    NewRoom {room: ChatRoomDto, created_by: User },
 
     /**
     * Sending this event to a user who has left a room

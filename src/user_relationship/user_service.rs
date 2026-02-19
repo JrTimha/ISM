@@ -212,6 +212,7 @@ impl UserService {
             }
         }
         state.user_repository.delete_relationship_state(&mut tx, relationship).await?;
+        tx.commit().await?;
         Ok(())
     }
 

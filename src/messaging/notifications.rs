@@ -2,19 +2,25 @@ use std::sync::Arc;
 use std::time::Duration;
 use axum::{Extension, Json};
 use axum::extract::{Query, State};
-use axum::response::{Sse};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::response::{IntoResponse, Sse};
 use axum::response::sse::Event;
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use log::error;
+use tokio::time;
+use log::{debug, error};
 use serde::Deserialize;
+use tokio::sync::broadcast::error::RecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tracing::warn;
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::core::AppState;
 use crate::errors::{AppError, AppResponse};
 use crate::keycloak::decode::KeycloakToken;
+use crate::keycloak::layer::KeycloakAuthLayer;
 
 struct ConnectionGuard {
     user_id: Uuid,
@@ -63,6 +69,69 @@ pub async fn stream_server_events(
             .text("keep-alive-text")
     )
 }
+
+
+pub async fn websocket_server_events(
+    websocket: WebSocketUpgrade,
+    Extension(token): Extension<KeycloakToken<String>>
+) -> impl IntoResponse {
+
+    websocket
+        .on_failed_upgrade(|error| warn!("Error upgrading websocket: {}", error))
+        .on_upgrade(move |socket| handle_socket(socket, token.subject.clone()))
+}
+
+async fn handle_socket(mut socket: WebSocket, user_id: Uuid) {
+
+    let mut broadcast_events = BroadcastChannel::get().subscribe_to_user_events(user_id.clone()).await;
+    let _guard = ConnectionGuard { user_id };
+    let mut ping_interval = time::interval(Duration::from_secs(30));
+
+    loop {
+        tokio::select! {
+            // 1. Handle new broadcasting event:
+            notification_result = broadcast_events.recv() => {
+                match notification_result {
+                    Ok(event) => {
+                        let json_msg = serde_json::to_string(&event).unwrap();
+                        let ws_message = Message::text(json_msg);
+
+                        if socket.send(ws_message).await.is_err() {
+                            error!("Failed to send message to client");
+                        }
+                    }
+                    Err(RecvError::Closed) => {
+                        debug!("Client disconnected or channel closed");
+                        break;
+                    }
+                    Err(RecvError::Lagged(_)) => {
+                        debug!("Client is too slow!")
+                    }
+                }
+            }
+
+            // 2. Regular ping from ism:
+            _ = ping_interval.tick() => {
+                if socket.send(Message::Ping(Bytes::new())).await.is_err() { // connection is dead when we can't send ping
+                    break;
+                }
+            }
+
+            // 3. Receive messages from the client:
+            client_msg = socket.recv() => {
+                match client_msg {
+                    Some(Ok(Message::Close(_))) | None => break, //client is closing connection
+                    Some(Err(_)) => break, //client error
+                    Some(Ok(Message::Pong(_))) => {
+                        debug!("Client has sent Pong");
+                    }
+                    _ => {} //for the future
+                }
+            }
+        }
+    }
+}
+
 
 #[derive(Deserialize)]
 pub struct NotificationQueryParam {

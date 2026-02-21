@@ -1,6 +1,6 @@
 ism_url = "localhost"
 ism_port= 5403
-log_level = "info"
+log_level = "debug"
 cors_origin = "http://localhost:4200"
 use_kafka = true
 push_notification_access_token="oiqhfriuhf"

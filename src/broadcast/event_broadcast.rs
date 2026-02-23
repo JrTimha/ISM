@@ -77,7 +77,7 @@ impl BroadcastChannel {
     pub async fn send_event(&self, notification: Notification, to_user: &Uuid) {
         let lock = self.channel.read().await;
         if let Some(sender) = lock.get(to_user) {
-            match sender.send(notification) {
+            match sender.send(notification.clone()) {
                 Ok(sc) => {
                     info!("Successfully sent {:?} broadcast event.", sc);
                 }
@@ -86,11 +86,11 @@ impl BroadcastChannel {
                 }
             }
         } else {
-            if let Err(error) = self.cache.add_notification_for_user(to_user, &notification).await {
-                error!("Failed to cache notification: {}", error);
-            };
-            self.send_undeliverable_notifications(notification, vec![to_user.clone()]).await;
+            self.send_undeliverable_notifications(notification.clone(), vec![to_user.clone()]).await;
         }
+        if let Err(error) = self.cache.add_notification_for_user(to_user, &notification).await {
+            error!("Failed to cache notification: {}", error);
+        };
     }
 
     pub async fn send_event_to_all(&self, user_ids: Vec<Uuid>, notification: Notification) {
@@ -107,11 +107,11 @@ impl BroadcastChannel {
                     }
                 }
             } else {
-                if let Err(error) = self.cache.add_notification_for_user(&user_id, &notification).await {
-                    error!("Failed to cache notification: {}", error);
-                };
                 not_deliverable.push(user_id);
             }
+            if let Err(error) = self.cache.add_notification_for_user(&user_id, &notification).await {
+                error!("Failed to cache notification: {}", error);
+            };
         }
         if not_deliverable.len() > 0 {
             self.send_undeliverable_notifications(notification, not_deliverable).await;
@@ -134,6 +134,7 @@ impl BroadcastChannel {
     }
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
+        debug!("Unsubscribing user {:?} from broadcasting events.", user_id);
         let mut lock = self.channel.write().await;
         if let Some(sender) = lock.get(&user_id) {
             if sender.receiver_count() > 0 {

@@ -20,7 +20,6 @@ use crate::broadcast::{BroadcastChannel, Notification};
 use crate::core::AppState;
 use crate::errors::{AppError, AppResponse};
 use crate::keycloak::decode::KeycloakToken;
-use crate::keycloak::layer::KeycloakAuthLayer;
 
 struct ConnectionGuard {
     user_id: Uuid,
@@ -85,7 +84,8 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid) {
 
     let mut broadcast_events = BroadcastChannel::get().subscribe_to_user_events(user_id.clone()).await;
     let _guard = ConnectionGuard { user_id };
-    let mut ping_interval = time::interval(Duration::from_secs(30));
+    let mut ping_interval = time::interval(Duration::from_secs(15));
+    let mut last_pong_received = time::Instant::now();
 
     loop {
         tokio::select! {
@@ -112,6 +112,12 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid) {
 
             // 2. Regular ping from ism:
             _ = ping_interval.tick() => {
+                
+                if last_pong_received.elapsed() > Duration::from_secs(30) {
+                    debug!("Client did not respond to ping in time, closing websocket connection");
+                    break;
+                }
+
                 if socket.send(Message::Ping(Bytes::new())).await.is_err() { // connection is dead when we can't send ping
                     break;
                 }
@@ -120,12 +126,21 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid) {
             // 3. Receive messages from the client:
             client_msg = socket.recv() => {
                 match client_msg {
-                    Some(Ok(Message::Close(_))) | None => break, //client is closing connection
-                    Some(Err(_)) => break, //client error
+                    Some(Ok(Message::Close(_))) | None => {
+                        debug!("Client has closed the websocket connection, closing.");
+                        break;
+                    }, //client is closing connection
+                    Some(Err(_)) => {
+                        debug!("Client has an error with the websocket connection, closing.");
+                        break;
+                    }, //client error
                     Some(Ok(Message::Pong(_))) => {
-                        debug!("Client has sent Pong");
+                        debug!("Client has sent Websocket-Pong");
+                        last_pong_received = time::Instant::now();
                     }
-                    _ => {} //for the future
+                    Some(Ok(_)) => {
+                        last_pong_received = time::Instant::now();
+                    }
                 }
             }
         }

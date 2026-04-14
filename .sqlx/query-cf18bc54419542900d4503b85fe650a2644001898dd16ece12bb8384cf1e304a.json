@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    u.id,\n                    u.display_name,\n                    u.profile_picture,\n                    u.street_credits,\n                    u.description,\n                    u.friends_count,\n                    u.role\n                FROM\n                    app_user u\n                INNER JOIN\n                    user_relationship rl ON u.id = (\n                        CASE\n                            WHEN rl.user_a_id = $1 THEN rl.user_b_id\n                            WHEN rl.user_b_id = $1 THEN rl.user_a_id\n                            ELSE NULL\n                        END\n                    )\n                WHERE\n                    rl.state = $2\n            ",
+  "query": "SELECT\n                    r_user.id,\n                    r_user.display_name,\n                    r_user.profile_picture,\n                    r_user.street_credits,\n                    r_user.description,\n                    r_user.friends_count,\n                    r_user.posts_count,\n                    r_user.role\n                    FROM app_user r_user\n                    WHERE r_user.id = $1\n                ",
   "describe": {
     "columns": [
       {
@@ -35,14 +35,18 @@
       },
       {
         "ordinal": 6,
+        "name": "posts_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
         "name": "role",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -52,8 +56,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "2db5eb40e575583b817f371a4337c26a18cdb9878c8e395510cc3c0c14bcf0c6"
+  "hash": "cf18bc54419542900d4503b85fe650a2644001898dd16ece12bb8384cf1e304a"
 }

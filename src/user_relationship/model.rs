@@ -230,6 +230,7 @@ pub struct User {
     pub profile_picture: Option<String>,
     pub description: Option<String>,
     pub friends_count: i64,
+    pub posts_count: i64,
     pub role: String
 }
 

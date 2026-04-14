@@ -7,7 +7,7 @@ use log::{debug, error, info};
 use scylla::client::pager::TypedRowStream;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
-use scylla::errors::{ExecutionError, UseKeyspaceError};
+use scylla::errors::{ExecutionError};
 use scylla::response::query_result::QueryResult;
 use uuid::Uuid;
 use crate::messaging::model::Message;
@@ -97,10 +97,6 @@ impl MessageDatabase {
         Ok(())
     }
 
-    async fn change_keyspace(&self, keyspace: &String) -> Result<(), UseKeyspaceError> {
-        self.session.use_keyspace(keyspace, true).await?;
-        Ok(())
-    }
 
 }
 

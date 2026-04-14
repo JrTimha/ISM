@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                u.id,\n                u.display_name,\n                u.profile_picture,\n                u.street_credits,\n                u.description,\n                u.friends_count,\n                u.role\n                FROM app_user u\n                INNER JOIN user_relationship ur ON\n                    (ur.user_a_id = u.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR\n                    (ur.user_b_id = u.id AND ur.user_a_id = $1 AND ur.state = 'B_INVITED')\n            ",
+  "query": "SELECT\n                u.id,\n                u.display_name,\n                u.profile_picture,\n                u.street_credits,\n                u.description,\n                u.friends_count,\n                u.posts_count,\n                u.role\n                FROM app_user u\n                INNER JOIN user_relationship ur ON\n                    (ur.user_a_id = u.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR\n                    (ur.user_b_id = u.id AND ur.user_a_id = $1 AND ur.state = 'B_INVITED')\n            ",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,11 @@
       },
       {
         "ordinal": 6,
+        "name": "posts_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
         "name": "role",
         "type_info": "Varchar"
       }
@@ -51,8 +56,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "b2c6a32f092f326e9188b6d913ca1b1e8355a11a27702dd6bbff8dfbdccfb436"
+  "hash": "de53be048cd53a2a9f2a3cdb0141547722cebdb02fc053b357d2d7d2eeec6bfc"
 }

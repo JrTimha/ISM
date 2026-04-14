@@ -27,6 +27,7 @@ impl UserRepository {
                 r_user.street_credits,
                 r_user.description,
                 r_user.friends_count,
+                r_user.posts_count,
                 r_user.role,
                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
@@ -55,6 +56,7 @@ impl UserRepository {
                     r_user.street_credits,
                     r_user.description,
                     r_user.friends_count,
+                    r_user.posts_count,
                     r_user.role
                     FROM app_user r_user
                     WHERE r_user.id = $1
@@ -72,6 +74,7 @@ impl UserRepository {
                 r_user.street_credits,
                 r_user.description,
                 r_user.friends_count,
+                r_user.posts_count,
                 r_user.role,
                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
@@ -108,6 +111,7 @@ impl UserRepository {
                 u.street_credits,
                 u.description,
                 u.friends_count,
+                u.posts_count,
                 u.role
                 FROM app_user u
                 INNER JOIN user_relationship ur ON
@@ -134,6 +138,7 @@ impl UserRepository {
                     u.street_credits,
                     u.description,
                     u.friends_count,
+                    u.posts_count,
                     u.role
                 FROM
                     app_user u

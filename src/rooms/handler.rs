@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::core::AppState;
 use crate::errors::{AppError};
 use crate::keycloak::decode::KeycloakToken;
-use crate::messaging::model::MessageDTO;
+use crate::messaging::model::MessageDto;
 use crate::model::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomMember, RoomType, UploadResponse};
 use crate::rooms::room_service::RoomService;
 use crate::rooms::timeline_service::TimelineService;
@@ -33,7 +33,7 @@ pub async fn handle_scroll_chat_timeline(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
     Query(params): Query<TimelineQueryParam>
-) -> Result<Json<Vec<MessageDTO>>, AppError> {
+) -> Result<Json<Vec<MessageDto>>, AppError> {
 
     check_user_in_room(&state, &token.subject, &room_id).await?;
     let messages = TimelineService::scroll_chat_timeline(state, room_id, params.timestamp).await?;

@@ -7,7 +7,7 @@ use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent, UserReadChat};
 use crate::core::AppState;
 use crate::errors::{AppError};
-use crate::messaging::model::{Message, MessageBody, RoomChangeBody};
+use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, RoomChangeBody};
 use crate::model::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, MembershipStatus, NewRoom, RoomChangeType, RoomMember, RoomType, UploadResponse};
 use crate::utils::crop_image_from_center;
 
@@ -199,7 +199,7 @@ impl RoomService {
         tx.commit().await?;
 
         //2. build room change message and send it to all previous users in the room
-        let message = Message::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}));
+        let message = MessageEntity::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}));
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
@@ -312,7 +312,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         Ok(())
     } else { //find and handle the leaving user
 
-        let message = Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}));
+        let message = MessageEntity::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}));
 
         let send_to: Vec<Uuid> = users.iter().filter(|user| user.id != leaving_user.id).map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
@@ -333,10 +333,10 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     }
 }
 
-async fn save_room_change_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
+async fn save_room_change_message_and_broadcast(message: MessageEntity, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
     state.chat_repository.insert_message(&message).await?;
 
-    let mapped_msg = message.to_dto();
+    let mapped_msg = MessageDto::from(message);
 
     let notification = Notification {
         body: RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text},

@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use crate::core::AppState;
 use crate::errors::AppError;
-use crate::messaging::model::MessageDTO;
+use crate::messaging::model::MessageDto;
 
 pub struct TimelineService;
 
@@ -13,8 +13,8 @@ impl TimelineService {
         state: Arc<AppState>,
         room_id: Uuid,
         timestamp: DateTime<Utc>
-    ) -> Result<Vec<MessageDTO>, AppError> {
+    ) -> Result<Vec<MessageDto>, AppError> {
         let data = state.chat_repository.fetch_messages(room_id, timestamp).await?;
-        Ok(data.into_iter().map(|m| m.to_dto()).collect())
+        Ok(data.into_iter().map(MessageDto::from).collect())
     }
 }

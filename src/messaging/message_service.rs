@@ -1,9 +1,11 @@
 use std::sync::Arc;
+use chrono::Utc;
 use uuid::Uuid;
-use crate::broadcast::BroadcastChannel;
+use crate::broadcast::{BroadcastChannel, Notification};
+use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::AppState;
 use crate::errors::AppError;
-use crate::messaging::model::{Message, MessageBody, MessageDTO, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
+use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
 use crate::model::LastMessagePreviewText;
 
 pub struct MessageService;
@@ -13,8 +15,8 @@ impl MessageService {
     pub async fn send_message(
         state: Arc<AppState>,
         message: NewMessage,
-        client_id: Uuid
-    ) -> Result<MessageDTO, AppError> {
+        client_id: Uuid,
+    ) -> Result<MessageDto, AppError> {
 
         let mut users = state.cache.get_user_for_room(&message.chat_room_id).await?;
 
@@ -37,10 +39,10 @@ impl MessageService {
             }
         };
 
-        let msg = Message::new(message.chat_room_id, client_id, msg_body);
+        let entity = MessageEntity::new(message.chat_room_id, client_id, msg_body);
 
         //1. save message to postgresql:
-        state.chat_repository.insert_message(&msg).await?;
+        state.chat_repository.insert_message(&entity).await?;
 
         //2. generate new room preview text and save it to sql db:
         let client_entity = state.room_repository.select_joined_user_by_id(&message.chat_room_id, &client_id).await?;
@@ -49,13 +51,17 @@ impl MessageService {
 
         let mut tx = state.room_repository.start_transaction().await?;
         state.room_repository.update_last_room_message(&mut *tx, &message.chat_room_id, &preview_str).await?;
-        state.room_repository.update_user_read_status(&mut *tx, &message.chat_room_id, &msg.sender_id).await?;
+        state.room_repository.update_user_read_status(&mut *tx, &message.chat_room_id, &entity.sender_id).await?;
         tx.commit().await?;
 
         //3. broadcast message to all room members:
-        let notification = msg.to_notification(room_preview_text);
+        let dto = MessageDto::from(entity);
+        let notification = Notification {
+            body: ChatMessage { message: dto.clone(), room_preview_text },
+            created_at: Utc::now(),
+        };
         BroadcastChannel::get().send_event_to_all(users, notification).await;
-        Ok(msg.to_dto())
+        Ok(dto)
     }
 
     async fn create_reply_message(msg: &NewReplyBody, state: &Arc<AppState>, room_id: &Uuid) -> Result<ReplyBody, Box<dyn std::error::Error>> {

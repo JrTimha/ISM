@@ -2,10 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
-use crate::broadcast::Notification;
-use crate::broadcast::NotificationEvent::ChatMessage;
-use crate::errors::AppError;
-use crate::model::{LastMessagePreviewText, RoomMember};
+use crate::model::RoomMember;
 
 #[derive(sqlx::Type, Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[sqlx(type_name = "msg_type")]
@@ -17,25 +14,24 @@ pub enum MsgType {
 }
 
 #[derive(sqlx::FromRow, Debug, Clone)]
-pub struct Message {
+pub struct MessageEntity {
     pub chat_room_id: Uuid,
     pub message_id: Uuid,
     pub sender_id: Uuid,
     pub msg_body: sqlx::types::Json<MessageBody>,
     pub msg_type: MsgType,
-    pub created_at: DateTime<Utc>
+    pub created_at: DateTime<Utc>,
 }
 
-impl Message {
-
-    pub fn new(room_id: Uuid, sender_id: Uuid, msg_body: MessageBody) -> Message {
+impl MessageEntity {
+    pub fn new(room_id: Uuid, sender_id: Uuid, msg_body: MessageBody) -> MessageEntity {
         let msg_type = match &msg_body {
             MessageBody::Text(_) => MsgType::Text,
             MessageBody::Media(_) => MsgType::Media,
             MessageBody::Reply(_) => MsgType::Reply,
             MessageBody::RoomChange(_) => MsgType::RoomChange,
         };
-        Message {
+        MessageEntity {
             chat_room_id: room_id,
             message_id: Uuid::new_v4(),
             sender_id,
@@ -44,49 +40,39 @@ impl Message {
             created_at: Utc::now(),
         }
     }
+}
 
-    pub fn to_dto(&self) -> MessageDTO {
-        MessageDTO {
-            chat_room_id: self.chat_room_id,
-            message_id: self.message_id,
-            sender_id: self.sender_id,
-            msg_body: self.msg_body.0.clone(),
-            msg_type: self.msg_type.clone(),
-            created_at: self.created_at,
-        }
-    }
-
-    pub fn to_notification(&self, preview_text: LastMessagePreviewText) -> Notification {
-        Notification {
-            body: ChatMessage { message: self.to_dto(), room_preview_text: preview_text },
-            created_at: Utc::now(),
+impl From<MessageEntity> for MessageDto {
+    fn from(e: MessageEntity) -> Self {
+        MessageDto {
+            chat_room_id: e.chat_room_id,
+            message_id: e.message_id,
+            sender_id: e.sender_id,
+            msg_body: e.msg_body.0,
+            msg_type: e.msg_type,
+            created_at: e.created_at,
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct MessageDTO {
+pub struct MessageDto {
     pub chat_room_id: Uuid,
     pub message_id: Uuid,
     pub sender_id: Uuid,
     pub msg_body: MessageBody,
     pub msg_type: MsgType,
-    pub created_at: DateTime<Utc>
+    pub created_at: DateTime<Utc>,
 }
 
-impl MessageDTO {
-
-    pub fn from_json_str(s: &str) -> Result<MessageDTO, AppError> {
-        serde_json::from_str(s).map_err(|err| {
-            AppError::Processing(format!("Error parsing message: {}", err))
-        })
+impl MessageDto {
+    pub fn from_json_str(s: &str) -> Result<MessageDto, serde_json::Error> {
+        serde_json::from_str(s)
     }
 
-    pub fn json_str(&self) -> Result<String, AppError> {
-        serde_json::to_string(self).map_err(|err| {
-            AppError::Processing(format!("Error parsing message: {}", err))
-        })
+    pub fn json_str(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
     }
 }
 
@@ -97,7 +83,7 @@ pub enum MessageBody {
     Text(TextBody),
     Media(MediaBody),
     Reply(ReplyBody),
-    RoomChange(RoomChangeBody)
+    RoomChange(RoomChangeBody),
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Validate)]
@@ -126,7 +112,7 @@ pub struct ReplyBody {
     pub reply_msg_type: MsgType,
     pub reply_created_at: DateTime<Utc>,
     pub reply_msg_details: RepliedMessageDetails,
-    pub reply_text: String
+    pub reply_text: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -134,18 +120,16 @@ pub struct ReplyBody {
 pub enum RepliedMessageDetails {
     Text(TextBody),
     Media(MediaBody),
-    Reply {reply_text: String}
+    Reply { reply_text: String },
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomChangeBody {
-    UserJoined {related_user: RoomMember },
-    UserLeft {related_user: RoomMember },
-    UserInvited {related_user: RoomMember }
+    UserJoined { related_user: RoomMember },
+    UserLeft { related_user: RoomMember },
+    UserInvited { related_user: RoomMember },
 }
-
 
 #[derive(Deserialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
@@ -153,7 +137,7 @@ pub struct NewMessage {
     pub chat_room_id: Uuid,
     #[validate(nested)]
     pub msg_body: NewMessageBody,
-    pub msg_type: MsgType
+    pub msg_type: MsgType,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -161,7 +145,7 @@ pub struct NewMessage {
 pub enum NewMessageBody {
     Text(TextBody),
     Media(MediaBody),
-    Reply(NewReplyBody)
+    Reply(NewReplyBody),
 }
 
 impl Validate for NewMessageBody {
@@ -179,5 +163,5 @@ impl Validate for NewMessageBody {
 pub struct NewReplyBody {
     pub reply_msg_id: Uuid,
     #[validate(length(min = 1, max = 4000, message = "must be between 1 and 4000 characters long."))]
-    pub reply_text: String
+    pub reply_text: String,
 }

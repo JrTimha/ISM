@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::{Error, Pool, Postgres};
 use uuid::Uuid;
-use crate::messaging::model::{Message, MessageBody, MsgType};
+use crate::messaging::model::{MessageBody, MessageEntity, MsgType};
 
 #[derive(Clone)]
 pub struct ChatRepository {
@@ -14,7 +14,7 @@ impl ChatRepository {
         ChatRepository { pool }
     }
 
-    pub async fn insert_message(&self, message: &Message) -> Result<(), Error> {
+    pub async fn insert_message(&self, message: &MessageEntity) -> Result<(), Error> {
         sqlx::query!(
             r#"
             INSERT INTO chat_message (message_id, chat_room_id, sender_id, msg_body, msg_type, created_at)
@@ -30,9 +30,9 @@ impl ChatRepository {
         Ok(())
     }
 
-    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<Message>, Error> {
+    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<MessageEntity>, Error> {
         let messages = sqlx::query_as!(
-            Message,
+            MessageEntity,
             r#"
             SELECT
                 message_id,
@@ -52,9 +52,9 @@ impl ChatRepository {
         Ok(messages)
     }
 
-    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<Message, Error> {
+    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<MessageEntity, Error> {
         let message = sqlx::query_as!(
-            Message,
+            MessageEntity,
             r#"
             SELECT
                 message_id,

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use log::error;
 use uuid::Uuid;
 use crate::core::AppState;
 use crate::errors::AppError;
@@ -15,19 +14,7 @@ impl TimelineService {
         room_id: Uuid,
         timestamp: DateTime<Utc>
     ) -> Result<Vec<MessageDTO>, AppError> {
-        
-        let data = state.message_repository.fetch_data(timestamp, room_id).await
-            .map_err(|err| AppError::Processing(err.to_string()))?;
-        
-        let mut mapped: Vec<MessageDTO> = vec![];
-        data.into_iter().for_each(|message| {
-            match message.to_dto() {
-                Ok(dto) => mapped.push(dto),
-                Err(err) => {
-                    error!("Failed to convert message to DTO: {}", err);
-                }
-            }
-        });
-        Ok(mapped)
+        let data = state.chat_repository.fetch_messages(room_id, timestamp).await?;
+        Ok(data.into_iter().map(|m| m.to_dto()).collect())
     }
 }

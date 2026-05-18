@@ -199,8 +199,7 @@ impl RoomService {
         tx.commit().await?;
 
         //2. build room change message and send it to all previous users in the room
-        let message = Message::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}))
-            .map_err(|_| AppError::Processing("Unable to create room message".to_string()))?;
+        let message = Message::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}));
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
@@ -263,7 +262,7 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
     let mut tx = state.room_repository.start_transaction().await?;
     state.room_repository.delete_room(&mut *tx, &room.id).await?;
     tx.commit().await?;
-    state.message_repository.clear_chat_room_messages(&room.id).await?;
+    state.chat_repository.delete_room_messages(&room.id).await?;
 
     state.cache.set_user_for_room(&room.id, &vec![]).await?;
 
@@ -290,7 +289,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     leaving_user.membership_status = MembershipStatus::Left;
 
     if users.len() == 1 { //last user, delete this room now
-        state.message_repository.clear_chat_room_messages(&room.id).await?;
+        state.chat_repository.delete_room_messages(&room.id).await?;
         state.room_repository.delete_room(&mut *tx, &room.id).await?;
         tx.commit().await?;
 
@@ -313,8 +312,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         Ok(())
     } else { //find and handle the leaving user
 
-        let message = Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}))
-            .map_err(|_err| AppError::Processing("Unable to create room message".to_string()))?;
+        let message = Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}));
 
         let send_to: Vec<Uuid> = users.iter().filter(|user| user.id != leaving_user.id).map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
@@ -336,11 +334,9 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 }
 
 async fn save_room_change_message_and_broadcast(message: Message, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
-    state.message_repository.insert_data(message.clone()).await?;
+    state.chat_repository.insert_message(&message).await?;
 
-    let mapped_msg = message.to_dto().map_err(|_| {
-        AppError::Processing("Unable to cast message to dto.".to_string())
-    })?;
+    let mapped_msg = message.to_dto();
 
     let notification = Notification {
         body: RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text},

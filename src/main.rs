@@ -68,8 +68,7 @@ fn init_configuration() -> ISMConfig {
     let filter = EnvFilter::builder()
         .with_env_var("ISM_LOG_LEVEL")
         .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy()
-        .add_directive("scylla=info".parse().unwrap());
+        .from_env_lossy();
 
     tracing_subscriber::fmt()
         .with_env_filter(filter)

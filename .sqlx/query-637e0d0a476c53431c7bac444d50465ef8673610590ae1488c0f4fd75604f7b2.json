@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                message_id,\n                chat_room_id,\n                sender_id,\n                msg_body AS \"msg_body: sqlx::types::Json<MessageBody>\",\n                msg_type AS \"msg_type: MsgType\",\n                created_at\n            FROM chat_message\n            WHERE message_id = $1 AND chat_room_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "message_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "chat_room_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "msg_body: sqlx::types::Json<MessageBody>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "msg_type: MsgType",
+        "type_info": {
+          "Custom": {
+            "name": "msg_type",
+            "kind": {
+              "Enum": [
+                "Text",
+                "Media",
+                "RoomChange",
+                "Reply"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "637e0d0a476c53431c7bac444d50465ef8673610590ae1488c0f4fd75604f7b2"
+}

@@ -85,10 +85,6 @@ pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
-    /// Cassandra / ScyllaDB failure.
-    #[error("Cassandra error: {0}")]
-    Cassandra(#[from] scylla::errors::ExecutionError),
-
     /// Redis cache failure.
     #[error("Cache error: {0}")]
     Cache(#[from] redis::RedisError),
@@ -117,7 +113,6 @@ impl IntoResponse for AppError {
         // Log every internal error with its full details before the message is sanitised.
         match &self {
             AppError::Database(_)
-            | AppError::Cassandra(_)
             | AppError::Cache(_)
             | AppError::Serialization(_)
             | AppError::S3(_)
@@ -132,7 +127,7 @@ impl IntoResponse for AppError {
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, ErrorCode::InsufficientPermissions, msg),
 
             // Internal — return a safe, generic message.
-            AppError::Database(_) | AppError::Cassandra(_) | AppError::Cache(_) => (
+            AppError::Database(_) | AppError::Cache(_) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 ErrorCode::ServiceUnavailable,
                 "Internal server error. Please try again later.".to_owned(),

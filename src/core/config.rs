@@ -15,7 +15,6 @@ pub struct ISMConfig {
     pub redis_cache_url: Option<String>,
     pub user_db_config: UserDbConfig,
     pub object_db_config: ObjectStorageConfig,
-    pub message_db_config: MessageDbConfig,
     pub token_issuer: TokenIssuer,
     pub kafka_config: KafkaConfig
 }
@@ -26,15 +25,6 @@ pub struct ObjectStorageConfig {
     pub storage_url: String,
     pub secret_key: String,
     pub bucket_name: String
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct MessageDbConfig {
-    pub db_url: String,
-    pub db_user: String,
-    pub db_password: String,
-    pub db_keyspace: String,
-    pub with_db_init: bool
 }
 
 #[derive(Deserialize, Debug, Clone)]

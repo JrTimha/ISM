@@ -43,7 +43,7 @@ impl UserService {
                     last_seen_id: Some(last_user.r_user.id.clone()),
                     last_seen_name: Some(last_user.r_user.display_name.clone()),
                 };
-                encode_cursor(&next_page_cursor_struct).map_err(|e| AppError::ProcessingError(format!("Cursor encoding failed: {}", e)))
+                encode_cursor(&next_page_cursor_struct).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))
             }).transpose()?
         } else {
             None
@@ -102,9 +102,9 @@ impl UserService {
         let relationship = state.user_repository.search_for_relationship(&mut tx, &sender_id, &receiver_id).await?;
         if relationship.is_some() { //don't handle this request further when the users are in a relationship
             return match relationship.unwrap().state {
-                RelationshipState::A_BLOCKED => Err(AppError::ValidationError("Relationship between users is blocked.".to_string())),
-                RelationshipState::B_BLOCKED => Err(AppError::ValidationError("Relationship between users is blocked.".to_string())),
-                RelationshipState::ALL_BLOCKED => Err(AppError::ValidationError("Relationship between users is blocked.".to_string())),
+                RelationshipState::A_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
+                RelationshipState::B_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
+                RelationshipState::ALL_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
                 RelationshipState::FRIEND => Ok(()),
                 RelationshipState::A_INVITED => Ok(()),
                 RelationshipState::B_INVITED => Ok(()),
@@ -160,7 +160,7 @@ impl UserService {
             (RelationshipState::B_INVITED, true) => {}, //valid state
             (RelationshipState::A_INVITED, false) => {}, //valid state
             _ => { //everything else is invalid
-                return Err(AppError::ValidationError(
+                return Err(AppError::Validation(
                     "Cannot accept this request. Invalid state or user.".to_string(),
                 ));
             }
@@ -206,7 +206,7 @@ impl UserService {
             (RelationshipState::B_INVITED, true) => {}, //valid state
             (RelationshipState::A_INVITED, false) => {}, //valid state
             _ => { //everything else is invalid
-                return Err(AppError::ValidationError(
+                return Err(AppError::Validation(
                     "Cannot reject this request. Invalid state or user.".to_string(),
                 ));
             }
@@ -232,7 +232,7 @@ impl UserService {
             state.user_repository.delete_relationship_state(&mut tx, relationship).await?;
             tx.commit().await?;
         } else {
-            return Err(AppError::ValidationError("These users aren't in a friend relationship.".to_string()));
+            return Err(AppError::Validation("These users aren't in a friend relationship.".to_string()));
         }
         Ok(())
     }
@@ -348,12 +348,12 @@ impl UserService {
                 None
             },
             (RelationshipState::A_BLOCKED, false) | (RelationshipState::B_BLOCKED, true) => { //client was blocked by another user
-                return Err(AppError::Blocked(
+                return Err(AppError::Forbidden(
                     "You cannot undo a block placed on you by another user.".to_string(),
                 ));
             },
             _ => { // some other state, no undo possible
-                return Err(AppError::ValidationError(
+                return Err(AppError::Validation(
                     "No active block from your side found to undo.".to_string(),
                 ));
             }

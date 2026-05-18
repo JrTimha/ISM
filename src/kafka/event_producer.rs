@@ -62,7 +62,7 @@ impl EventProducer for KafkaEventProducer {
             }
             Err((kafka_error, _)) => {
                 error!("Kafka event delivery failed: {:?}", kafka_error.to_string());
-                Err(AppError::ProcessingError("Unable to send push notification".to_string()))
+                Err(AppError::Processing("Unable to send push notification".to_string()))
             }
         }
     }

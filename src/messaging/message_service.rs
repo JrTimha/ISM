@@ -25,7 +25,7 @@ impl MessageService {
         }
 
         if !users.contains(&client_id) {
-            return Err(AppError::Blocked("User hasn't access to this room.".to_string()));
+            return Err(AppError::Forbidden("User hasn't access to this room.".to_string()));
         };
 
         let msg_body = match message.msg_body.clone() {
@@ -37,14 +37,14 @@ impl MessageService {
             }
             NewMessageBody::Reply(reply) => {
                 let reply = MessageService::create_reply_message(&reply, &state, &message.chat_room_id).await.map_err(|err| {
-                    AppError::ProcessingError(format!("Can't create reply message: {}", err.to_string()))
+                    AppError::Processing(format!("Can't create reply message: {}", err.to_string()))
                 })?;
                 MessageBody::Reply(reply)
             }
         };
 
         let msg = Message::new(message.chat_room_id, client_id, msg_body).map_err(|_err| {
-            AppError::ProcessingError("Can't create chat message.".to_string())
+            AppError::Processing("Can't create chat message.".to_string())
         })?;
 
         //1. save message to nosql db:
@@ -54,7 +54,7 @@ impl MessageService {
         let client_entity = state.room_repository.select_joined_user_by_id(&message.chat_room_id, &client_id).await?;
         let room_preview_text = MessageService::generate_room_preview_text(&message, client_entity.display_name);
         let preview_str = serde_json::to_string(&room_preview_text).map_err(|err| {
-            AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
+            AppError::Processing(format!("Can't serialize message: {}", err.to_string()))
         })?;
 
         let mut tx = state.room_repository.start_transaction().await?;
@@ -64,7 +64,7 @@ impl MessageService {
 
         //3. broadcast message to all room members:
         let message_dto = msg.to_dto().map_err(|err| {
-            AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
+            AppError::Processing(format!("Can't serialize message: {}", err.to_string()))
         })?;
         let notification = msg.to_notification(room_preview_text)?;
         BroadcastChannel::get().send_event_to_all(users, notification).await;

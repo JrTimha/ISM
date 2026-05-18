@@ -17,7 +17,7 @@ pub async fn check_user_in_room(
     if is_in {
         Ok(())
     } else {
-        Err(AppError::Blocked("Invalid permissions to interact with this room".to_string()))
+        Err(AppError::Forbidden("Invalid permissions to interact with this room".to_string()))
     }
 }
 

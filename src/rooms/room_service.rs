@@ -93,7 +93,7 @@ impl RoomService {
         if room_entity.room_type == RoomType::Single {
             let other_user = match users.iter().find(|&&entry| entry != client_id) {
                 Some(other_user) => other_user,
-                None => return Err(AppError::ValidationError("Can't find other user.".to_string()))
+                None => return Err(AppError::Validation("Can't find other user.".to_string()))
             };
 
             //sending 2 specific room views to the users, because private rooms are shown like another user
@@ -118,7 +118,7 @@ impl RoomService {
 
                 Ok(creator_room.to_dto())
             } else {
-                Err(AppError::ProcessingError("Newly created room is null.".to_string()))
+                Err(AppError::Processing("Newly created room is null.".to_string()))
             }
         } else { //is group room
             let room_dto = room_entity.to_dto();
@@ -148,7 +148,7 @@ impl RoomService {
         let leaving_user = match users.iter().find(|user| user.id == client_id) {
             Some(user) => user.clone(),
             None => {
-                return Err(AppError::Blocked("Client is not in this room.".to_string()))
+                return Err(AppError::Forbidden("Client is not in this room.".to_string()))
             }
         };
 
@@ -174,18 +174,18 @@ impl RoomService {
 
 
         if room.room_type == RoomType::Single {
-            return Err(AppError::ValidationError("Private rooms doesn't allow invites!.".to_string()))
+            return Err(AppError::Validation("Private rooms doesn't allow invites!.".to_string()))
         };
 
         //we have to check if the inviter is in the room and the invited user isn't!
         users.iter().find(|user| user.id == client_id).ok_or_else(|| {
-            AppError::Blocked("Client is not in this room.".to_string())
+            AppError::Forbidden("Client is not in this room.".to_string())
         })?;
 
 
         let user_to_exclude = users.iter().find(|user| user.id == user_id);
         if user_to_exclude.is_some() {
-            return Err(AppError::BadRequest("User is already in this room.".to_string()))
+            return Err(AppError::Validation("User is already in this room.".to_string()))
         }
 
         //1. add him to the room
@@ -193,14 +193,14 @@ impl RoomService {
         let user = state.room_repository.add_user_to_room(&mut *tx, &user_id, &room_id).await?;
         let preview_text = LastMessagePreviewText::RoomChange { sender_username: user.display_name.clone(), room_change_type: RoomChangeType::JOIN};
         let preview_str = serde_json::to_string(&preview_text).map_err(|_| {
-            AppError::ProcessingError("Can't serialize room preview text".to_string())
+            AppError::Processing("Can't serialize room preview text".to_string())
         })?;
         state.room_repository.update_last_room_message(&mut *tx, &room_id, &preview_str).await?;
         tx.commit().await?;
 
         //2. build room change message and send it to all previous users in the room
         let message = Message::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}))
-            .map_err(|_| AppError::ProcessingError("Unable to create room message".to_string()))?;
+            .map_err(|_| AppError::Processing("Unable to create room message".to_string()))?;
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
@@ -208,7 +208,7 @@ impl RoomService {
 
         //sending new room event to invited user
         let room_for_user = state.room_repository.find_specific_joined_room(&room_id, &user_id).await?.ok_or_else(|| {
-            AppError::ProcessingError("Unable to find room for the invited user.".to_string())
+            AppError::Processing("Unable to find room for the invited user.".to_string())
         })?;
 
         BroadcastChannel::get().send_event(
@@ -231,13 +231,13 @@ impl RoomService {
 
         let img = crop_image_from_center(&image_data, 500, 500).map_err(|err| {
             error!("Unable to crop image: {}", err.to_string());
-            AppError::ProcessingError("Unable to crop image.".to_string())
+            AppError::Processing("Unable to crop image.".to_string())
         })?;
 
         let object_id = format!("{}/{}", state.env.object_db_config.bucket_name, room_id);
         if let Err(err) = state.s3_bucket.insert_object(&room_id.to_string(), img).await {
             error!("{}", err.to_string());
-            return Err(AppError::S3Error("Unable save image in s3 bucket.".to_string()))
+            return Err(AppError::S3("Unable save image in s3 bucket.".to_string()))
         };
         state.room_repository.update_room_img_url(&room_id, &object_id).await?;
         let response = UploadResponse {
@@ -283,7 +283,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 
     let preview_message = LastMessagePreviewText::RoomChange { sender_username: leaving_user.display_name.clone(), room_change_type: RoomChangeType::LEAVE };
     let preview_text = serde_json::to_string(&preview_message).map_err(|err| {
-        AppError::ProcessingError(format!("Unable to serialize last message preview text: {}", err.to_string()))
+        AppError::Processing(format!("Unable to serialize last message preview text: {}", err.to_string()))
     })?;
 
     state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user.id, &preview_text).await?;
@@ -307,14 +307,14 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         //delete room image if it exists:
         if let Some(_url) = room.room_image_url {
             state.s3_bucket.delete_object(&room.id.to_string()).await
-                .map_err(|_| AppError::ProcessingError("Unable to delete image from room".to_string()))?;
+                .map_err(|_| AppError::Processing("Unable to delete image from room".to_string()))?;
         }
 
         Ok(())
     } else { //find and handle the leaving user
 
         let message = Message::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}))
-            .map_err(|_err| AppError::ProcessingError("Unable to create room message".to_string()))?;
+            .map_err(|_err| AppError::Processing("Unable to create room message".to_string()))?;
 
         let send_to: Vec<Uuid> = users.iter().filter(|user| user.id != leaving_user.id).map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
@@ -339,7 +339,7 @@ async fn save_room_change_message_and_broadcast(message: Message, state: &Arc<Ap
     state.message_repository.insert_data(message.clone()).await?;
 
     let mapped_msg = message.to_dto().map_err(|_| {
-        AppError::ProcessingError("Unable to cast message to dto.".to_string())
+        AppError::Processing("Unable to cast message to dto.".to_string())
     })?;
 
     let notification = Notification {

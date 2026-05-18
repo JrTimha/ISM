@@ -45,7 +45,6 @@ pub async fn handle_get_users_in_room(
     Extension(token): Extension<KeycloakToken<String>>,
     Path(room_id): Path<Uuid>
 ) -> Result<Json<Vec<RoomMember>>, AppError> {
-
     check_user_in_room(&state, &token.subject, &room_id).await?;
     let users = RoomService::get_users_in_room(state, room_id).await?;
     Ok(Json(users))
@@ -86,7 +85,7 @@ pub async fn handle_create_room(
 ) -> Result<Json<ChatRoomDto>, AppError> {
 
     if !payload.invited_users.contains(&token.subject) {
-        return Err(AppError::ValidationError("Sender ID is not in the list of invited users.".to_string()));
+        return Err(AppError::Validation("Sender ID is not in the list of invited users.".to_string()));
     }
     
     
@@ -99,19 +98,19 @@ pub async fn handle_create_room(
     match payload.room_type {
         RoomType::Single => {
             if payload.invited_users.len() != 2 {
-                return Err(AppError::ValidationError("Personal rooms must have exactly two IDs (sender + one other).".to_string()));
+                return Err(AppError::Validation("Personal rooms must have exactly two IDs (sender + one other).".to_string()));
             }
             let other_user = payload.invited_users.iter().find(|&&el| el != token.subject).ok_or_else(|| {
-                AppError::ValidationError("Personal rooms must contain another user.".to_string())
+                AppError::Validation("Personal rooms must contain another user.".to_string())
             })?;
             let has_active_chat = RoomService::find_existing_single_room(state.clone(), &token.subject, other_user).await?;
             if has_active_chat.is_some() {
-                return Err(AppError::ValidationError("User already has an active personal chat.".to_string()));
+                return Err(AppError::Validation("User already has an active personal chat.".to_string()));
             }
         }
         RoomType::Group => {
             if payload.invited_users.len() < 2 {
-                return Err(AppError::ValidationError("Groups must have more than one user.".to_string()));
+                return Err(AppError::Validation("Groups must have more than one user.".to_string()));
             }
         }
     }
@@ -145,7 +144,7 @@ pub async fn handle_invite_to_room(
 
     let ignored = UserService::get_blocked_users(state.clone(), &token.subject, &vec!(user_id)).await?;
     if ignored.contains(&user_id) {
-        return Err(AppError::Blocked("User is blocked.".to_string()));
+        return Err(AppError::Forbidden("User is blocked.".to_string()));
     }
 
     RoomService::invite_to_room(state, token.subject, room_id, user_id).await?;
@@ -177,7 +176,7 @@ pub async fn handle_save_room_image(
                     let data = match field.bytes().await {
                         Ok(data) => data,
                         Err(_) => {
-                            return Err(AppError::ValidationError("Error reading the image byte stream.".to_string()))
+                            return Err(AppError::Validation("Error reading the image byte stream.".to_string()))
                         }
                     };
                     image_data = Some(data);
@@ -189,7 +188,7 @@ pub async fn handle_save_room_image(
             }
             Err(err) => { //read error
                 error!("Bad image upload: {}", err.to_string());
-                return Err(AppError::ValidationError("Error reading the image byte stream.".to_string()))
+                return Err(AppError::Validation("Error reading the image byte stream.".to_string()))
             }
         }
     }
@@ -198,7 +197,7 @@ pub async fn handle_save_room_image(
         let response = RoomService::set_room_image(state, room_id, image_data).await?;
         Ok(Json(response))
     } else {
-        Err(AppError::ValidationError("Required field 'image' not found in the upload.".to_string()))
+        Err(AppError::Validation("Required field 'image' not found in the upload.".to_string()))
     }
 }
 

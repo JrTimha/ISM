@@ -17,7 +17,7 @@ impl TimelineService {
     ) -> Result<Vec<MessageDTO>, AppError> {
         
         let data = state.message_repository.fetch_data(timestamp, room_id).await
-            .map_err(|err| AppError::DatabaseError(err))?;
+            .map_err(|err| AppError::Processing(err.to_string()))?;
         
         let mut mapped: Vec<MessageDTO> = vec![];
         data.into_iter().for_each(|message| {

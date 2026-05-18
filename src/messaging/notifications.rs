@@ -160,7 +160,7 @@ pub async fn get_latest_notification_events(
 ) -> AppResponse<Json<Vec<Notification>>> {
 
     let notifications = state.cache.get_notifications_for_user(&token.subject, params.timestamp).await.map_err(|_| {
-        AppError::ProcessingError("Error getting notifications: Cache Error".to_string())
+        AppError::Processing("Error getting notifications: Cache Error".to_string())
     })?;
     Ok(Json(notifications))
 }

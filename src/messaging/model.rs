@@ -67,7 +67,7 @@ impl Message {
 
     pub fn to_notification(&self, preview_text: LastMessagePreviewText) -> Result<Notification, AppError> {
         let mapped_msg = self.to_dto().map_err(|err| {
-            AppError::ProcessingError(format!("Can't serialize message: {}", err.to_string()))
+            AppError::Processing(format!("Can't serialize message: {}", err.to_string()))
         })?;
         let notification = Notification {
             body: ChatMessage {message: mapped_msg.clone(), room_preview_text: preview_text },
@@ -93,13 +93,13 @@ impl MessageDTO {
 
     pub fn from_json_str(s: &str) -> Result<MessageDTO, AppError> {
         serde_json::from_str(s).map_err(|err| {
-            AppError::ProcessingError(format!("Error parsing message: {}", err))
+            AppError::Processing(format!("Error parsing message: {}", err))
         })
     }
 
     pub fn json_str(&self) -> Result<String, AppError> {
         serde_json::to_string(self).map_err(|err| {
-            AppError::ProcessingError(format!("Error parsing message: {}", err))
+            AppError::Processing(format!("Error parsing message: {}", err))
         })
     }
 }

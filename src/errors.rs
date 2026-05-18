@@ -1,12 +1,9 @@
-use std::error::Error;
-use std::{fmt};
-use std::fmt::{Display, Formatter};
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
-use redis::RedisError;
 use serde::Serialize;
+use thiserror::Error;
 use validator::ValidationErrors;
 
 #[derive(Serialize)]
@@ -15,9 +12,23 @@ pub struct ErrorResponse {
     status: u16,
     error: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     path: Option<String>,
     #[serde(rename = "errorCode")]
     error_code: ErrorCode,
+}
+
+impl ErrorResponse {
+    pub fn new(status: StatusCode, error_code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            timestamp: Utc::now().to_rfc3339(),
+            status: status.as_u16(),
+            error: status.canonical_reason().unwrap_or("Unknown").to_string(),
+            message: message.into(),
+            path: None,
+            error_code,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -35,7 +46,6 @@ pub enum ErrorCode {
     MessageNotFound,
     InvalidContent,
     FileProcessingError,
-
     ContentNotFound,
 
     // General API & Validation Errors
@@ -44,234 +54,103 @@ pub enum ErrorCode {
     UnexpectedError,
 }
 
-impl ErrorCode {
-    fn to_str(&self) -> String {
-        match self {
-            ErrorCode::UnexpectedError => "Server Error. Please try again later".to_string(),
-            ErrorCode::UserNotFound => "User not found.".to_string(),
-            ErrorCode::InsufficientPermissions => "You are not allowed to perform this action".to_string(),
-            _ => format!("{:?}", self),
-        }
-    }
-}
-
-impl Display for ErrorCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_str().to_owned())
-    }
-}
-
-#[derive(Debug)]
-pub struct HttpError {
-    pub status_code: StatusCode,
-    pub error_code: ErrorCode,
-    pub message: String,
-}
-
-impl HttpError {
-
-    pub fn new(status_code: StatusCode, error_code: ErrorCode, message: impl Into<String>) -> Self {
-        Self {
-            status_code,
-            error_code,
-            message: message.into(),
-        }
-    }
-
-    pub fn bad_request(error_code: ErrorCode, message: impl Into<String>) -> Self {
-        Self {
-            status_code: StatusCode::BAD_REQUEST,
-            error_code,
-            message: message.into(),
-        }
-    }
-
-
-}
-
-
-impl IntoResponse for HttpError {
-    fn into_response(self) -> Response {
-
-        tracing::error!("An error occurred: status={}, code={:?}, msg='{}'", self.status_code, self.error_code, self.message);
-
-        let status = self.status_code;
-
-        let error_response = ErrorResponse {
-            timestamp: Utc::now().to_rfc3339(),
-            status: status.as_u16(),
-            error: status.canonical_reason().unwrap_or("Unknown Status").to_string(),
-            message: self.message,
-            path: None,
-            error_code: self.error_code,
-        };
-
-        (status, Json(error_response)).into_response()
-    }
-}
-
+/// Application-level error type used across handlers and services.
+///
+/// Variants are split into two groups:
+///
+/// **Client-facing** – the message is passed through to the HTTP response body.
+/// Use these when the caller needs actionable feedback (bad input, missing resource, no permission).
+///
+/// **Internal** – the full error is logged server-side; only a generic message reaches the client.
+/// Use these for infrastructure failures (database, cache, S3) where internal details must not leak.
+#[derive(Debug, Error)]
 pub enum AppError {
-    /// Ein Fehler, der von einer ungültigen Anfrage des Clients herrührt.
-    ValidationError(String),
+    // ── Client-facing ────────────────────────────────────────────────────────
 
-    /// Ein angeforderter Datensatz wurde nicht gefunden.
+    /// 400 – invalid or rejected input from the caller.
+    #[error("{0}")]
+    Validation(String),
+
+    /// 404 – the requested resource does not exist.
+    #[error("{0}")]
     NotFound(String),
 
-    /// Ein Fehler, der aus der Datenbank kommt. Wir verpacken den ursprünglichen Fehler.
-    /// `Box<dyn Error + Send + Sync>` ist der Standardweg in Rust, um einen beliebigen Fehler zu speichern.
-    DatabaseError(Box<dyn Error + Send + Sync>),
+    /// 403 – the caller is authenticated but lacks the required permission.
+    #[error("{0}")]
+    Forbidden(String),
 
-    /// Ein interner Fehler bei der Verarbeitung, z.B. beim Kodieren/Dekodieren.
-    ProcessingError(String),
+    // ── Internal (logged; generic message sent to client) ────────────────────
 
-    Blocked(String),
+    /// PostgreSQL / SQLx failure.
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
 
-    S3Error(String),
+    /// Cassandra / ScyllaDB failure.
+    #[error("Cassandra error: {0}")]
+    Cassandra(#[from] scylla::errors::ExecutionError),
 
-    BadRequest(String),
+    /// Redis cache failure.
+    #[error("Cache error: {0}")]
+    Cache(#[from] redis::RedisError),
 
-    CacheError(RedisError),
+    /// JSON serialisation / deserialisation failure.
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
 
-    Generic(Box<dyn Error + Send + Sync>),
+    /// S3 / MinIO object-storage failure.
+    #[error("S3 error: {0}")]
+    S3(String),
 
-}
-
-impl fmt::Debug for AppError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ValidationError(msg) => write!(f, "ValidationError: {}", msg),
-            Self::NotFound(msg) => write!(f, "NotFound: {}", msg),
-            Self::DatabaseError(err) => write!(f, "DatabaseError: {}", err),
-            Self::ProcessingError(msg) => write!(f, "ProcessingError: {}", msg),
-            Self::Blocked(msg) => write!(f, "Blocked: {}", msg),
-            Self::S3Error(msg) => write!(f, "S3Error: {}", msg),
-            Self::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
-            Self::CacheError(err) => write!(f, "CacheError: {}", err),
-            Self::Generic(err) => write!(f, "An Generic unexpected error occurred: {}", err),
-        }
-    }
-}
-
-impl Display for AppError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::ValidationError(msg) => write!(f, "Invalid input: {}", msg),
-            AppError::NotFound(msg) => write!(f, "Entity not found: {}", msg),
-            AppError::DatabaseError(err) => write!(f, "Ein Datenbankfehler ist aufgetreten: {}", err),
-            AppError::ProcessingError(msg) => write!(f, "Ein Verarbeitungsfehler ist aufgetreten: {}", msg),
-            AppError::Blocked(msg) => write!(f, "Blocked: {}", msg),
-            AppError::S3Error(msg) => write!(f, "S3Error: {}", msg),
-            AppError::BadRequest(msg) => write!(f, "BadRequest: {}", msg),
-            AppError::CacheError(err) => write!(f, "CacheError: {}", err),
-            AppError::Generic(err) => write!(f, "An Generic unexpected error occurred: {}", err),
-        }
-    }
-}
-
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> AppError {
-        AppError::DatabaseError(Box::new(err))
-    }
-}
-
-impl From<scylla::errors::ExecutionError> for AppError {
-    fn from(err: scylla::errors::ExecutionError) -> AppError {
-        AppError::DatabaseError(Box::new(err))
-    }
-}
-
-impl From<redis::RedisError> for AppError {
-    fn from(err: RedisError) -> AppError {
-        AppError::CacheError(err)
-    }
-}
-
-impl From<serde_json::Error> for AppError {
-    fn from(err: serde_json::Error) -> AppError {
-        AppError::ProcessingError(err.to_string())
-    }
-}
-
-impl Error for AppError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            AppError::DatabaseError(err) => Some(err.as_ref()),
-            _ => None,
-        }
-    }
+    /// Any other internal processing failure not covered by the variants above.
+    #[error("Processing error: {0}")]
+    Processing(String),
 }
 
 impl From<ValidationErrors> for AppError {
     fn from(errors: ValidationErrors) -> Self {
-        AppError::BadRequest(errors.to_string())
+        AppError::Validation(errors.to_string())
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        // Log every internal error with its full details before the message is sanitised.
+        match &self {
+            AppError::Database(_)
+            | AppError::Cassandra(_)
+            | AppError::Cache(_)
+            | AppError::Serialization(_)
+            | AppError::S3(_)
+            | AppError::Processing(_) => tracing::error!("{}", self),
+            _ => {}
+        }
 
-        let http_error = match self {
-            AppError::ValidationError(msg) => {
-                HttpError::new(StatusCode::BAD_REQUEST, ErrorCode::ValidationError, msg)
-            }
-            AppError::NotFound(msg) => {
-                HttpError::new(StatusCode::NOT_FOUND, ErrorCode::ContentNotFound, msg)
-            }
-            AppError::DatabaseError(internal_err) => {
-                tracing::error!("Database error: {:?}", internal_err);
-                HttpError::new(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    ErrorCode::UnexpectedError,
-                    "Internal Database Error. Try again."
-                )
-            }
-            AppError::ProcessingError(msg) => {
-                tracing::error!("Intern processing error: {}", msg);
-                HttpError::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorCode::UnexpectedError,
-                    "Unexpected server error processing."
-                )
-            }
-            AppError::Blocked(msg) => {
-                HttpError::new(
-                    StatusCode::UNAUTHORIZED,
-                    ErrorCode::InsufficientPermissions,
-                    msg
-                )
-            }
-            AppError::S3Error(msg) => {
-                HttpError::new(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    ErrorCode::UnexpectedError,
-                    msg
-                )
-            }
-            AppError::BadRequest(msg) => {
-                HttpError::new(
-                    StatusCode::BAD_REQUEST,
-                    ErrorCode::ValidationError,
-                    msg
-                )
-            }
-            AppError::CacheError(err) => {
-                tracing::error!("Cache error: {:?}", err.to_string());
-                HttpError::new(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    ErrorCode::UnexpectedError,
-                    "Internal Cache Error. Try again."
-                )
-            }
-            AppError::Generic(err) => {
-                HttpError::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorCode::UnexpectedError,
-                    format!("An unexpected error occurred: {}", err)
-                )
-            }
+        let (status, error_code, message) = match self {
+            // Client-facing — pass the message through unchanged.
+            AppError::Validation(msg) => (StatusCode::BAD_REQUEST, ErrorCode::ValidationError, msg),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, ErrorCode::ContentNotFound, msg),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, ErrorCode::InsufficientPermissions, msg),
+
+            // Internal — return a safe, generic message.
+            AppError::Database(_) | AppError::Cassandra(_) | AppError::Cache(_) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorCode::ServiceUnavailable,
+                "Internal server error. Please try again later.".to_owned(),
+            ),
+            AppError::S3(_) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorCode::FileProcessingError,
+                "File operation failed. Please try again later.".to_owned(),
+            ),
+            AppError::Serialization(_) | AppError::Processing(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorCode::UnexpectedError,
+                "An unexpected error occurred.".to_owned(),
+            ),
         };
 
-        http_error.into_response()
+        let body = ErrorResponse::new(status, error_code, message);
+        (status, Json(body)).into_response()
     }
 }
 

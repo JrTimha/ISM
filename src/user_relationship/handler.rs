@@ -34,7 +34,7 @@ pub async fn handle_search_user_by_name(
 ) -> Result<Json<CursorResults<UserWithRelationshipDto>>, AppError> {
 
     let cursor: UserPaginationCursor = decode_cursor(params.cursor)
-        .map_err(|_| AppError::ValidationError("Invalid Cursor-Parameters.".to_string()))?;
+        .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
 
     let search_results = UserService::query_user_by_name(
         state,
@@ -75,7 +75,7 @@ pub async fn handle_add_friend(
 ) -> Result<(), AppError> {
 
     if token.subject == user_id {
-        return Err(AppError::ValidationError("Cannot friendship yourself.".to_string()));
+        return Err(AppError::Validation("Cannot friendship yourself.".to_string()));
     }
     UserService::add_friend(state, token.subject, user_id).await?;
     Ok(())
@@ -116,7 +116,7 @@ pub async fn handle_ignore_user(
 )-> AppResponse<Json<RelationshipStateResponse>> {
 
     if token.subject == user_id {
-       return Err(AppError::ValidationError("Cannot ignore yourself.".to_string()));
+       return Err(AppError::Validation("Cannot ignore yourself.".to_string()));
     }
     let updated_state = UserService::ignore_user(state.clone(), token.subject.clone(), user_id.clone()).await?;
     let room = RoomService::find_existing_single_room(state.clone(), &token.subject, &user_id).await?;

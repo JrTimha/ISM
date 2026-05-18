@@ -1,9 +1,13 @@
 use std::sync::Arc;
+use axum::body::to_bytes;
+use axum::extract::{MatchedPath, Request};
 use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::Uri;
 use axum::{Router};
 use axum::extract::DefaultBodyLimit;
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use axum::response::IntoResponse;
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get};
 use http::header::{CONNECTION, CONTENT_LENGTH, ORIGIN};
 use tower_http::cors::CorsLayer;
@@ -38,7 +42,6 @@ pub async fn init_router(app_state: AppState) -> Router {
         .merge(create_room_routes())
         .merge(create_user_routes())
         .merge(create_messaging_routes())
-        
         //layering bottom to top middleware
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware
@@ -47,8 +50,44 @@ pub async fn init_router(app_state: AppState) -> Router {
                 .layer(init_auth(app_state.env.token_issuer.clone())) //3..
                 .layer(DefaultBodyLimit::max(5 * 1024 * 1024)) //max 5mb files
         )
+        .layer(axum::middleware::from_fn(inject_request_path))
         .with_state(Arc::new(app_state));
     public_routing.merge(protected_routing)
+}
+
+async fn inject_request_path(
+    matched_path: Option<MatchedPath>,
+    uri: Uri,
+    req: Request,
+    next: Next,
+) -> Response {
+    let path = matched_path
+        .map(|mp| mp.as_str().to_owned())
+        .unwrap_or_else(|| uri.path().to_owned());
+
+    let response = next.run(req).await;
+
+    if !response.status().is_client_error() && !response.status().is_server_error() {
+        return response;
+    }
+
+    let (mut parts, body) = response.into_parts();
+    let bytes = match to_bytes(body, 64 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return Response::from_parts(parts, axum::body::Body::empty()),
+    };
+
+    if let Ok(mut json) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+        if let Some(obj) = json.as_object_mut() {
+            obj.insert("path".to_owned(), serde_json::json!(path));
+        }
+        if let Ok(new_body) = serde_json::to_vec(&json) {
+            parts.headers.remove(CONTENT_LENGTH);
+            return Response::from_parts(parts, axum::body::Body::from(new_body));
+        }
+    }
+
+    Response::from_parts(parts, axum::body::Body::from(bytes))
 }
 
 fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<String> {

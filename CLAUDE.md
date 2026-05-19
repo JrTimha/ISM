@@ -66,10 +66,9 @@ Layered TOML loading: `default.config.toml` → `{mode}.config.toml` → environ
 
 `BroadcastChannel` is a global singleton (OnceCell) holding a `HashMap<UUID, broadcast::Sender<Notification>>` — one sender per connected user. SSE and WebSocket handlers subscribe by calling `BroadcastChannel::subscribe(user_id)` and loop receiving events. Notifications are always broadcast **after** successful DB writes. `notification.rs` defines the `NotificationEvent` enum (ChatMessage, RoomUpdated, FriendRequest, ReadStatus, etc.).
 
-### Dual Database Pattern
+### Database Pattern
 
-- **PostgreSQL**: Users, rooms, participants, friend requests — anything requiring strong consistency. Queries are compile-time type-checked via SQLx macros against `.sqlx/` metadata.
-- **Cassandra**: Messages only — partitioned by `chat_room_id`, sorted by `created_at DESC`. Optimized for high-write throughput and time-series range scans.
+- **PostgreSQL**: Users, chat messages, rooms, participants, friend requests — anything requiring strong consistency. Queries are compile-time type-checked via SQLx macros against `.sqlx/` metadata.
 - **Redis**: Optional caching of relationship states, room member lists. Falls back to NoOp if unavailable.
 
 ### Authentication

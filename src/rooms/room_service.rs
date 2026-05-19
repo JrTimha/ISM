@@ -48,31 +48,18 @@ impl RoomService {
         state.room_repository.update_user_read_status(pl, &room_id, &client_id).await?;
 
         let room = state.room_repository.select_room(&room_id).await?;
-        if let Some(latest_msg_time) = room.latest_message {
-            let user = state.room_repository.select_joined_user_by_id(&room_id, &client_id).await?;
-            if let Some(read_time) = user.last_message_read_at {
-                if read_time >= latest_msg_time {
-                    let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
-                    BroadcastChannel::get().send_event_to_all(
-                        users_in_room,
-                        Notification {
-                            body: UserReadChat { user_id: client_id, room_id },
-                            created_at: Utc::now()
-                        }
-                    ).await;
-                }
-            }
-        } else {
-            let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
-            BroadcastChannel::get().send_event_to_all(
-                users_in_room,
-                Notification {
-                    body: UserReadChat { user_id: client_id, room_id },
-                    created_at: Utc::now()
-                }
-            ).await;
+        if room.latest_message.is_none() {
+            return Ok(());
         }
 
+        let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
+        BroadcastChannel::get().send_event_to_all(
+            users_in_room,
+            Notification {
+                body: UserReadChat { user_id: client_id, room_id },
+                created_at: Utc::now()
+            }
+        ).await;
         Ok(())
     }
 
@@ -194,10 +181,7 @@ impl RoomService {
         let mut tx = state.room_repository.start_transaction().await?;
         let user = state.room_repository.add_user_to_room(&mut *tx, &user_id, &room_id).await?;
         let preview_text = LastMessagePreviewText::RoomChange { sender_username: user.display_name.clone(), room_change_type: RoomChangeType::JOIN};
-        let preview_str = serde_json::to_string(&preview_text).map_err(|_| {
-            AppError::Processing("Can't serialize room preview text".to_string())
-        })?;
-        state.room_repository.update_last_room_message(&mut *tx, &room_id, &preview_str).await?;
+        state.room_repository.update_last_room_message(&mut *tx, &room_id, &preview_text).await?;
         tx.commit().await?;
 
         //2. build room change message and send it to all previous users in the room
@@ -283,11 +267,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     let mut tx = state.room_repository.start_transaction().await?;
 
     let preview_message = LastMessagePreviewText::RoomChange { sender_username: leaving_user.display_name.clone(), room_change_type: RoomChangeType::LEAVE };
-    let preview_text = serde_json::to_string(&preview_message).map_err(|err| {
-        AppError::Processing(format!("Unable to serialize last message preview text: {}", err.to_string()))
-    })?;
-
-    state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user.id, &preview_text).await?;
+    state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user.id, &preview_message).await?;
     leaving_user.membership_status = MembershipStatus::Left;
 
     if users.len() == 1 { //last user, delete this room now

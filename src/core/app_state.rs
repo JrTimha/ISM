@@ -32,20 +32,22 @@ impl AppState {
             .database(&config.user_db_config.db_name)
             .username(&config.user_db_config.db_user)
             .password(&config.user_db_config.db_password);
+
         let pool = match PgPoolOptions::new()
             .max_connections(20)
             .connect_with(options)
             .await
         {
             Ok(pool) => {
-                info!("Established connection to the object_storage.");
+                info!("Established connection to the PostgreSQL database.");
                 pool
             }
             Err(err) => {
-                panic!("Failed to connect to the object_storage: {:?}", err);
+                panic!("Failed to connect to the PostgreSQL database: {:?}", err);
             }
         };
 
+        //2: init redis cache, if present:
         let cache: Arc<dyn Cache> = match config.redis_cache_url.clone() {
             Some(url) => {
                 let cache = RedisCache::new(url).await
@@ -58,13 +60,13 @@ impl AppState {
             }
         };
 
-        //init broadcaster channel
+        //3. init broadcaster channel:
         BroadcastChannel::init(
             cache.clone(),
             PushNotificationProducer::new(config.use_kafka, config.kafka_config.clone())
         ).await;
 
-        //2. State struct:
+        //4. init application state:
         let state = Self {
             env: config.clone(),
             room_repository: RoomRepository::new(pool.clone()),

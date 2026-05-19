@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
+use sqlx::types::Json;
 use uuid::Uuid;
 use crate::rooms::room::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomType};
 use crate::rooms::room_member::{MembershipStatus, RoomMember, RoomMemberContext};
@@ -84,7 +85,7 @@ impl RoomRepository {
                 room.room_type AS "room_type: RoomType",
                 room.created_at,
                 room.latest_message,
-                room.latest_message_preview_text,
+                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
                 COALESCE(other_user.display_name, room.room_name) AS room_name,
                 COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
                 COALESCE(p1.last_message_read_at < room.latest_message, TRUE) AS unread
@@ -132,7 +133,7 @@ impl RoomRepository {
                 room.room_type AS "room_type: RoomType",
                 room.created_at,
                 room.latest_message,
-                room.latest_message_preview_text,
+                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
                 COALESCE(other_user.display_name, room.room_name) AS room_name,
                 COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
                 COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread
@@ -166,20 +167,14 @@ impl RoomRepository {
 
     pub async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
 
-        let preview_text = serde_json::to_string(
-            &LastMessagePreviewText::New
-        ).map_err(|_| {
-            sqlx::Error::InvalidArgument("Can't serialize room preview text".to_string())
-        })?;
-
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
             room_type: new_room.room_type,
             room_name: new_room.room_name,
             room_image_url: None,
             created_at: Utc::now(),
-            latest_message: Option::from(Utc::now()),
-            latest_message_preview_text: Option::from(preview_text),
+            latest_message: Some(Utc::now()),
+            latest_message_preview_text: Some(Json(LastMessagePreviewText::New)),
             unread: None
         };
 
@@ -191,14 +186,14 @@ impl RoomRepository {
             r#"
             INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text, room_image_url, TRUE as "unread: _"
+            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>", room_image_url, TRUE as "unread: _"
             "#,
             room_entity.id,
             room_entity.room_type.to_string(),
             room_entity.room_name,
             room_entity.created_at,
             room_entity.latest_message,
-            room_entity.latest_message_preview_text
+            room_entity.latest_message_preview_text as Option<Json<LastMessagePreviewText>>
         ).fetch_one(&mut *tx).await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
@@ -220,7 +215,15 @@ impl RoomRepository {
         let room_details = sqlx::query_as!(
             ChatRoomEntity,
             r#"
-            SELECT id, room_type as "room_type: RoomType", room_name, created_at, latest_message, room_image_url, latest_message_preview_text, NULL::boolean as "unread: _"
+            SELECT
+                id,
+                room_type as "room_type: RoomType",
+                room_name,
+                created_at,
+                latest_message,
+                room_image_url,
+                latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
+                NULL::boolean as "unread: _"
             FROM chat_room
             WHERE id = $1
             "#, room_id).fetch_one(&self.pool).await?;
@@ -317,12 +320,12 @@ impl RoomRepository {
     /// Like this: state.room_repository.get_connection().acquire().await.unwrap();
     ///
     /// [workaround]: https://github.com/launchbadge/sqlx/issues/1015#issuecomment-767787777
-    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, preview_text: &String) -> Result<(), sqlx::Error>
+    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, preview_text: &LastMessagePreviewText) -> Result<(), sqlx::Error>
     {
         sqlx::query!(
             "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
             room_id,
-            preview_text
+            Json(preview_text) as Json<&LastMessagePreviewText>
         ).execute(&mut *conn).await?;
         Ok(())
     }
@@ -340,9 +343,28 @@ impl RoomRepository {
     }
 
 
-    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user_id: &Uuid, preview_text: &String) -> Result<(), sqlx::Error> {
-        sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&mut *conn).await?;
-        sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, preview_text).execute(&mut *conn).await?;
+    pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user_id: &Uuid, preview_text: &LastMessagePreviewText) -> Result<(), sqlx::Error> {
+        sqlx::query!(r#"
+            UPDATE chat_room_participant
+                SET participant_state = 'Left'
+            WHERE user_id = $1 AND room_id = $2
+            "#,
+            user_id,
+            room_id
+        )
+        .execute(&mut *conn)
+        .await?;
+
+        sqlx::query!(r#"
+            UPDATE chat_room
+                SET latest_message = NOW(),latest_message_preview_text = $2
+            WHERE id = $1
+            "#,
+            room_id,
+            Json(preview_text) as Json<&LastMessagePreviewText>
+        )
+        .execute(&mut *conn)
+        .await?;
         Ok(())
     }
 
@@ -372,7 +394,7 @@ impl RoomRepository {
         &self,
         conn: &mut PgConnection,
         room_id: &Uuid,
-        preview_text: &str,
+        preview_text: &LastMessagePreviewText,
         sender_id: &Uuid,
         timestamp: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
@@ -389,7 +411,7 @@ impl RoomRepository {
             WHERE user_id = $4 AND room_id = $1
             "#,
             room_id,
-            preview_text,
+            Json(preview_text) as Json<&LastMessagePreviewText>,
             timestamp,
             sender_id,
         )

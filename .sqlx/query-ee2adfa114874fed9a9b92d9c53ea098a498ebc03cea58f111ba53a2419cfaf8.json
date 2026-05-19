@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, room_type as \"room_type: RoomType\", room_name, created_at, latest_message, room_image_url, latest_message_preview_text, NULL::boolean as \"unread: _\"\n            FROM chat_room\n            WHERE id = $1\n            ",
+  "query": "\n            SELECT\n                id,\n                room_type as \"room_type: RoomType\",\n                room_name,\n                created_at,\n                latest_message,\n                room_image_url,\n                latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewText>\",\n                NULL::boolean as \"unread: _\"\n            FROM chat_room\n            WHERE id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -35,8 +35,8 @@
       },
       {
         "ordinal": 6,
-        "name": "latest_message_preview_text",
-        "type_info": "Varchar"
+        "name": "latest_message_preview_text: Json<LastMessagePreviewText>",
+        "type_info": "Jsonb"
       },
       {
         "ordinal": 7,
@@ -60,5 +60,5 @@
       null
     ]
   },
-  "hash": "015f0e7be83c3880d8c7395c0fa807800a3d7c97fdc823e88432052fa51eab2b"
+  "hash": "ee2adfa114874fed9a9b92d9c53ea098a498ebc03cea58f111ba53a2419cfaf8"
 }

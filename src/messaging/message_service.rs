@@ -50,12 +50,17 @@ impl MessageService {
 
         // 4. Generate preview text — display name from context, no DB call
         let room_preview_text = MessageService::generate_room_preview_text(&message, sender_display_name);
-        let preview_str = serde_json::to_string(&room_preview_text)?;
 
         // 5. Single atomic transaction: insert message + update room state in one CTE round-trip
         let mut tx = state.room_repository.start_transaction().await?;
         state.chat_repository.insert_message(&mut *tx, &entity).await?;
-        state.room_repository.apply_message_to_room(&mut *tx, &message.chat_room_id, &preview_str, &entity.sender_id, entity.created_at).await?;
+        state.room_repository.apply_message_to_room(
+            &mut *tx,
+            &message.chat_room_id,
+            &room_preview_text,
+            &entity.sender_id,
+            entity.created_at
+        ).await?;
         tx.commit().await?;
 
         // 6. Broadcast to all room members

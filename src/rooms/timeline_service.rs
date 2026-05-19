@@ -2,7 +2,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use crate::core::AppState;
-use crate::core::errors::AppError;
+use crate::core::errors::{AppError, AppResponse};
 use crate::messaging::model::MessageDto;
 
 pub struct TimelineService;
@@ -13,7 +13,7 @@ impl TimelineService {
         state: Arc<AppState>,
         room_id: Uuid,
         timestamp: DateTime<Utc>
-    ) -> Result<Vec<MessageDto>, AppError> {
+    ) -> AppResponse<Vec<MessageDto>> {
         let data = state.chat_repository.fetch_messages(room_id, timestamp).await?;
         Ok(data.into_iter().map(MessageDto::from).collect())
     }

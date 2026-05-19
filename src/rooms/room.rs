@@ -2,6 +2,7 @@ use crate::utils::truncate_and_serialize;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
+use sqlx::types::Json;
 use uuid::Uuid;
 use crate::rooms::room_member::RoomMember;
 
@@ -14,7 +15,7 @@ pub struct ChatRoomEntity {
     pub room_image_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub latest_message: Option<DateTime<Utc>>,
-    pub latest_message_preview_text: Option<String>,
+    pub latest_message_preview_text: Option<Json<LastMessagePreviewText>>,
     pub unread: Option<bool>
 }
 
@@ -22,10 +23,9 @@ impl ChatRoomEntity {
 
     pub fn to_dto(&self) -> ChatRoomDto {
 
-        let last_message = match self.latest_message_preview_text.as_ref() {
-            Some(text) => serde_json::from_str::<LastMessagePreviewText>(text).unwrap_or(LastMessagePreviewText::New),
-            None => LastMessagePreviewText::New
-        };
+        let last_message = self.latest_message_preview_text.as_ref()
+            .map(|j| j.0.clone())
+            .unwrap_or(LastMessagePreviewText::New);
 
         ChatRoomDto {
             id: self.id,

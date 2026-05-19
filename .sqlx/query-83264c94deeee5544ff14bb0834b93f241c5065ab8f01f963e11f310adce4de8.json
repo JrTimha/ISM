@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH room_update AS (\n                UPDATE chat_room\n                SET latest_message = $3,\n                    latest_message_preview_text = $2\n                WHERE id = $1\n            )\n            UPDATE chat_room_participant\n            SET last_message_read_at = $3\n            WHERE user_id = $4 AND room_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "83264c94deeee5544ff14bb0834b93f241c5065ab8f01f963e11f310adce4de8"
+}

@@ -79,11 +79,14 @@ impl ChatRepository {
         Ok(message)
     }
 
-    pub async fn delete_room_messages(&self, room_id: &Uuid) -> Result<(), Error> {
+    pub async fn delete_room_messages<'e, E>(&self, exec: E, room_id: &Uuid) -> Result<(), Error>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
         sqlx::query!(
             "DELETE FROM chat_message WHERE chat_room_id = $1",
             room_id
-        ).execute(&self.pool).await?;
+        ).execute(exec).await?;
         Ok(())
     }
 }

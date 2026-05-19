@@ -2,7 +2,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use crate::core::AppState;
-use crate::core::errors::{AppError, AppResponse};
+use crate::core::errors::{AppResponse};
 use crate::messaging::model::MessageDto;
 
 pub struct TimelineService;

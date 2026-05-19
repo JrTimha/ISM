@@ -182,13 +182,15 @@ impl RoomService {
         let user = state.room_repository.add_user_to_room(&mut *tx, &user_id, &room_id).await?;
         let preview_text = LastMessagePreviewText::RoomChange { sender_username: user.display_name.clone(), room_change_type: RoomChangeType::JOIN};
         state.room_repository.update_last_room_message(&mut *tx, &room_id, &preview_text).await?;
-        tx.commit().await?;
 
         //2. build room change message and send it to all previous users in the room
         let message = MessageEntity::new(room_id, user.id, MessageBody::RoomChange(RoomChangeBody::UserJoined {related_user: user.clone()}));
+        state.chat_repository.insert_message(&mut *tx, &message).await?;
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
-        save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
+        tx.commit().await?;
+
+        save_room_change_message_and_broadcast(message, send_to, preview_text).await?;
         state.cache.invalidate_room_context(&room_id).await?;
 
         //sending new room event to invited user
@@ -246,9 +248,9 @@ fn user_has_read(user: &RoomMember, room_latest: Option<chrono::DateTime<chrono:
 
 async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>) -> Result<(), AppError> {
     let mut tx = state.room_repository.start_transaction().await?;
+    state.chat_repository.delete_room_messages(&mut *tx, &room.id).await?;
     state.room_repository.delete_room(&mut *tx, &room.id).await?;
     tx.commit().await?;
-    state.chat_repository.delete_room_messages(&room.id).await?;
 
     state.cache.invalidate_room_context(&room.id).await?;
 
@@ -271,7 +273,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     leaving_user.membership_status = MembershipStatus::Left;
 
     if users.len() == 1 { //last user, delete this room now
-        state.chat_repository.delete_room_messages(&room.id).await?;
+        state.chat_repository.delete_room_messages(&mut *tx, &room.id).await?;
         state.room_repository.delete_room(&mut *tx, &room.id).await?;
         tx.commit().await?;
 
@@ -295,10 +297,11 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     } else { //find and handle the leaving user
 
         let message = MessageEntity::new(room.id, leaving_user.id, MessageBody::RoomChange(RoomChangeBody::UserLeft {related_user: leaving_user.clone()}));
+        state.chat_repository.insert_message(&mut *tx, &message).await?;
+        tx.commit().await?;
 
         let send_to: Vec<Uuid> = users.iter().filter(|user| user.id != leaving_user.id).map(|user| user.id).collect();
-        save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
-        tx.commit().await?;
+        save_room_change_message_and_broadcast(message, send_to, preview_message).await?;
 
         state.cache.invalidate_room_context(&room.id).await?;
 
@@ -315,16 +318,12 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
     }
 }
 
-async fn save_room_change_message_and_broadcast(message: MessageEntity, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
-    state.chat_repository.insert_message(state.chat_repository.get_connection(), &message).await?;
-
+async fn save_room_change_message_and_broadcast(message: MessageEntity, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
     let mapped_msg = MessageDto::from(message);
-
     let notification = Notification {
         body: RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text},
         created_at: Utc::now()
     };
-
     BroadcastChannel::get().send_event_to_all(to_users, notification).await;
     Ok(())
 }

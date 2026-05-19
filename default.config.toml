@@ -3,10 +3,8 @@ ism_port= 5403
 log_level = "debug"
 cors_origin = "http://localhost:4200"
 use_kafka = true
-push_notification_access_token="oiqhfriuhf"
-push_notification_url="http://localhost:4200"
 
-[user_db_config]
+[room_db_config]
 db_host = "localhost"
 db_port = "32768"
 db_user = "postgres"

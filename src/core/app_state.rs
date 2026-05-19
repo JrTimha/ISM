@@ -27,11 +27,11 @@ impl AppState {
 
         //1: setting up the postgresql connection for all repositories:
         let options = PgConnectOptions::new()
-            .host(&config.user_db_config.db_host)
-            .port(config.user_db_config.db_port)
-            .database(&config.user_db_config.db_name)
-            .username(&config.user_db_config.db_user)
-            .password(&config.user_db_config.db_password);
+            .host(&config.room_db_config.db_host)
+            .port(config.room_db_config.db_port)
+            .database(&config.room_db_config.db_name)
+            .username(&config.room_db_config.db_user)
+            .password(&config.room_db_config.db_password);
 
         let pool = match PgPoolOptions::new()
             .max_connections(20)

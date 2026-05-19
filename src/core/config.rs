@@ -10,10 +10,8 @@ pub struct ISMConfig {
     pub use_kafka: bool,
     pub log_level: String,
     pub cors_origin: String,
-    pub push_notification_url: Option<String>,
-    pub push_notification_access_token: Option<String>,
     pub redis_cache_url: Option<String>,
-    pub user_db_config: UserDbConfig,
+    pub room_db_config: RoomDbConfig,
     pub object_db_config: ObjectStorageConfig,
     pub token_issuer: TokenIssuer,
     pub kafka_config: KafkaConfig
@@ -28,7 +26,7 @@ pub struct ObjectStorageConfig {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct UserDbConfig {
+pub struct RoomDbConfig {
     pub db_host: String,
     pub db_port: u16,
     pub db_user: String,

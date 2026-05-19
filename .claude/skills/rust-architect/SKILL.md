@@ -1,6 +1,7 @@
 ---
 name: rust-architect
 description: Use when designing or architecting Rust applications, creating comprehensive project documentation, planning async/await patterns, defining domain models with ownership strategies, structuring multi-crate workspaces, or preparing handoff documentation for Director/Implementor AI collaboration
+disable-model-invocation: true
 ---
 
 # Rust Project Architect

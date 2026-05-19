@@ -1,3 +1,11 @@
+---
+name: new-endpoint
+description: Scaffold a new API endpoint in the ISM project following the established layered architecture (repository → service → handler → route). Use when adding new HTTP endpoints.
+disable-model-invocation: true
+argument-hint: <module> <HTTP-method> <path>
+allowed-tools: Read Grep Edit Bash(cargo check) Bash(cargo sqlx prepare)
+---
+
 Scaffold a new API endpoint in the ISM project following the established layered architecture.
 
 Input: $ARGUMENTS

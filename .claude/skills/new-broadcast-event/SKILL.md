@@ -1,3 +1,11 @@
+---
+name: new-broadcast-event
+description: Add a new broadcast notification type to the ISM real-time system. Use when introducing a new SSE/WebSocket event variant that needs to be sent to connected clients.
+disable-model-invocation: true
+argument-hint: <EventName>
+allowed-tools: Read Edit Bash(cargo check)
+---
+
 Add a new broadcast notification type to the ISM real-time system.
 
 Event name: $ARGUMENTS
@@ -16,14 +24,7 @@ Then implement:
 
 ### 2. Broadcast call in the service
 - Show where in the service the broadcast call belongs
-- Use the pattern:
-  ```rust
-  BroadcastChannel::broadcast(&Notification {
-      user_id: Some(target_user_id),
-      event: NotificationEvent::$ARGUMENTS(payload),
-      timestamp: Utc::now(),
-  }).await;
-  ```
+- Use the pattern from `BroadcastChannel::get()` — either `send_event` or `send_event_to_all`
 - Always broadcast **after** a successful DB write, never before
 
 ### 3. Final check

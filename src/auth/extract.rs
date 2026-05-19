@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use axum::extract::Request;
 use nonempty::NonEmpty;
 
-use crate::keycloak::error::AuthError;
+use crate::auth::error::AuthError;
 
 /// A raw (unprocessed) token (string) taken from a request.
 /// This being `Cow` allows the `TokenExtractor` implementations to borrow from the request if possible.

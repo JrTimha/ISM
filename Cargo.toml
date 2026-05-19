@@ -11,7 +11,7 @@ tower = "0.5.3"
 config = "0.15.22"
 serde = "1.0.228"
 futures = "0.3.32"
-uuid ={ version = "1.23.0", features = ["v4", "serde", "v7"] }
+uuid = { version = "1.23.0", features = ["v4", "serde", "v7"] }
 chrono = { version = "0.4.44", features = ["serde"] }
 tower-http = { version = "0.6.8", features = ["cors", "trace"] }
 tracing = "0.1.44"
@@ -27,9 +27,10 @@ bytes = "1.11.1"
 base64 = "0.22.1"
 validator = { version = "0.20.0", features = ["derive"] }
 redis = { version = "1.2.0", features = ["tokio-comp", "connection-manager"] }
+thiserror = "2.0.18"
+async-trait = "0.1.89"
 
-
-#keycloak:
+#KEYCLOAK:
 atomic-time = "0.2.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
 http = "1.4.0"
@@ -43,8 +44,6 @@ time = "0.3.47"
 try-again = "0.2.2"
 typed-builder = "0.23.0"
 url = "2.5.7"
-async-trait = "0.1.89"
-thiserror = "2.0.18"
 
 
 [dev-dependencies]

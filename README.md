@@ -101,14 +101,14 @@ log_level = "info" # Logging level (e.g., "info", "debug", "warn", "error")
 cors_origin = "http://localhost:4200" # Allowed CORS origin for frontend applications (wildcards are not supported)
 use_kafka = false # Set to true to enable Kafka integration for custom notifications
 
-[message_db_config] # Configuration for the NoSQL database (Cassandra/ScyllaDB)
+[message_db_config] # Configuration for the NoSQL object_storage (Cassandra/ScyllaDB)
 db_url = "localhost:9042"
 db_user = "cassandra"
 db_password = "cassandra"
 db_keyspace = "messaging"
-with_db_init = true # Set to true to initialize required database tables on startup (use with caution in production)
+with_db_init = true # Set to true to initialize required object_storage tables on startup (use with caution in production)
 
-[user_db_config] # Configuration for the relational database (PostgreSQL)
+[user_db_config] # Configuration for the relational object_storage (PostgreSQL)
 db_host = "localhost"
 db_port = "32768"
 db_user = "postgres"

@@ -1,6 +1,6 @@
 use sqlx::{query_as, Error, PgConnection, Pool, Postgres, Transaction};
 use uuid::Uuid;
-use crate::user_relationship::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
+use crate::users::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -76,7 +76,7 @@ impl UserRepository {
                 r_user.friends_count,
                 r_user.posts_count,
                 r_user.role,
-                user_relationship.user_a_id,
+                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
                 user_relationship.state,
                 user_relationship.relationship_change_timestamp
@@ -180,7 +180,7 @@ impl UserRepository {
     }
 
     pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipEntity) -> Result<(), Error> {
-            sqlx::query!(
+        sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
                 VALUES ($1, $2, $3, $4)
@@ -286,5 +286,4 @@ impl UserRepository {
         let blocked_users: Vec<Uuid> = blocked_users_optional.into_iter().flatten().collect();
         Ok(blocked_users)
     }
-
 }

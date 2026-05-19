@@ -5,8 +5,8 @@ use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{FriendRequestAccepted, FriendRequestReceived};
 use crate::core::AppState;
 use crate::core::cursor::{encode_cursor, CursorResults};
-use crate::errors::{AppError};
-use crate::user_relationship::model::{Relationship, RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
+use crate::core::errors::{AppError};
+use crate::users::model::{Relationship, RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
 
 
 pub struct UserService;

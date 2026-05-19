@@ -3,8 +3,8 @@ use axum::{Extension, Json};
 use axum::extract::State;
 use validator::Validate;
 use crate::core::AppState;
-use crate::errors::AppError;
-use crate::keycloak::decode::KeycloakToken;
+use crate::core::errors::AppError;
+use crate::auth::decode::KeycloakToken;
 use crate::messaging::message_service::MessageService;
 use crate::messaging::model::{MessageDto, NewMessage};
 

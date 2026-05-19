@@ -8,13 +8,15 @@ use log::error;
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::core::AppState;
-use crate::errors::{AppError};
-use crate::keycloak::decode::KeycloakToken;
+use crate::core::errors::AppError;
+use crate::auth::decode::KeycloakToken;
 use crate::messaging::model::MessageDto;
-use crate::model::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomMember, RoomType, UploadResponse};
+use crate::rooms::model::UploadResponse;
+use crate::rooms::room::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomType};
+use crate::rooms::room_member::RoomMember;
 use crate::rooms::room_service::RoomService;
 use crate::rooms::timeline_service::TimelineService;
-use crate::user_relationship::user_service::UserService;
+use crate::users::user_service::UserService;
 use crate::utils::check_user_in_room;
 
 #[derive(Deserialize, Debug)]

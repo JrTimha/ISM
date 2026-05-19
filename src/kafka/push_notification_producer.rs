@@ -3,7 +3,7 @@ use tracing::info;
 use uuid::Uuid;
 use crate::broadcast::Notification;
 use crate::core::KafkaConfig;
-use crate::errors::AppError;
+use crate::core::errors::AppError;
 use crate::kafka::event_producer::{KafkaEventProducer, LogEventProducer};
 use crate::kafka::EventProducer;
 

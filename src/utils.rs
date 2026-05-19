@@ -4,7 +4,7 @@ use uuid::Uuid;
 use std::io::Cursor;
 use image::{GenericImageView, ImageError};
 use serde::Serializer;
-use crate::errors::{AppError};
+use crate::core::errors::{AppError};
 use crate::core::AppState;
 
 

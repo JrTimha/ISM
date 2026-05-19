@@ -19,7 +19,7 @@
 //! ```rust
 //! use std::sync::Arc;
 //! use axum::{http::StatusCode, response::{Response, IntoResponse}, routing::get, Extension, Router};
-//! use ism::keycloak::{Url, error::AuthError, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, decode::KeycloakToken, PassthroughMode};
+//! use ism::auth::{Url, error::AuthError, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, decode::KeycloakToken, PassthroughMode};
 //! use ism::expect_role;
 //!
 //! pub fn public_router() -> Router {
@@ -71,7 +71,7 @@
 //! // The `protected` handler will (in the default `PassthroughMode::Block` case) only be called
 //! // if the request contained a valid JWT which not already expired.
 //! // It may then access that data (as `KeycloakToken<YourRoleType>`) through an Extension
-//! // to get access to the decoded keycloak user information as shown below.
+//! // to get access to the decoded auth user information as shown below.
 //!
 //! pub async fn health() -> impl IntoResponse {
 //!     StatusCode::OK
@@ -133,7 +133,7 @@
 //!     Unknown(String),
 //! }
 //!
-//! impl keycloak::role::Role for Role {}
+//! impl auth::role::Role for Role {}
 //!
 //! impl std::fmt::Display for Role {
 //!     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -156,9 +156,9 @@
 //! // You could then (remember to update both locations of the generic type) check for roles using your enum:
 //!
 //! use axum::{http::StatusCode, response::{Response, IntoResponse}, Extension};
-//! use ism::keycloak::{decode::KeycloakToken};//!
+//! use ism::auth::{decode::KeycloakToken};//!
 //!
-//! use ism::{expect_role, keycloak};
+//! use ism::{expect_role, auth};
 //!
 //! pub async fn protected(Extension(token): Extension<KeycloakToken<Role>>) -> Response {
 //!     expect_role!(&token, Role::Administrator);
@@ -185,7 +185,7 @@
 //!
 //! ```rust,no_run
 //! use std::sync::Arc;
-//! use ism::keycloak::{
+//! use ism::auth::{
 //!     NonEmpty, PassthroughMode,
 //!     instance::KeycloakAuthInstance,
 //!     layer::KeycloakAuthLayer,

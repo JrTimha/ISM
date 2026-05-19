@@ -18,8 +18,8 @@ use tracing::warn;
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::core::AppState;
-use crate::errors::{AppError, AppResponse};
-use crate::keycloak::decode::KeycloakToken;
+use crate::core::errors::{AppResponse};
+use crate::auth::decode::KeycloakToken;
 
 struct ConnectionGuard {
     user_id: Uuid,
@@ -158,9 +158,6 @@ pub async fn get_latest_notification_events(
     Extension(token): Extension<KeycloakToken<String>>,
     Query(params): Query<NotificationQueryParam>
 ) -> AppResponse<Json<Vec<Notification>>> {
-
-    let notifications = state.cache.get_notifications_for_user(&token.subject, params.timestamp).await.map_err(|_| {
-        AppError::Processing("Error getting notifications: Cache Error".to_string())
-    })?;
+    let notifications = state.cache.get_notifications_for_user(&token.subject, params.timestamp).await?;
     Ok(Json(notifications))
 }

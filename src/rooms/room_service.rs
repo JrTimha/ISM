@@ -1,14 +1,16 @@
 use std::sync::Arc;
 use bytes::Bytes;
 use chrono::Utc;
-use log::{error};
+use log::error;
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent, UserReadChat};
 use crate::core::AppState;
-use crate::errors::{AppError};
+use crate::core::errors::AppError;
 use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, RoomChangeBody};
-use crate::model::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, MembershipStatus, NewRoom, RoomChangeType, RoomMember, RoomType, UploadResponse};
+use crate::rooms::model::UploadResponse;
+use crate::rooms::room::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom, RoomChangeType, RoomType};
+use crate::rooms::room_member::{MembershipStatus, RoomMember};
 use crate::utils::crop_image_from_center;
 
 pub struct RoomService;
@@ -203,7 +205,7 @@ impl RoomService {
 
         let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
         save_room_change_message_and_broadcast(message, &state, send_to, preview_text).await?;
-        state.cache.add_user_to_room_cache(&user.id, &room_id).await?;
+        state.cache.invalidate_room_context(&room_id).await?;
 
         //sending new room event to invited user
         let room_for_user = state.room_repository.find_specific_joined_room(&room_id, &user_id).await?.ok_or_else(|| {
@@ -264,7 +266,7 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
     tx.commit().await?;
     state.chat_repository.delete_room_messages(&room.id).await?;
 
-    state.cache.set_user_for_room(&room.id, &vec![]).await?;
+    state.cache.invalidate_room_context(&room.id).await?;
 
     let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
     BroadcastChannel::get().send_event_to_all(
@@ -293,7 +295,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         state.room_repository.delete_room(&mut *tx, &room.id).await?;
         tx.commit().await?;
 
-        state.cache.set_user_for_room(&room.id, &vec![]).await?;
+        state.cache.invalidate_room_context(&room.id).await?;
 
         BroadcastChannel::get().send_event(
             Notification {
@@ -318,7 +320,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         save_room_change_message_and_broadcast(message, &state, send_to, preview_message).await?;
         tx.commit().await?;
 
-        state.cache.remove_user_from_room_cache(&leaving_user.id, &room.id).await?;
+        state.cache.invalidate_room_context(&room.id).await?;
 
         //send ack to the leaving user
         BroadcastChannel::get().send_event(
@@ -334,7 +336,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 }
 
 async fn save_room_change_message_and_broadcast(message: MessageEntity, state: &Arc<AppState>, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
-    state.chat_repository.insert_message(&message).await?;
+    state.chat_repository.insert_message(state.chat_repository.get_connection(), &message).await?;
 
     let mapped_msg = MessageDto::from(message);
 
@@ -351,9 +353,9 @@ async fn save_room_change_message_and_broadcast(message: MessageEntity, state: &
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Utc, Duration};
+    use chrono::{Duration, Utc};
     use uuid::Uuid;
-    use crate::model::room_member::{RoomMember, MembershipStatus};
+    use crate::rooms::room_member::{MembershipStatus, RoomMember};
 
     fn make_member(read_at: Option<chrono::DateTime<Utc>>) -> RoomMember {
         RoomMember {

@@ -15,12 +15,12 @@ use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 use url::Url;
 use crate::core::{AppState, TokenIssuer};
-use crate::keycloak::instance::{KeycloakAuthInstance, KeycloakConfig};
-use crate::keycloak::layer::KeycloakAuthLayer;
-use crate::keycloak::PassthroughMode;
+use crate::auth::instance::{KeycloakAuthInstance, KeycloakConfig};
+use crate::auth::layer::KeycloakAuthLayer;
+use crate::auth::PassthroughMode;
 use crate::messaging::routes::create_messaging_routes;
 use crate::rooms::routes::create_room_routes;
-use crate::user_relationship::routes::create_user_routes;
+use crate::users::routes::create_user_routes;
 
 /**
  * Initializing the api routes.

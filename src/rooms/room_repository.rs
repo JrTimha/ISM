@@ -1,8 +1,8 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use uuid::Uuid;
-use crate::model::room_member::{RoomMember, MembershipStatus};
-use crate::model::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomType};
+use crate::rooms::room::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomType};
+use crate::rooms::room_member::{MembershipStatus, RoomMember, RoomMemberContext};
 
 #[derive(Clone)]
 pub struct RoomRepository {
@@ -299,7 +299,7 @@ impl RoomRepository {
 
     /// If you really just want to accept both, a transaction or a
     /// connection as an argument to a function, then it's easier to just accept a
-    /// mutable reference to a database connection like so:
+    /// mutable reference to a object_storage connection like so:
     ///
     /// ```rust
     /// # use sqlx::{postgres::PgConnection, error::BoxDynError};
@@ -343,6 +343,58 @@ impl RoomRepository {
     pub async fn remove_user_from_room(&self, conn: &mut PgConnection, room_id: &Uuid, user_id: &Uuid, preview_text: &String) -> Result<(), sqlx::Error> {
         sqlx::query!("UPDATE chat_room_participant SET participant_state = 'Left' WHERE user_id = $1 AND room_id = $2", user_id, room_id).execute(&mut *conn).await?;
         sqlx::query!("UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1", room_id, preview_text).execute(&mut *conn).await?;
+        Ok(())
+    }
+
+    pub async fn select_room_member_contexts(&self, room_id: &Uuid) -> Result<Vec<RoomMemberContext>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT users.id AS user_id, users.display_name
+            FROM chat_room_participant AS participants
+            JOIN app_user AS users ON participants.user_id = users.id
+            WHERE participants.room_id = $1 AND participants.participant_state = 'Joined'
+            "#,
+            room_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|row| RoomMemberContext {
+            user_id: row.user_id,
+            display_name: row.display_name,
+            allow_read_receipts: true, // future: load from user_settings table
+        }).collect())
+    }
+
+    /// Atomically updates both the room's latest_message timestamp/preview and
+    /// the sender's read status in a single CTE round-trip.
+    pub async fn apply_message_to_room(
+        &self,
+        conn: &mut PgConnection,
+        room_id: &Uuid,
+        preview_text: &str,
+        sender_id: &Uuid,
+        timestamp: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"
+            WITH room_update AS (
+                UPDATE chat_room
+                SET latest_message = $3,
+                    latest_message_preview_text = $2
+                WHERE id = $1
+            )
+            UPDATE chat_room_participant
+            SET last_message_read_at = $3
+            WHERE user_id = $4 AND room_id = $1
+            "#,
+            room_id,
+            preview_text,
+            timestamp,
+            sender_id,
+        )
+        .execute(&mut *conn)
+        .await?;
         Ok(())
     }
 

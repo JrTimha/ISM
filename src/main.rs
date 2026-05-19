@@ -18,7 +18,7 @@ async fn main() {
     
     let config = init_configuration();
     welcome();
-    //init the app state including database connections, broadcast channels, kafka etc.
+    //init the app state including object_storage connections, broadcast channels, kafka etc.
     let app_state = AppState::new(config.clone()).await;
 
     //init api router:

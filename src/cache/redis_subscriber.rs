@@ -5,7 +5,9 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{error, warn};
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
+use crate::cache::util::ROOM_CONTEXT;
 use thiserror::Error;
+use crate::rooms::room_member::RoomContext;
 
 #[derive(Debug, Error)]
 enum ProcessorError {
@@ -62,15 +64,15 @@ async fn handle_notification(
 ) -> Result<(), ProcessorError> {
     match &notification.body {
         NotificationEvent::ChatMessage { message, .. } => {
-            let room_key = format!("room_members:{}", message.chat_room_id);
-            let member_ids: Vec<Uuid> = match conn.smembers(&room_key).await {
-                Ok(ids) => ids.into_iter().filter_map(|id_str| Uuid::parse_str(&id_str).ok()).collect(),
-                Err(e) => {
-                    error!("Fehler beim Abrufen von Raum-Mitgliedern: {}", e);
-                    return Ok(())
-                }
-            };
-            BroadcastChannel::get().send_event_to_all(member_ids, notification).await;
+            let key = format!("{}{}", ROOM_CONTEXT, message.chat_room_id);
+            let json: Option<String> = conn.get(&key).await.unwrap_or(None);
+            let member_ids: Vec<Uuid> = json
+                .and_then(|s| serde_json::from_str::<RoomContext>(&s).ok())
+                .map(|ctx| ctx.member_ids())
+                .unwrap_or_default();
+            if !member_ids.is_empty() {
+                BroadcastChannel::get().send_event_to_all(member_ids, notification).await;
+            }
         }
         _ => {}
     }

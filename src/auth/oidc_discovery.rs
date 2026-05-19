@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::keycloak::oidc::OidcConfig;
+use crate::auth::oidc::OidcConfig;
 use reqwest::IntoUrl;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};

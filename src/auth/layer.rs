@@ -6,12 +6,12 @@ use std::{fmt::Debug, sync::Arc};
 use tower::Layer;
 use typed_builder::TypedBuilder;
 
-use crate::keycloak::decode::{
+use crate::auth::decode::{
     decode_and_validate, parse_raw_claims, KeycloakToken, ProfileAndEmail, RawToken,
 };
-use crate::keycloak::error::AuthError;
-use crate::keycloak::extract::TokenExtractor;
-use crate::keycloak::{instance::KeycloakAuthInstance, role::Role, service::KeycloakAuthService};
+use crate::auth::error::AuthError;
+use crate::auth::extract::TokenExtractor;
+use crate::auth::{instance::KeycloakAuthInstance, role::Role, service::KeycloakAuthService};
 
 use super::PassthroughMode;
 
@@ -50,7 +50,7 @@ where
     pub required_roles: Vec<R>,
 
     /// Specifies where the token is expected to be found.
-    #[builder(default = nonempty::nonempty![Arc::new(crate::keycloak::extract::AuthHeaderTokenExtractor {})])]
+    #[builder(default = nonempty::nonempty![Arc::new(crate::auth::extract::AuthHeaderTokenExtractor {})])]
     pub token_extractors: NonEmpty<Arc<dyn TokenExtractor>>,
 
     #[builder(default = uuid::Uuid::now_v7(), setter(skip))]
@@ -65,7 +65,7 @@ where
     R: Role,
     Extra: DeserializeOwned + Clone,
 {
-    /// Allows to validate a raw keycloak token given as &str (without the "Bearer " part when taken from an authorization header).
+    /// Allows to validate a raw auth token given as &str (without the "Bearer " part when taken from an authorization header).
     /// This method is helpful if you wish to validate a token which does not pass the axum middleware
     /// or if you wish to validate a token in a different context.
     pub async fn validate_raw_token(
@@ -123,7 +123,7 @@ mod test {
     use nonempty::NonEmpty;
     use url::Url;
 
-    use crate::keycloak::{
+    use crate::auth::{
         extract::{AuthHeaderTokenExtractor, QueryParamTokenExtractor, TokenExtractor},
         instance::{KeycloakAuthInstance, KeycloakConfig},
         layer::KeycloakAuthLayer,

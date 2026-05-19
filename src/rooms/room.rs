@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
-use crate::model::room_member::RoomMember;
+use crate::rooms::room_member::RoomMember;
 
 
 #[derive(sqlx::FromRow, sqlx::Type, Debug)]

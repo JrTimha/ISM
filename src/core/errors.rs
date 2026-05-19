@@ -62,7 +62,7 @@ pub enum ErrorCode {
 /// Use these when the caller needs actionable feedback (bad input, missing resource, no permission).
 ///
 /// **Internal** – the full error is logged server-side; only a generic message reaches the client.
-/// Use these for infrastructure failures (database, cache, S3) where internal details must not leak.
+/// Use these for infrastructure failures (object_storage, cache, S3) where internal details must not leak.
 #[derive(Debug, Error)]
 pub enum AppError {
     // ── Client-facing ────────────────────────────────────────────────────────

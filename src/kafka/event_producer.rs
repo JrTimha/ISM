@@ -7,7 +7,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 use crate::broadcast::Notification;
 use crate::core::KafkaConfig;
-use crate::errors::AppError;
+use crate::core::errors::AppError;
 use crate::kafka::model::PushNotification;
 
 #[async_trait]

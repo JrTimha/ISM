@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::messaging::model::MessageDto;
-use crate::model::{ChatRoomDto, LastMessagePreviewText};
-use crate::user_relationship::model::User;
+use crate::rooms::room::{ChatRoomDto, LastMessagePreviewText};
+use crate::users::model::User;
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

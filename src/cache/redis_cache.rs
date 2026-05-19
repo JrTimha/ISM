@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::info;
@@ -9,17 +8,17 @@ use uuid::Uuid;
 use crate::broadcast::Notification;
 use crate::cache::cache_cleanup::periodic_cleanup_task;
 use crate::cache::redis_subscriber::run_event_processor;
-use crate::cache::util::{CHAT_CHANNEL, MASTER_INDEX_SET, NOTIFICATION, ROOM_MEMBERS, USER_NOTIFICATIONS};
+use crate::cache::util::{CHAT_CHANNEL, MASTER_INDEX_SET, NOTIFICATION, ROOM_CONTEXT, USER_NOTIFICATIONS};
+use crate::rooms::room_member::RoomContext;
 
 #[async_trait]
 pub trait Cache: Send + Sync {
 
     async fn get_notifications_for_user(&self, user_id: &Uuid, latest_ts: DateTime<Utc>) -> RedisResult<Vec<Notification>>;
     async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()>;
-    async fn add_user_to_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()>;
-    async fn remove_user_from_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()>;
-    async fn get_user_for_room(&self, room_id: &Uuid) -> RedisResult<Vec<Uuid>>;
-    async fn set_user_for_room(&self, room_id: &Uuid, user_ids: &Vec<Uuid>) -> RedisResult<()>;
+    async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>>;
+    async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()>;
+    async fn invalidate_room_context(&self, room_id: &Uuid) -> RedisResult<()>;
     async fn publish_notification(&self, notification: Notification, channel_name: &String) -> RedisResult<()>;
 
 }
@@ -42,7 +41,7 @@ impl RedisCache {
             .set_automatic_resubscription();
 
         let mut connection_manager = redis_client.get_connection_manager_with_config(config).await?;
-        connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?; //subscribe to all chat channels
+        connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?;
 
         info!("Established connection to the redis cache.");
         tokio::spawn(periodic_cleanup_task(connection_manager.clone()));
@@ -55,7 +54,6 @@ impl RedisCache {
 #[async_trait]
 impl Cache for RedisCache {
 
-
     async fn get_notifications_for_user(&self, user_id: &Uuid, latest_ts: DateTime<Utc>) -> RedisResult<Vec<Notification>> {
         let mut con = self.connection.clone();
         let sorted_set_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
@@ -64,8 +62,8 @@ impl Cache for RedisCache {
         let notification_keys: Vec<String> = con
             .zrangebyscore(
                 &sorted_set_key,
-                min_score,      // timestamp of oldest notification
-                "+inf",         // get all notifications
+                min_score,  // timestamp of oldest notification
+                "+inf",     // get all notifications
             )
             .await?;
 
@@ -103,7 +101,7 @@ impl Cache for RedisCache {
             .set_ex(
                 &notification_key,
                 notification_json,
-                3600, //ttl is 60 minutes
+                3600,  //ttl is 60 minutes
             )
             //add to sorted set from user
             .zadd(&sorted_set_key, &notification_key, score)
@@ -114,58 +112,27 @@ impl Cache for RedisCache {
         Ok(())
     }
 
-    async fn add_user_to_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()> {
+    async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>> {
         let mut con = self.connection.clone();
-        let key = format!("{}{}", ROOM_MEMBERS, room_id);
-        let exists: bool = con.exists(&key).await?;
+        let key = format!("{}{}", ROOM_CONTEXT, room_id);
+        let json: Option<String> = con.get(&key).await?;
+        Ok(json.and_then(|s| serde_json::from_str(&s).ok()))
+    }
 
-        if !exists { //if the member list is empty, we don't need to add the user to it
-            return Ok(())
-        }
-        con.sadd(&key, user_id.to_string()).await?;
+    async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()> {
+        let mut con = self.connection.clone();
+        let key = format!("{}{}", ROOM_CONTEXT, room_id);
+        let json = serde_json::to_string(context).map_err(|err| {
+            RedisError::from((ErrorKind::Parse, "Failed to serialize RoomContext", err.to_string()))
+        })?;
+        con.set_ex(&key, json, 900).await?;
         Ok(())
     }
 
-    async fn remove_user_from_room_cache(&self, user_id: &Uuid, room_id: &Uuid) -> RedisResult<()> {
+    async fn invalidate_room_context(&self, room_id: &Uuid) -> RedisResult<()> {
         let mut con = self.connection.clone();
-        let key = format!("{}{}", ROOM_MEMBERS, room_id);
-        con.srem(&key, user_id.to_string()).await?;
-        Ok(())
-    }
-
-    async fn get_user_for_room(&self, room_id: &Uuid) -> RedisResult<Vec<Uuid>> {
-        let mut conn = self.connection.clone();
-        let key = format!("{}{}", ROOM_MEMBERS, room_id);
-
-        let cached_user_ids: HashSet<String> = conn.smembers(&key).await?;
-        if !cached_user_ids.is_empty() {
-            let user_uuids = cached_user_ids
-                .into_iter()
-                .filter_map(|id_str| Uuid::parse_str(&id_str).ok())
-                .collect();
-            return Ok(user_uuids);
-        }
-        Ok(vec![])
-    }
-
-
-    async fn set_user_for_room(&self, room_id: &Uuid, user_ids: &Vec<Uuid>) -> RedisResult<()> {
-        let mut conn = self.connection.clone();
-        let key = format!("{}{}", ROOM_MEMBERS, room_id);
-
-        if user_ids.is_empty() {
-            conn.del(&key).await?;
-            return Ok(());
-        }
-
-        let user_id_strs: Vec<String> = user_ids.iter().map(Uuid::to_string).collect();
-
-        let mut pipe = redis::pipe();
-        pipe.atomic()
-            .del(&key)
-            .sadd(&key, user_id_strs);
-
-        pipe.exec_async(&mut conn).await?;
+        let key = format!("{}{}", ROOM_CONTEXT, room_id);
+        con.del(&key).await?;
         Ok(())
     }
 
@@ -185,7 +152,6 @@ impl Cache for RedisCache {
 }
 
 
-//doing nothing, used when redis is not available:
 pub struct NoOpCache;
 
 #[async_trait]
@@ -198,19 +164,15 @@ impl Cache for NoOpCache {
         Ok(())
     }
 
-    async fn add_user_to_room_cache(&self, _user_id: &Uuid, _room_id: &Uuid) -> RedisResult<()> {
+    async fn get_room_context(&self, _room_id: &Uuid) -> RedisResult<Option<RoomContext>> {
+        Ok(None)
+    }
+
+    async fn set_room_context(&self, _room_id: &Uuid, _context: &RoomContext) -> RedisResult<()> {
         Ok(())
     }
 
-    async fn remove_user_from_room_cache(&self, _user_id: &Uuid, _room_id: &Uuid) -> RedisResult<()> {
-        Ok(())
-    }
-
-    async fn get_user_for_room(&self, _room_id: &Uuid) -> RedisResult<Vec<Uuid>> {
-        Ok(vec![])
-    }
-
-    async fn set_user_for_room(&self, _room_id: &Uuid, _user_ids: &Vec<Uuid>) -> RedisResult<()> {
+    async fn invalidate_room_context(&self, _room_id: &Uuid) -> RedisResult<()> {
         Ok(())
     }
 
@@ -218,4 +180,3 @@ impl Cache for NoOpCache {
         Ok(())
     }
 }
-

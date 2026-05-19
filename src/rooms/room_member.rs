@@ -3,6 +3,28 @@ use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RoomMemberContext {
+    pub user_id: Uuid,
+    pub display_name: String,
+    pub allow_read_receipts: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RoomContext {
+    pub members: Vec<RoomMemberContext>,
+}
+
+impl RoomContext {
+    pub fn member_ids(&self) -> Vec<Uuid> {
+        self.members.iter().map(|m| m.user_id).collect()
+    }
+
+    pub fn find_member(&self, user_id: &Uuid) -> Option<&RoomMemberContext> {
+        self.members.iter().find(|m| &m.user_id == user_id)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow, sqlx::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RoomMember {

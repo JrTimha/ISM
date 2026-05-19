@@ -4,11 +4,11 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use crate::broadcast::BroadcastChannel;
 use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
 use crate::core::ISMConfig;
-use crate::database::ObjectStorage;
+use crate::object_storage::ObjectStorage;
 use crate::kafka::{PushNotificationProducer};
-use crate::repository::chat_repository::ChatRepository;
-use crate::repository::room_repository::RoomRepository;
-use crate::repository::user_repository::UserRepository;
+use crate::messaging::chat_repository::ChatRepository;
+use crate::rooms::room_repository::RoomRepository;
+use crate::users::user_repository::UserRepository;
 
 
 #[derive(Clone)]
@@ -38,11 +38,11 @@ impl AppState {
             .await
         {
             Ok(pool) => {
-                info!("Established connection to the database.");
+                info!("Established connection to the object_storage.");
                 pool
             }
             Err(err) => {
-                panic!("Failed to connect to the database: {:?}", err);
+                panic!("Failed to connect to the object_storage: {:?}", err);
             }
         };
 

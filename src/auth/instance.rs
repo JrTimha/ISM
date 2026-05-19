@@ -8,7 +8,7 @@ use try_again::{StdDuration, delay, retry_async};
 use typed_builder::TypedBuilder;
 use url::Url;
 
-use crate::keycloak::{
+use crate::auth::{
     action::Action,
     error::{AuthError, JwkEndpointSnafu, JwkSetDiscoverySnafu, OidcDiscoverySnafu},
     oidc::OidcConfig,

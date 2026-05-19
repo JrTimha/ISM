@@ -4,19 +4,19 @@ use axum::{Extension, Json};
 use uuid::Uuid;
 use crate::core::AppState;
 use crate::core::cursor::{decode_cursor, CursorResults};
-use crate::errors::{AppError, AppResponse};
-use crate::keycloak::decode::KeycloakToken;
+use crate::core::errors::{AppError, AppResponse};
+use crate::auth::decode::KeycloakToken;
 use crate::rooms::room_service::RoomService;
-use crate::user_relationship::model::{RelationshipStateResponse, User, UserPaginationCursor, UserWithRelationshipDto};
-use crate::user_relationship::query_param::UserSearchParams;
-use crate::user_relationship::user_service::UserService;
+use crate::users::model::{RelationshipStateResponse, User, UserPaginationCursor, UserWithRelationshipDto};
+use crate::users::query_param::UserSearchParams;
+use crate::users::user_service::UserService;
 
 
 pub async fn handle_search_user_by_id(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<Json<UserWithRelationshipDto>, AppError> {
+) -> AppResponse<Json<UserWithRelationshipDto>> {
 
     let user_dto = UserService::query_user_by_id(
         state,
@@ -31,7 +31,7 @@ pub async fn handle_search_user_by_name(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
     Query(params): Query<UserSearchParams>
-) -> Result<Json<CursorResults<UserWithRelationshipDto>>, AppError> {
+) -> AppResponse<Json<CursorResults<UserWithRelationshipDto>>> {
 
     let cursor: UserPaginationCursor = decode_cursor(params.cursor)
         .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
@@ -49,7 +49,7 @@ pub async fn handle_search_user_by_name(
 pub async fn handle_get_open_friend_requests(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<Json<Vec<User>>, AppError> {
+) -> AppResponse<Json<Vec<User>>> {
 
     let results = UserService::get_open_friend_requests(
         state,
@@ -62,7 +62,7 @@ pub async fn handle_get_open_friend_requests(
 pub async fn handle_get_friends(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<Json<Vec<User>>, AppError> {
+) -> AppResponse<Json<Vec<User>>> {
 
     let results = UserService::get_friends(state, &token.subject).await?;
     Ok(Json(results))
@@ -72,7 +72,7 @@ pub async fn handle_add_friend(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<(), AppError> {
+) -> AppResponse<()> {
 
     if token.subject == user_id {
         return Err(AppError::Validation("Cannot friendship yourself.".to_string()));
@@ -86,7 +86,7 @@ pub async fn handle_accept_friend_request(
     State(state): State<Arc<AppState>>,
     Path(sender_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<(), AppError> {
+) -> AppResponse<()> {
     UserService::accept_friend_request(state, token.subject, sender_id).await?;
     Ok(())
 }
@@ -95,7 +95,7 @@ pub async fn handle_reject_friend_request(
     State(state): State<Arc<AppState>>,
     Path(sender_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<(), AppError> {
+) -> AppResponse<()> {
     UserService::reject_friend_request(state, token.subject, sender_id).await?;
     Ok(())
 }
@@ -104,7 +104,7 @@ pub async fn handle_remove_friend(
     State(state): State<Arc<AppState>>,
     Path(friend_id): Path<Uuid>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> Result<(), AppError> {
+) -> AppResponse<()> {
     UserService::remove_friend(state, token.subject, friend_id).await?;
     Ok(())
 }

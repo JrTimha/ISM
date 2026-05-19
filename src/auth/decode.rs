@@ -9,11 +9,11 @@ use serde_with::{serde_as, OneOrMany};
 use snafu::ResultExt;
 use tracing::debug;
 use uuid::Uuid;
-use crate::keycloak::instance::KeycloakAuthInstance;
-use crate::keycloak::role::{ExpectRoles, KeycloakRole, NumRoles};
+use crate::auth::instance::KeycloakAuthInstance;
+use crate::auth::role::{ExpectRoles, KeycloakRole, NumRoles};
 use super::{error::AuthError, role::ExtractRoles, role::Role};
-use crate::keycloak::error::DecodeHeaderSnafu;
-use crate::keycloak::error::DecodeSnafu;
+use crate::auth::error::DecodeHeaderSnafu;
+use crate::auth::error::DecodeSnafu;
 
 pub type RawClaims = HashMap<String, serde_json::Value>;
 
@@ -229,7 +229,7 @@ impl<R: Role> ExtractRoles<R> for ResourceAccess {
 /// use axum::response::{IntoResponse, Response};
 /// use http::StatusCode;
 /// use serde::Serialize;///
-/// use ism::keycloak::decode::KeycloakToken;
+/// use ism::auth::decode::KeycloakToken;
 ///
 ///
 /// pub async fn who_am_i(Extension(token): Extension<KeycloakToken<String>>) -> Response {

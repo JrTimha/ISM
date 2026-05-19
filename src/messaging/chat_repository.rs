@@ -14,7 +14,14 @@ impl ChatRepository {
         ChatRepository { pool }
     }
 
-    pub async fn insert_message(&self, message: &MessageEntity) -> Result<(), Error> {
+    pub fn get_connection(&self) -> &Pool<Postgres> {
+        &self.pool
+    }
+
+    pub async fn insert_message<'e, E>(&self, exec: E, message: &MessageEntity) -> Result<(), Error>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
         sqlx::query!(
             r#"
             INSERT INTO chat_message (message_id, chat_room_id, sender_id, msg_body, msg_type, created_at)
@@ -26,7 +33,7 @@ impl ChatRepository {
             message.msg_body.clone() as sqlx::types::Json<MessageBody>,
             message.msg_type.clone() as MsgType,
             message.created_at
-        ).execute(&self.pool).await?;
+        ).execute(exec).await?;
         Ok(())
     }
 

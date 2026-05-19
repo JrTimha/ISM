@@ -8,7 +8,7 @@ use axum::{
 use serde_json::json;
 use snafu::Snafu;
 
-use crate::keycloak::oidc_discovery;
+use crate::auth::oidc_discovery;
 
 #[derive(Debug, Clone, Snafu)]
 #[snafu(visibility(pub(crate)))]

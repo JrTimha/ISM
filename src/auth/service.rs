@@ -7,10 +7,10 @@ use axum::{body::Body, response::IntoResponse};
 use futures::future::BoxFuture;
 use http::Request;
 use serde::de::DeserializeOwned;
-use crate::keycloak::error::AuthError;
-use crate::keycloak::{extract, KeycloakAuthStatus, PassthroughMode};
-use crate::keycloak::layer::KeycloakAuthLayer;
-use crate::keycloak::role::Role;
+use crate::auth::error::AuthError;
+use crate::auth::{extract, KeycloakAuthStatus, PassthroughMode};
+use crate::auth::layer::KeycloakAuthLayer;
+use crate::auth::role::Role;
 
 #[derive(Clone)]
 pub struct KeycloakAuthService<S, R, Extra>

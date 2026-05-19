@@ -42,8 +42,8 @@ pub enum CursorError {
 impl fmt::Display for CursorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CursorError::Base64Decode(_) => write!(f, "Ungültiger Base64-Cursor"),
-            CursorError::Json(_) => write!(f, "Cursor-Daten konnten nicht als JSON verarbeitet werden"),
+            CursorError::Base64Decode(_) => write!(f, "Invalid base64 cursor"),
+            CursorError::Json(_) => write!(f, "Failed to deserialize cursor data as JSON"),
         }
     }
 }

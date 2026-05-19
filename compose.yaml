@@ -1,14 +1,4 @@
 services:
-  cassandra:
-    image: cassandra:latest
-    container_name: cassandra-container
-    ports:
-      - "9042:9042"
-    environment:
-      - CASSANDRA_USER=admin
-      - CASSANDRA_PASSWORD=admin
-    volumes:
-      - cassandra-data:/var/lib/cassandra
 
   redis:
     image: 'redis:8.2.3-alpine'
@@ -129,8 +119,6 @@ services:
       - "32768:5432"
 
 volumes:
-  cassandra-data:
-    driver: local
   minio-data:
     driver: local
   keycloak_data:

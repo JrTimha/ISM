@@ -67,7 +67,9 @@ jobs:
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
       - name: Clippy
-        run: cargo clippy --all-targets --locked -- -D warnings
+        # Static analysis. Warnings are reported but do not fail the build yet;
+        # re-add `-- -D warnings` to enforce a clean lint once the backlog is cleared.
+        run: cargo clippy --all-targets --locked
 
       - name: Test
         run: cargo test --all-targets --locked

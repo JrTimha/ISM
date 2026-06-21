@@ -1,8 +1,8 @@
-use std::fmt;
 use base64::Engine;
 use base64::engine::general_purpose;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::fmt;
 
 pub trait Cursor: Serialize + DeserializeOwned + Default {}
 impl<T> Cursor for T where T: Serialize + DeserializeOwned + Default {}
@@ -17,13 +17,12 @@ pub struct CursorResults<T> {
 pub fn decode_cursor<T: Cursor>(base64_cursor: Option<String>) -> Result<T, CursorError> {
     match base64_cursor {
         Some(encoded_cursor) => {
-            let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(encoded_cursor.as_bytes())?;
+            let decoded_bytes =
+                general_purpose::URL_SAFE_NO_PAD.decode(encoded_cursor.as_bytes())?;
             let cursor: T = serde_json::from_slice(&decoded_bytes)?;
             Ok(cursor)
-        },
-        None => {
-            Ok(T::default())
         }
+        None => Ok(T::default()),
     }
 }
 
@@ -50,7 +49,11 @@ pub fn clamp_page_size(requested: Option<u32>) -> usize {
 /// Finalizes a keyset page. Callers fetch `page_size + 1` rows; this truncates the
 /// slice back to `page_size` and, if there were more rows, encodes the continuation
 /// cursor derived from the last item of the returned page.
-pub fn next_cursor<T, C, F>(items: &mut Vec<T>, page_size: usize, cursor_from: F) -> Result<Option<String>, CursorError>
+pub fn next_cursor<T, C, F>(
+    items: &mut Vec<T>,
+    page_size: usize,
+    cursor_from: F,
+) -> Result<Option<String>, CursorError>
 where
     C: Cursor,
     F: FnOnce(&T) -> C,

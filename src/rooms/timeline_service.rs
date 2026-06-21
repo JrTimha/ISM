@@ -1,20 +1,22 @@
-use std::sync::Arc;
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use crate::core::AppState;
-use crate::core::errors::{AppResponse};
+use crate::core::errors::AppResponse;
 use crate::messaging::model::{MessageBody, MessageDto, TimelinePage};
+use chrono::{DateTime, Utc};
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct TimelineService;
 
 impl TimelineService {
-
     pub async fn scroll_chat_timeline(
         state: Arc<AppState>,
         room_id: Uuid,
-        timestamp: DateTime<Utc>
+        timestamp: DateTime<Utc>,
     ) -> AppResponse<TimelinePage> {
-        let entities = state.chat_repository.fetch_messages(room_id, timestamp).await?;
+        let entities = state
+            .chat_repository
+            .fetch_messages(room_id, timestamp)
+            .await?;
 
         // Collect the distinct authors of this page so the client can render every
         // message without a separate lookup — including authors that have since left.
@@ -30,10 +32,12 @@ impl TimelineService {
         sender_ids.sort();
         sender_ids.dedup();
 
-        let senders = state.room_repository.select_message_senders(&room_id, &sender_ids).await?;
+        let senders = state
+            .room_repository
+            .select_message_senders(&room_id, &sender_ids)
+            .await?;
         let messages = entities.into_iter().map(MessageDto::from).collect();
 
         Ok(TimelinePage { messages, senders })
     }
-
 }

@@ -1,17 +1,16 @@
+use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
+use crate::cache::util::ROOM_CONTEXT;
+use crate::rooms::room_member::RoomContext;
 use log::info;
-use redis::{PushInfo, from_redis_value, AsyncTypedCommands, RedisError};
 use redis::aio::ConnectionManager;
+use redis::{AsyncTypedCommands, PushInfo, RedisError, from_redis_value};
+use thiserror::Error;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{error, warn};
 use uuid::Uuid;
-use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
-use crate::cache::util::ROOM_CONTEXT;
-use thiserror::Error;
-use crate::rooms::room_member::RoomContext;
 
 #[derive(Debug, Error)]
 enum ProcessorError {
-
     #[error("Ungültige Push-Nachrichten-Struktur")]
     InvalidPushFormat,
 
@@ -26,7 +25,6 @@ enum ProcessorError {
 }
 
 pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: ConnectionManager) {
-
     let _ = rx.recv().await;
     info!("Redis Event-Processing active.");
 
@@ -35,7 +33,10 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
         let notification = match parse_push_message(push_message) {
             Ok(message) => message,
             Err(error) => {
-                warn!("Parsing of received push message failed. Ignoring. Push message: {:?}", error);
+                warn!(
+                    "Parsing of received push message failed. Ignoring. Push message: {:?}",
+                    error
+                );
                 continue;
             }
         };
@@ -47,7 +48,6 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
 }
 
 fn parse_push_message(mut push_message: PushInfo) -> Result<Notification, ProcessorError> {
-    
     let Some(payload_value) = push_message.data.pop() else {
         return Err(ProcessorError::InvalidPushFormat);
     };
@@ -71,7 +71,9 @@ async fn handle_notification(
                 .map(|ctx| ctx.member_ids())
                 .unwrap_or_default();
             if !member_ids.is_empty() {
-                BroadcastChannel::get().send_event_to_all(member_ids, notification).await;
+                BroadcastChannel::get()
+                    .send_event_to_all(member_ids, notification)
+                    .await;
             }
         }
         _ => {}

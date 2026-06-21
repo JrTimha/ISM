@@ -1,6 +1,6 @@
-mod notifications;
-pub mod routes;
+pub mod chat_repository;
 mod handler;
 mod message_service;
 pub mod model;
-pub mod chat_repository;
+mod notifications;
+pub mod routes;

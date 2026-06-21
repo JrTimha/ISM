@@ -1,8 +1,8 @@
+use crate::rooms::room_member::RoomMember;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
-use crate::rooms::room_member::RoomMember;
 
 #[derive(sqlx::Type, Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[sqlx(type_name = "msg_type")]
@@ -87,7 +87,6 @@ impl MessageDto {
     }
 }
 
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum MessageBody {
@@ -100,16 +99,28 @@ pub enum MessageBody {
 #[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct TextBody {
-    #[validate(length(min = 1, max = 4000, message = "must be between 1 and 4000 characters long."))]
+    #[validate(length(
+        min = 1,
+        max = 4000,
+        message = "must be between 1 and 4000 characters long."
+    ))]
     pub text: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaBody {
-    #[validate(length(min = 1, max = 250, message = "must be between 1 and 250 characters long."))]
+    #[validate(length(
+        min = 1,
+        max = 250,
+        message = "must be between 1 and 250 characters long."
+    ))]
     pub media_url: String,
-    #[validate(length(min = 1, max = 80, message = "must be between 1 and 80 characters long."))]
+    #[validate(length(
+        min = 1,
+        max = 80,
+        message = "must be between 1 and 80 characters long."
+    ))]
     pub media_type: String,
     pub mime_type: Option<String>,
     pub alt_text: Option<String>,
@@ -173,6 +184,10 @@ impl Validate for NewMessageBody {
 #[serde(rename_all = "camelCase")]
 pub struct NewReplyBody {
     pub reply_msg_id: Uuid,
-    #[validate(length(min = 1, max = 4000, message = "must be between 1 and 4000 characters long."))]
+    #[validate(length(
+        min = 1,
+        max = 4000,
+        message = "must be between 1 and 4000 characters long."
+    ))]
     pub reply_text: String,
 }

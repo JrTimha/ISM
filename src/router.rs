@@ -1,26 +1,26 @@
-use std::sync::Arc;
-use axum::body::to_bytes;
-use axum::extract::{MatchedPath, Request};
-use axum::http::{HeaderValue, Method, StatusCode};
-use axum::http::Uri;
-use axum::{Router};
-use axum::extract::DefaultBodyLimit;
-use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use axum::middleware::Next;
-use axum::response::{IntoResponse, Response};
-use axum::routing::{get};
-use http::header::{CONNECTION, CONTENT_LENGTH, ORIGIN};
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
-use tower::ServiceBuilder;
-use url::Url;
-use crate::core::{AppState, TokenIssuer};
+use crate::auth::PassthroughMode;
 use crate::auth::instance::{KeycloakAuthInstance, KeycloakConfig};
 use crate::auth::layer::KeycloakAuthLayer;
-use crate::auth::PassthroughMode;
+use crate::core::{AppState, TokenIssuer};
 use crate::messaging::routes::create_messaging_routes;
 use crate::rooms::routes::create_room_routes;
 use crate::users::routes::create_user_routes;
+use axum::Router;
+use axum::body::to_bytes;
+use axum::extract::DefaultBodyLimit;
+use axum::extract::{MatchedPath, Request};
+use axum::http::Uri;
+use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use axum::http::{HeaderValue, Method, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
+use http::header::{CONNECTION, CONTENT_LENGTH, ORIGIN};
+use std::sync::Arc;
+use tower::ServiceBuilder;
+use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
+use url::Url;
 
 /**
  * Initializing the api routes.
@@ -29,15 +29,24 @@ pub async fn init_router(app_state: AppState) -> Router {
     let origin = app_state.env.cors_origin.clone();
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<HeaderValue>().expect("Invalid CORS Origin"))
-        .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE, CONTENT_LENGTH, CONNECTION, ORIGIN])
+        .allow_headers([
+            AUTHORIZATION,
+            ACCEPT,
+            CONTENT_TYPE,
+            CONTENT_LENGTH,
+            CONNECTION,
+            ORIGIN,
+        ])
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE]);
 
     let public_routing = Router::new()
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
-        .route("/health", get(|| async { (StatusCode::OK, "Healthy").into_response() }));
+        .route(
+            "/health",
+            get(|| async { (StatusCode::OK, "Healthy").into_response() }),
+        );
 
-    
     let protected_routing = Router::new() //add new routes here
         .merge(create_room_routes())
         .merge(create_user_routes())
@@ -46,9 +55,9 @@ pub async fn init_router(app_state: AppState) -> Router {
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware
                 .layer(TraceLayer::new_for_http()) //1
-                .layer(cors)//2
+                .layer(cors) //2
                 .layer(init_auth(app_state.env.token_issuer.clone())) //3..
-                .layer(DefaultBodyLimit::max(5 * 1024 * 1024)) //max 5mb files
+                .layer(DefaultBodyLimit::max(5 * 1024 * 1024)), //max 5mb files
         )
         .layer(axum::middleware::from_fn(inject_request_path))
         .with_state(Arc::new(app_state));

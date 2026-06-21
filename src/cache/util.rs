@@ -1,4 +1,3 @@
-
 /**
  * Used to pub/sub room updates to the cache
  */

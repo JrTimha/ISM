@@ -1,9 +1,9 @@
-use std::error::Error;
-use std::fmt;
-use std::fmt::{Display, Formatter};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, Type};
+use std::error::Error;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
 #[derive(Serialize, Clone)]
@@ -18,26 +18,20 @@ pub struct UserRelationshipEntity {
     pub user_a_id: Uuid,
     pub user_b_id: Uuid,
     pub state: RelationshipState,
-    pub relationship_change_timestamp: DateTime<Utc>
+    pub relationship_change_timestamp: DateTime<Utc>,
 }
 
 impl UserRelationshipEntity {
-
-    pub fn resolve_relationship_state(
-        &self,
-        client_id: &Uuid
-    ) -> Relationship {
-
+    pub fn resolve_relationship_state(&self, client_id: &Uuid) -> Relationship {
         let relationship = self;
 
         match relationship.state {
-
             RelationshipState::FRIEND => Relationship::Friend,
 
             RelationshipState::A_BLOCKED => {
                 if relationship.user_a_id == *client_id {
                     Relationship::ClientBlocked
-                } else { 
+                } else {
                     Relationship::ClientGotBlocked
                 }
             }
@@ -77,7 +71,6 @@ impl UserRelationshipEntity {
     }
 }
 
-
 #[derive(Debug)]
 pub struct UserWithRelationshipEntity {
     pub r_user: User,
@@ -87,11 +80,13 @@ pub struct UserWithRelationshipEntity {
     relationship_change_timestamp: Option<DateTime<Utc>>,
 }
 
-
 impl UserWithRelationshipEntity {
-    
     pub fn get_relationship(&self) -> Option<UserRelationshipEntity> {
-        if self.user_a_id.is_some() && self.user_b_id.is_some() && self.relationship_state.is_some() && self.relationship_change_timestamp.is_some() {
+        if self.user_a_id.is_some()
+            && self.user_b_id.is_some()
+            && self.relationship_state.is_some()
+            && self.relationship_change_timestamp.is_some()
+        {
             Some(UserRelationshipEntity {
                 user_a_id: self.user_a_id.unwrap(),
                 user_b_id: self.user_b_id.unwrap(),
@@ -102,20 +97,18 @@ impl UserWithRelationshipEntity {
             None
         }
     }
-    
+
     pub fn to_dto(&self, client_id: &Uuid) -> UserWithRelationshipDto {
-        
         let rel_type = match self.get_relationship() {
             Some(rel) => Some(rel.resolve_relationship_state(client_id)),
-            None => None
+            None => None,
         };
-        
+
         UserWithRelationshipDto {
             user: self.r_user.clone(),
             relationship_type: rel_type,
         }
     }
-
 }
 
 impl<'r, R: Row> FromRow<'r, R> for UserWithRelationshipEntity
@@ -126,9 +119,7 @@ where
     i64: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
     DateTime<Utc>: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
 {
-
     fn from_row(row: &'r R) -> Result<Self, sqlx::Error> {
-
         let r_user = User::from_row(row)?;
         let state_str: Option<String> = row.try_get("state")?;
 
@@ -158,8 +149,6 @@ pub struct UserWithRelationshipDto {
     pub relationship_type: Option<Relationship>,
 }
 
-
-
 #[allow(non_camel_case_types)]
 #[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq, Copy)]
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -169,7 +158,7 @@ pub enum RelationshipState {
     ALL_BLOCKED,
     FRIEND,
     A_INVITED,
-    B_INVITED
+    B_INVITED,
 }
 
 #[derive(Debug)]
@@ -183,7 +172,6 @@ impl fmt::Display for InvalidState {
 impl Error for InvalidState {}
 
 impl TryFrom<String> for RelationshipState {
-
     type Error = InvalidState;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
@@ -218,7 +206,7 @@ pub enum Relationship {
     InviteSent,
     ClientBlocked,
     ClientGotBlocked,
-    Friend
+    Friend,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
@@ -231,7 +219,7 @@ pub struct User {
     pub description: Option<String>,
     pub friends_count: i64,
     pub posts_count: i64,
-    pub role: String
+    pub role: String,
 }
 
 #[derive(Deserialize, Serialize, Default)]
@@ -244,5 +232,5 @@ pub struct UserPaginationCursor {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelationshipStateResponse {
-    pub state: Option<Relationship>
+    pub state: Option<Relationship>,
 }

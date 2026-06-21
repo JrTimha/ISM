@@ -7,7 +7,7 @@ use tower::Layer;
 use typed_builder::TypedBuilder;
 
 use crate::auth::decode::{
-    decode_and_validate, parse_raw_claims, KeycloakToken, ProfileAndEmail, RawToken,
+    KeycloakToken, ProfileAndEmail, RawToken, decode_and_validate, parse_raw_claims,
 };
 use crate::auth::error::AuthError;
 use crate::auth::extract::TokenExtractor;
@@ -123,10 +123,10 @@ mod test {
     use url::Url;
 
     use crate::auth::{
+        PassthroughMode,
         extract::{AuthHeaderTokenExtractor, QueryParamTokenExtractor, TokenExtractor},
         instance::{KeycloakAuthInstance, KeycloakConfig},
         layer::KeycloakAuthLayer,
-        PassthroughMode,
     };
 
     #[tokio::test]

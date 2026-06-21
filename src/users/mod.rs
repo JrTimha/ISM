@@ -1,7 +1,7 @@
-pub mod model;
-mod utils;
 mod handler;
-pub mod routes;
+pub mod model;
 mod query_param;
-pub mod user_service;
+pub mod routes;
 pub mod user_repository;
+pub mod user_service;
+mod utils;

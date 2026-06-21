@@ -1,18 +1,22 @@
-use std::time::Duration;
-use async_trait::async_trait;
-use rdkafka::{ClientConfig};
-use rdkafka::message::{Header, OwnedHeaders};
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use tracing::{debug, error};
-use uuid::Uuid;
 use crate::broadcast::Notification;
 use crate::core::KafkaConfig;
 use crate::core::errors::AppError;
 use crate::kafka::model::PushNotification;
+use async_trait::async_trait;
+use rdkafka::ClientConfig;
+use rdkafka::message::{Header, OwnedHeaders};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use std::time::Duration;
+use tracing::{debug, error};
+use uuid::Uuid;
 
 #[async_trait]
 pub trait EventProducer: Send + Sync {
-    async fn send_notification(&self, notification: Notification, to_user: Vec<Uuid>) -> Result<(), AppError>;
+    async fn send_notification(
+        &self,
+        notification: Notification,
+        to_user: Vec<Uuid>,
+    ) -> Result<(), AppError>;
 }
 
 pub struct KafkaEventProducer {
@@ -34,27 +38,38 @@ impl KafkaEventProducer {
 
 #[async_trait]
 impl EventProducer for KafkaEventProducer {
-
-
-    async fn send_notification(&self, notification: Notification, to_user: Vec<Uuid>) -> Result<(), AppError> {
-        let payload = serde_json::to_string(&PushNotification{to_user, notification})
-            .map_err(|e| AppError::from(e))?;
-        let response = self.producer.send(
-            FutureRecord::<(), String>::to(&self.config.topic)
-                .payload(&payload)
-                .headers(
-                    OwnedHeaders::new()
-                        .insert(Header {
-                            key: "__TypeId__",
-                            value: Some("com.meventure.api.notifications.model.UndeliveredMessage".as_bytes()),
-                        })
-                        .insert(Header {
-                            key: "contentType",
-                            value: Some("application/json".as_bytes()),
-                        })
-                ),
-            Duration::from_secs(0),
-        ).await;
+    async fn send_notification(
+        &self,
+        notification: Notification,
+        to_user: Vec<Uuid>,
+    ) -> Result<(), AppError> {
+        let payload = serde_json::to_string(&PushNotification {
+            to_user,
+            notification,
+        })
+        .map_err(|e| AppError::from(e))?;
+        let response = self
+            .producer
+            .send(
+                FutureRecord::<(), String>::to(&self.config.topic)
+                    .payload(&payload)
+                    .headers(
+                        OwnedHeaders::new()
+                            .insert(Header {
+                                key: "__TypeId__",
+                                value: Some(
+                                    "com.meventure.api.notifications.model.UndeliveredMessage"
+                                        .as_bytes(),
+                                ),
+                            })
+                            .insert(Header {
+                                key: "contentType",
+                                value: Some("application/json".as_bytes()),
+                            }),
+                    ),
+                Duration::from_secs(0),
+            )
+            .await;
         match response {
             Ok(delivery) => {
                 debug!("Delivery result: {:?}", delivery);
@@ -62,7 +77,9 @@ impl EventProducer for KafkaEventProducer {
             }
             Err((kafka_error, _)) => {
                 error!("Kafka event delivery failed: {:?}", kafka_error.to_string());
-                Err(AppError::Processing("Unable to send push notification".to_string()))
+                Err(AppError::Processing(
+                    "Unable to send push notification".to_string(),
+                ))
             }
         }
     }
@@ -78,7 +95,11 @@ impl LogEventProducer {
 
 #[async_trait]
 impl EventProducer for LogEventProducer {
-    async fn send_notification(&self, _notification: Notification, _to_user: Vec<Uuid>) -> Result<(), AppError> {
+    async fn send_notification(
+        &self,
+        _notification: Notification,
+        _to_user: Vec<Uuid>,
+    ) -> Result<(), AppError> {
         Ok(())
     }
 }

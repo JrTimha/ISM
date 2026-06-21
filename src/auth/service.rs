@@ -3,14 +3,14 @@ use std::{
     task::{Context, Poll},
 };
 
+use crate::auth::error::AuthError;
+use crate::auth::layer::KeycloakAuthLayer;
+use crate::auth::role::Role;
+use crate::auth::{KeycloakAuthStatus, PassthroughMode, extract};
 use axum::{body::Body, response::IntoResponse};
 use futures::future::BoxFuture;
 use http::Request;
 use serde::de::DeserializeOwned;
-use crate::auth::error::AuthError;
-use crate::auth::{extract, KeycloakAuthStatus, PassthroughMode};
-use crate::auth::layer::KeycloakAuthLayer;
-use crate::auth::role::Role;
 
 #[derive(Clone)]
 pub struct KeycloakAuthService<S, R, Extra>

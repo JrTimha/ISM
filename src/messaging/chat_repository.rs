@@ -1,7 +1,7 @@
+use crate::messaging::model::{MessageBody, MessageEntity, MsgType};
 use chrono::{DateTime, Utc};
 use sqlx::{Error, Pool, Postgres};
 use uuid::Uuid;
-use crate::messaging::model::{MessageBody, MessageEntity, MsgType};
 
 #[derive(Clone)]
 pub struct ChatRepository {
@@ -9,7 +9,6 @@ pub struct ChatRepository {
 }
 
 impl ChatRepository {
-
     pub fn new(pool: Pool<Postgres>) -> Self {
         ChatRepository { pool }
     }
@@ -37,7 +36,11 @@ impl ChatRepository {
         Ok(())
     }
 
-    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<MessageEntity>, Error> {
+    pub async fn fetch_messages(
+        &self,
+        room_id: Uuid,
+        before: DateTime<Utc>,
+    ) -> Result<Vec<MessageEntity>, Error> {
         let messages = sqlx::query_as!(
             MessageEntity,
             r#"
@@ -55,11 +58,17 @@ impl ChatRepository {
             "#,
             room_id,
             before
-        ).fetch_all(&self.pool).await?;
+        )
+        .fetch_all(&self.pool)
+        .await?;
         Ok(messages)
     }
 
-    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<MessageEntity, Error> {
+    pub async fn fetch_message_by_id(
+        &self,
+        message_id: &Uuid,
+        room_id: &Uuid,
+    ) -> Result<MessageEntity, Error> {
         let message = sqlx::query_as!(
             MessageEntity,
             r#"
@@ -75,7 +84,9 @@ impl ChatRepository {
             "#,
             message_id,
             room_id
-        ).fetch_one(&self.pool).await?;
+        )
+        .fetch_one(&self.pool)
+        .await?;
         Ok(message)
     }
 
@@ -83,10 +94,9 @@ impl ChatRepository {
     where
         E: sqlx::Executor<'e, Database = Postgres>,
     {
-        sqlx::query!(
-            "DELETE FROM chat_message WHERE chat_room_id = $1",
-            room_id
-        ).execute(exec).await?;
+        sqlx::query!("DELETE FROM chat_message WHERE chat_room_id = $1", room_id)
+            .execute(exec)
+            .await?;
         Ok(())
     }
 }

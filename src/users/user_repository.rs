@@ -1,6 +1,9 @@
-use sqlx::{query_as, Error, PgConnection, Pool, Postgres, Transaction};
+use crate::users::model::{
+    RelationshipState, User, UserPaginationCursor, UserRelationshipEntity,
+    UserWithRelationshipEntity,
+};
+use sqlx::{Error, PgConnection, Pool, Postgres, Transaction, query_as};
 use uuid::Uuid;
-use crate::users::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -8,7 +11,6 @@ pub struct UserRepository {
 }
 
 impl UserRepository {
-
     pub fn new(pool: Pool<Postgres>) -> Self {
         UserRepository { pool }
     }
@@ -18,7 +20,11 @@ impl UserRepository {
         Ok(tx)
     }
 
-    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationshipEntity>, Error> {
+    pub async fn find_user_by_id_with_relationship_type(
+        &self,
+        client_id: &Uuid,
+        searched_user_id: &Uuid,
+    ) -> Result<Option<UserWithRelationshipEntity>, Error> {
         let user = query_as::<_, UserWithRelationshipEntity>(
             r#"SELECT
                 r_user.id,
@@ -48,8 +54,8 @@ impl UserRepository {
 
     pub async fn find_user_by_id(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
         let user = query_as!(
-                User,
-                r#"SELECT
+            User,
+            r#"SELECT
                     r_user.id,
                     r_user.display_name,
                     r_user.profile_picture,
@@ -60,12 +66,21 @@ impl UserRepository {
                     r_user.role
                     FROM app_user r_user
                     WHERE r_user.id = $1
-                "#, user_id
-            ).fetch_optional(&self.pool).await?;
+                "#,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
         Ok(user)
     }
 
-    pub async fn find_user_by_name_with_relationship_type(&self, client_id: &Uuid, username: &str, page_size: i64, cursor: UserPaginationCursor) -> Result<Vec<UserWithRelationshipEntity>, Error> {
+    pub async fn find_user_by_name_with_relationship_type(
+        &self,
+        client_id: &Uuid,
+        username: &str,
+        page_size: i64,
+        cursor: UserPaginationCursor,
+    ) -> Result<Vec<UserWithRelationshipEntity>, Error> {
         let user = query_as::<_, UserWithRelationshipEntity>(
             r#"SELECT
                 r_user.id,
@@ -130,14 +145,15 @@ impl UserRepository {
                     AND ($3::text IS NULL OR (u.display_name, u.id) > ($3, $4))
                 ORDER BY u.display_name ASC, u.id ASC
                 LIMIT $5
-            "#
+            "#,
         )
-            .bind(client_id)
-            .bind(username)
-            .bind(cursor.last_seen_name)
-            .bind(cursor.last_seen_id)
-            .bind(limit)
-            .fetch_all(&self.pool).await?;
+        .bind(client_id)
+        .bind(username)
+        .bind(cursor.last_seen_name)
+        .bind(cursor.last_seen_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(requests)
     }
 
@@ -179,20 +195,25 @@ impl UserRepository {
                     AND ($4::text IS NULL OR (u.display_name, u.id) > ($4, $5))
                 ORDER BY u.display_name ASC, u.id ASC
                 LIMIT $6
-            "#
+            "#,
         )
-            .bind(client_id)
-            .bind(state.to_string())
-            .bind(username)
-            .bind(cursor.last_seen_name)
-            .bind(cursor.last_seen_id)
-            .bind(limit)
-            .fetch_all(&self.pool).await?;
+        .bind(client_id)
+        .bind(state.to_string())
+        .bind(username)
+        .bind(cursor.last_seen_name)
+        .bind(cursor.last_seen_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(users)
     }
 
-    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationshipEntity>, Error>
-    {
+    pub async fn search_for_relationship(
+        &self,
+        conn: &mut PgConnection,
+        client_id: &Uuid,
+        other_id: &Uuid,
+    ) -> Result<Option<UserRelationshipEntity>, Error> {
         let relationship = sqlx::query_as!(
             UserRelationshipEntity,
             r#"
@@ -211,7 +232,11 @@ impl UserRepository {
         Ok(relationship)
     }
 
-    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipEntity) -> Result<(), Error> {
+    pub async fn insert_relationship(
+        &self,
+        conn: &mut PgConnection,
+        user_relationship: &UserRelationshipEntity,
+    ) -> Result<(), Error> {
         sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
@@ -247,14 +272,16 @@ impl UserRepository {
             new_state.to_string(),
             user_a_id,
             user_b_id
-        ).fetch_one(&mut *conn).await?;
+        )
+        .fetch_one(&mut *conn)
+        .await?;
         Ok(entity)
     }
 
     pub async fn delete_relationship_state(
         &self,
         conn: &mut PgConnection,
-        user_relationship: UserRelationshipEntity
+        user_relationship: UserRelationshipEntity,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"
@@ -263,7 +290,9 @@ impl UserRepository {
             "#,
             user_relationship.user_a_id,
             user_relationship.user_b_id
-        ).execute(&mut *conn).await?;
+        )
+        .execute(&mut *conn)
+        .await?;
         Ok(())
     }
 
@@ -279,7 +308,9 @@ impl UserRepository {
                 WHERE id = $1
             "#,
             user_id
-        ).execute(tx).await?;
+        )
+        .execute(tx)
+        .await?;
         Ok(())
     }
 
@@ -295,11 +326,17 @@ impl UserRepository {
                 WHERE id = $1
             "#,
             user_id
-        ).execute(tx).await?;
+        )
+        .execute(tx)
+        .await?;
         Ok(())
     }
 
-    pub async fn find_blocked_relationships(&self, client_id: &Uuid, users_to_validate: &Vec<Uuid>) -> Result<Vec<Uuid>, Error> {
+    pub async fn find_blocked_relationships(
+        &self,
+        client_id: &Uuid,
+        users_to_validate: &Vec<Uuid>,
+    ) -> Result<Vec<Uuid>, Error> {
         let blocked_states_str: [&str; 3] = ["A_BLOCKED", "B_BLOCKED", "ALL_BLOCKED"];
         let blocked_states_string_vec: Vec<String> = blocked_states_str.map(String::from).to_vec();
 
@@ -314,7 +351,9 @@ impl UserRepository {
             client_id,
             users_to_validate,
             &blocked_states_string_vec
-        ).fetch_all(&self.pool).await?;
+        )
+        .fetch_all(&self.pool)
+        .await?;
         let blocked_users: Vec<Uuid> = blocked_users_optional.into_iter().flatten().collect();
         Ok(blocked_users)
     }

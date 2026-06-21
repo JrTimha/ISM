@@ -1,5 +1,5 @@
-use axum::http::StatusCode;
 use axum::Json;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use serde::Serialize;
@@ -66,7 +66,6 @@ pub enum ErrorCode {
 #[derive(Debug, Error)]
 pub enum AppError {
     // ── Client-facing ────────────────────────────────────────────────────────
-
     /// 400 – invalid or rejected input from the caller.
     #[error("{0}")]
     Validation(String),
@@ -80,7 +79,6 @@ pub enum AppError {
     Forbidden(String),
 
     // ── Internal (logged; generic message sent to client) ────────────────────
-
     /// PostgreSQL / SQLx failure.
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -124,7 +122,11 @@ impl IntoResponse for AppError {
             // Client-facing — pass the message through unchanged.
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, ErrorCode::ValidationError, msg),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, ErrorCode::ContentNotFound, msg),
-            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, ErrorCode::InsufficientPermissions, msg),
+            AppError::Forbidden(msg) => (
+                StatusCode::FORBIDDEN,
+                ErrorCode::InsufficientPermissions,
+                msg,
+            ),
 
             // Internal — return a safe, generic message.
             AppError::Database(_) | AppError::Cache(_) => (

@@ -4,5 +4,5 @@ use serde::Serialize;
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
     pub image_url: String,
-    pub image_name: String
+    pub image_name: String,
 }

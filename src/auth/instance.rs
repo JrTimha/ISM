@@ -115,8 +115,8 @@ impl KeycloakAuthInstance {
                     kc_config.retry.0,
                     std::time::Duration::from_secs(kc_config.retry.1),
                 )
-                    .instrument(span)
-                    .await
+                .instrument(span)
+                .await
             }
         });
 
@@ -189,14 +189,14 @@ async fn perform_oidc_discovery(
             .await
             .context(OidcDiscoverySnafu {})
     })
-        .delayed_by(delay::Fixed::of(fixed_delay).take(num_retries))
-        .await
-        .inspect_err(|err| {
-            tracing::error!(
+    .delayed_by(delay::Fixed::of(fixed_delay).take(num_retries))
+    .await
+    .inspect_err(|err| {
+        tracing::error!(
             err = snafu::Report::from_error(err.clone()).to_string(),
             "Could not retrieve OIDC config."
         );
-        })?;
+    })?;
 
     // Parse JWK endpoint if OIDC config is available.
     let jwk_set_endpoint = Url::parse(&oidc_config.standard_claims.jwks_uri)
@@ -214,14 +214,14 @@ async fn perform_oidc_discovery(
             .await
             .context(JwkSetDiscoverySnafu {})
     })
-        .delayed_by(delay::Fixed::of(fixed_delay).take(num_retries))
-        .await
-        .inspect_err(|err| {
-            tracing::error!(
+    .delayed_by(delay::Fixed::of(fixed_delay).take(num_retries))
+    .await
+    .inspect_err(|err| {
+        tracing::error!(
             err = snafu::Report::from_error(err.clone()).to_string(),
             "Could not retrieve jwk_set."
         );
-        })?;
+    })?;
 
     let num_keys = jwk_set.keys.len();
     tracing::info!(

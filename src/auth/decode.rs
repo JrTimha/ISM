@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use jsonwebtoken::errors::ErrorKind;
-use jsonwebtoken::Header;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, OneOrMany};
-use snafu::ResultExt;
-use tracing::debug;
-use uuid::Uuid;
-use crate::auth::instance::KeycloakAuthInstance;
-use crate::auth::role::{ExpectRoles, KeycloakRole, NumRoles};
 use super::{error::AuthError, role::ExtractRoles, role::Role};
 use crate::auth::error::DecodeHeaderSnafu;
 use crate::auth::error::DecodeSnafu;
+use crate::auth::instance::KeycloakAuthInstance;
+use crate::auth::role::{ExpectRoles, KeycloakRole, NumRoles};
+use jsonwebtoken::Header;
+use jsonwebtoken::errors::ErrorKind;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use serde_with::{OneOrMany, serde_as};
+use snafu::ResultExt;
+use tracing::debug;
+use uuid::Uuid;
 
 pub type RawClaims = HashMap<String, serde_json::Value>;
 
@@ -302,12 +302,8 @@ where
             jwt_id: raw.jti,
             issuer: raw.iss,
             audience: raw.aud,
-            subject: Uuid::try_parse(&raw.sub).map_err(|err| {
-                AuthError::InvalidToken {
-                    reason: format!(
-                        "Could not parse 'sub' (subject) field as uuid: {err}"
-                    ),
-                }
+            subject: Uuid::try_parse(&raw.sub).map_err(|err| AuthError::InvalidToken {
+                reason: format!("Could not parse 'sub' (subject) field as uuid: {err}"),
             })?,
             authorized_party: raw.azp,
             roles: {

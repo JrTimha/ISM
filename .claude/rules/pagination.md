@@ -14,8 +14,14 @@ Cursors are base64url-encoded JSON structs. New cursor types must implement `Ser
 
 ## Existing Cursor Types
 
-- `UserPaginationCursor { last_seen_name, last_seen_id }` — user search via `raw_name` index
+- `UserPaginationCursor { last_seen_name, last_seen_id }` — user search, friends list, and friend requests; keyset over `(display_name, id)`, optional name filter via the `raw_name` index
+- `RoomPaginationCursor { last_seen_latest_message, last_seen_room_id }` — joined-rooms list; keyset over `(latest_message, id)` DESC, optional `ILIKE` name filter (other user for single rooms, room name for groups)
 - Message timeline — timestamp-based (`created_at` DESC), indexed column
+
+## Page Size
+
+- Clients may pass `limit`; the server clamps it via `clamp_page_size` (`core/cursor.rs`) to `[1, MAX_PAGE_SIZE]`, defaulting to `DEFAULT_PAGE_SIZE` (20) — never trust an unbounded client limit.
+- Repositories fetch `page_size + 1` rows; `next_cursor` (`core/cursor.rs`) truncates to the page and encodes the continuation cursor from the last returned item.
 
 ## Rules
 

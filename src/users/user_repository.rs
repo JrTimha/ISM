@@ -101,9 +101,17 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn select_open_friend_requests(&self, client_id: &Uuid) -> Result<Vec<User>, Error> {
-        let requests = sqlx::query_as!(
-            User,
+    /// Paginated incoming friend requests, ordered by display name. Optional
+    /// case-insensitive name filter via the indexed `raw_name` column; keyset over
+    /// `(display_name, id)`. Callers pass `limit = page_size + 1` to detect a next page.
+    pub async fn select_open_friend_requests(
+        &self,
+        client_id: &Uuid,
+        username: Option<&str>,
+        cursor: UserPaginationCursor,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
+        let requests = query_as::<_, User>(
             r#"SELECT
                 u.id,
                 u.display_name,
@@ -117,19 +125,34 @@ impl UserRepository {
                 INNER JOIN user_relationship ur ON
                     (ur.user_a_id = u.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR
                     (ur.user_b_id = u.id AND ur.user_a_id = $1 AND ur.state = 'B_INVITED')
-            "#,
-            client_id
-        ).fetch_all(&self.pool).await?;
+                WHERE
+                    ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
+                    AND ($3::text IS NULL OR (u.display_name, u.id) > ($3, $4))
+                ORDER BY u.display_name ASC, u.id ASC
+                LIMIT $5
+            "#
+        )
+            .bind(client_id)
+            .bind(username)
+            .bind(cursor.last_seen_name)
+            .bind(cursor.last_seen_id)
+            .bind(limit)
+            .fetch_all(&self.pool).await?;
         Ok(requests)
     }
 
+    /// Paginated list of users in a specific relationship state (e.g. friends),
+    /// ordered by display name. Optional case-insensitive name filter via the
+    /// indexed `raw_name`; keyset over `(display_name, id)`.
     pub async fn find_users_with_specific_relationship(
         &self,
         client_id: &Uuid,
         state: RelationshipState,
+        username: Option<&str>,
+        cursor: UserPaginationCursor,
+        limit: i64,
     ) -> Result<Vec<User>, Error> {
-        let users = sqlx::query_as!(
-            User,
+        let users = query_as::<_, User>(
             r#"
                 SELECT
                     u.id,
@@ -152,10 +175,19 @@ impl UserRepository {
                     )
                 WHERE
                     rl.state = $2
-            "#,
-            client_id,
-            state.to_string()
-        ).fetch_all(&self.pool).await?;
+                    AND ($3::text IS NULL OR u.raw_name LIKE lower(concat('%', $3, '%')))
+                    AND ($4::text IS NULL OR (u.display_name, u.id) > ($4, $5))
+                ORDER BY u.display_name ASC, u.id ASC
+                LIMIT $6
+            "#
+        )
+            .bind(client_id)
+            .bind(state.to_string())
+            .bind(username)
+            .bind(cursor.last_seen_name)
+            .bind(cursor.last_seen_id)
+            .bind(limit)
+            .fetch_all(&self.pool).await?;
         Ok(users)
     }
 

@@ -3,12 +3,12 @@ use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
 use uuid::Uuid;
 use crate::core::AppState;
-use crate::core::cursor::{decode_cursor, CursorResults};
+use crate::core::cursor::{clamp_page_size, decode_cursor, CursorResults};
 use crate::core::errors::{AppError, AppResponse};
 use crate::auth::decode::KeycloakToken;
 use crate::rooms::room_service::RoomService;
 use crate::users::model::{RelationshipStateResponse, User, UserPaginationCursor, UserWithRelationshipDto};
-use crate::users::query_param::UserSearchParams;
+use crate::users::query_param::{RelationshipQueryParams, UserSearchParams};
 use crate::users::user_service::UserService;
 
 
@@ -35,12 +35,14 @@ pub async fn handle_search_user_by_name(
 
     let cursor: UserPaginationCursor = decode_cursor(params.cursor)
         .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
+    let page_size = clamp_page_size(params.limit);
 
     let search_results = UserService::query_user_by_name(
         state,
         &token.subject,
         &params.username,
-        cursor
+        cursor,
+        page_size
     ).await?;
 
     Ok(Json(search_results))
@@ -49,11 +51,19 @@ pub async fn handle_search_user_by_name(
 pub async fn handle_get_open_friend_requests(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> AppResponse<Json<Vec<User>>> {
+    Query(params): Query<RelationshipQueryParams>,
+) -> AppResponse<Json<CursorResults<User>>> {
+
+    let cursor: UserPaginationCursor = decode_cursor(params.cursor)
+        .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
+    let page_size = clamp_page_size(params.limit);
 
     let results = UserService::get_open_friend_requests(
         state,
-        &token.subject
+        &token.subject,
+        params.username,
+        cursor,
+        page_size
     ).await?;
 
     Ok(Json(results))
@@ -62,9 +72,14 @@ pub async fn handle_get_open_friend_requests(
 pub async fn handle_get_friends(
     State(state): State<Arc<AppState>>,
     Extension(token): Extension<KeycloakToken<String>>,
-) -> AppResponse<Json<Vec<User>>> {
+    Query(params): Query<RelationshipQueryParams>,
+) -> AppResponse<Json<CursorResults<User>>> {
 
-    let results = UserService::get_friends(state, &token.subject).await?;
+    let cursor: UserPaginationCursor = decode_cursor(params.cursor)
+        .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
+    let page_size = clamp_page_size(params.limit);
+
+    let results = UserService::get_friends(state, &token.subject, params.username, cursor, page_size).await?;
     Ok(Json(results))
 }
 

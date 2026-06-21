@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
 use sqlx::types::Json;
 use uuid::Uuid;
-use crate::rooms::room::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomType};
+use crate::rooms::room::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomPaginationCursor, RoomType};
 use crate::rooms::room_member::{MembershipStatus, RoomMember, RoomMemberContext};
 
 #[derive(Clone)]
@@ -76,10 +76,26 @@ impl RoomRepository {
         Ok(users)
     }
 
-    pub async fn get_joined_rooms(&self, user_id: &Uuid) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
+    /// Paginated list of a user's joined rooms, ordered by recent activity.
+    ///
+    /// - `name_filter`: optional case-insensitive substring match. For single rooms
+    ///   this matches the other participant's display name, for groups the room name
+    ///   (the same `COALESCE` that produces `room_name` in the result).
+    /// - Keyset over `(latest_message, id)` so paging is stable under inserts.
+    ///   Callers pass `limit = page_size + 1` to detect a following page.
+    ///
+    /// Uses a runtime query (not the `query_as!` macro) because of the optional
+    /// cursor/name binds — consistent with the relationship queries in `UserRepository`.
+    pub async fn get_joined_rooms(
+        &self,
+        user_id: &Uuid,
+        name_filter: Option<&str>,
+        cursor: RoomPaginationCursor,
+        limit: i64,
+    ) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-        ChatRoomEntity,
-        r#"
+            ChatRoomEntity,
+            r#"
             SELECT
                 room.id,
                 room.room_type AS "room_type: RoomType",
@@ -93,7 +109,7 @@ impl RoomRepository {
                 chat_room_participant AS p1
             JOIN
                 chat_room AS room ON p1.room_id = room.id
-            -- 3. To find the other participant, only for single chat rooms!
+            -- To find the other participant, only for single chat rooms!
             LEFT JOIN LATERAL (
                 SELECT
                     p2.user_id
@@ -110,10 +126,21 @@ impl RoomRepository {
             WHERE
                 p1.user_id = $1
                 AND p1.participant_state = 'Joined'
+                AND ($2::text IS NULL OR COALESCE(other_user.display_name, room.room_name) ILIKE concat('%', $2, '%'))
+                AND (
+                    $3::timestamptz IS NULL
+                    OR room.latest_message < $3
+                    OR (room.latest_message = $3 AND room.id < $4)
+                )
             ORDER BY
-                room.latest_message DESC
+                room.latest_message DESC, room.id DESC
+            LIMIT $5
             "#,
-            user_id
+            user_id,
+            name_filter,
+            cursor.last_seen_latest_message,
+            cursor.last_seen_room_id,
+            limit
         ).fetch_all(&self.pool).await?;
         Ok(rooms)
     }

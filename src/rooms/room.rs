@@ -86,6 +86,15 @@ pub enum LastMessagePreviewText {
 }
 
 
+/// Keyset cursor for the joined-rooms list. Rooms are ordered by recent activity
+/// (`latest_message DESC`) with `id` as a deterministic tie-breaker.
+#[derive(Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RoomPaginationCursor {
+    pub last_seen_latest_message: Option<DateTime<Utc>>,
+    pub last_seen_room_id: Option<Uuid>,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRoom {

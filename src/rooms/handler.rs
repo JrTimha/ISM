@@ -8,11 +8,12 @@ use log::error;
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::core::AppState;
+use crate::core::cursor::{clamp_page_size, decode_cursor, CursorResults};
 use crate::core::errors::AppError;
 use crate::auth::decode::KeycloakToken;
 use crate::messaging::model::MessageDto;
 use crate::rooms::model::UploadResponse;
-use crate::rooms::room::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomType};
+use crate::rooms::room::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomPaginationCursor, RoomType};
 use crate::rooms::room_member::RoomMember;
 use crate::rooms::room_service::RoomService;
 use crate::rooms::timeline_service::TimelineService;
@@ -23,6 +24,14 @@ use crate::utils::check_user_in_room;
 pub struct RoomSearchQueryParam {
     #[serde(rename = "withUser")]
     pub with_user: Uuid
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RoomListQueryParams {
+    /// Optional case-insensitive name filter (other user for single rooms, room name for groups).
+    pub name: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -54,10 +63,15 @@ pub async fn handle_get_users_in_room(
 
 pub async fn handle_get_joined_rooms(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>
-) -> Result<Json<Vec<ChatRoomDto>>, AppError> {
+    Extension(token): Extension<KeycloakToken<String>>,
+    Query(params): Query<RoomListQueryParams>
+) -> Result<Json<CursorResults<ChatRoomDto>>, AppError> {
 
-    let rooms = RoomService::get_joined_rooms(state, token.subject).await?;
+    let cursor: RoomPaginationCursor = decode_cursor(params.cursor)
+        .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
+    let page_size = clamp_page_size(params.limit);
+
+    let rooms = RoomService::get_joined_rooms(state, token.subject, params.name, cursor, page_size).await?;
     Ok(Json(rooms))
 }
 

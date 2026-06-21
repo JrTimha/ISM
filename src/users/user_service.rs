@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{FriendRequestAccepted, FriendRequestReceived};
 use crate::core::AppState;
-use crate::core::cursor::{encode_cursor, CursorResults};
+use crate::core::cursor::{next_cursor, CursorResults};
 use crate::core::errors::{AppError};
 use crate::users::model::{Relationship, RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
 
@@ -26,35 +26,25 @@ impl UserService {
         state: Arc<AppState>,
         current_user_id: &Uuid,
         username_query: &str,
-        cursor: UserPaginationCursor
+        cursor: UserPaginationCursor,
+        page_size: usize,
     ) -> Result<CursorResults<UserWithRelationshipDto>, AppError> {
 
-        let page_size: usize = 20;
-        let query_page_size = page_size + 1;
-
         let mut users = state.user_repository
-            .find_user_by_name_with_relationship_type(current_user_id, username_query, query_page_size as i64, cursor)
+            .find_user_by_name_with_relationship_type(current_user_id, username_query, (page_size + 1) as i64, cursor)
             .await?;
 
-        let next_cursor_string = if users.len() > page_size {
-            users.pop();
-            users.last().map(|last_user| {
-                let next_page_cursor_struct = UserPaginationCursor {
-                    last_seen_id: Some(last_user.r_user.id.clone()),
-                    last_seen_name: Some(last_user.r_user.display_name.clone()),
-                };
-                encode_cursor(&next_page_cursor_struct).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))
-            }).transpose()?
-        } else {
-            None
-        };
+        let next_cursor_string = next_cursor(&mut users, page_size, |last_user| UserPaginationCursor {
+            last_seen_id: Some(last_user.r_user.id),
+            last_seen_name: Some(last_user.r_user.display_name.clone()),
+        }).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))?;
 
         let mapped_users = users.iter().map(|item| {
             item.to_dto(current_user_id)
         }).collect();
 
         Ok(CursorResults {
-            next_cursor: next_cursor_string,
+            cursor: next_cursor_string,
             content: mapped_users,
         })
     }
@@ -80,17 +70,45 @@ impl UserService {
     pub async fn get_open_friend_requests(
         state: Arc<AppState>,
         current_user_id: &Uuid,
-    ) -> Result<Vec<User>, AppError> {
-        let users = state.user_repository.select_open_friend_requests(current_user_id).await?;
-        Ok(users)
+        username: Option<String>,
+        cursor: UserPaginationCursor,
+        page_size: usize,
+    ) -> Result<CursorResults<User>, AppError> {
+        let mut users = state.user_repository
+            .select_open_friend_requests(current_user_id, username.as_deref(), cursor, (page_size + 1) as i64)
+            .await?;
+
+        let next_cursor_string = next_cursor(&mut users, page_size, |last_user| UserPaginationCursor {
+            last_seen_id: Some(last_user.id),
+            last_seen_name: Some(last_user.display_name.clone()),
+        }).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))?;
+
+        Ok(CursorResults {
+            cursor: next_cursor_string,
+            content: users,
+        })
     }
 
     pub async fn get_friends(
         state: Arc<AppState>,
         current_user_id: &Uuid,
-    ) -> Result<Vec<User>, AppError> {
-        let users = state.user_repository.find_users_with_specific_relationship(current_user_id, RelationshipState::FRIEND).await?;
-        Ok(users)
+        username: Option<String>,
+        cursor: UserPaginationCursor,
+        page_size: usize,
+    ) -> Result<CursorResults<User>, AppError> {
+        let mut users = state.user_repository
+            .find_users_with_specific_relationship(current_user_id, RelationshipState::FRIEND, username.as_deref(), cursor, (page_size + 1) as i64)
+            .await?;
+
+        let next_cursor_string = next_cursor(&mut users, page_size, |last_user| UserPaginationCursor {
+            last_seen_id: Some(last_user.id),
+            last_seen_name: Some(last_user.display_name.clone()),
+        }).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))?;
+
+        Ok(CursorResults {
+            cursor: next_cursor_string,
+            content: users,
+        })
     }
 
     pub async fn add_friend(

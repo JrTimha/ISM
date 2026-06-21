@@ -5,10 +5,11 @@ use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent, UserReadChat};
 use crate::core::AppState;
+use crate::core::cursor::{next_cursor, CursorResults};
 use crate::core::errors::AppError;
 use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, RoomChangeBody};
 use crate::rooms::model::UploadResponse;
-use crate::rooms::room::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom, RoomChangeType, RoomType};
+use crate::rooms::room::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom, RoomChangeType, RoomPaginationCursor, RoomType};
 use crate::rooms::room_member::{MembershipStatus, RoomMember};
 use crate::utils::crop_image_from_center;
 
@@ -21,9 +22,26 @@ impl RoomService {
         Ok(users)
     }
 
-    pub async fn get_joined_rooms(state: Arc<AppState>, client_id: Uuid, ) -> Result<Vec<ChatRoomDto>, AppError> {
-        let rooms =  state.room_repository.get_joined_rooms(&client_id).await?;
-        Ok(rooms.iter().map(|room| room.to_dto()).collect())
+    pub async fn get_joined_rooms(
+        state: Arc<AppState>,
+        client_id: Uuid,
+        name_filter: Option<String>,
+        cursor: RoomPaginationCursor,
+        page_size: usize,
+    ) -> Result<CursorResults<ChatRoomDto>, AppError> {
+        let mut rooms = state.room_repository
+            .get_joined_rooms(&client_id, name_filter.as_deref(), cursor, (page_size + 1) as i64)
+            .await?;
+
+        let next_cursor = next_cursor(&mut rooms, page_size, |room| RoomPaginationCursor {
+            last_seen_latest_message: room.latest_message,
+            last_seen_room_id: Some(room.id),
+        }).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))?;
+
+        Ok(CursorResults {
+            cursor: next_cursor,
+            content: rooms.iter().map(|room| room.to_dto()).collect(),
+        })
     }
 
     pub async fn get_room_with_details(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<ChatRoomWithUserDTO, AppError> {

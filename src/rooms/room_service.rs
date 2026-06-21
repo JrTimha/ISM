@@ -10,7 +10,7 @@ use crate::core::errors::AppError;
 use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, RoomChangeBody};
 use crate::rooms::model::UploadResponse;
 use crate::rooms::room::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom, RoomChangeType, RoomPaginationCursor, RoomType};
-use crate::rooms::room_member::{MembershipStatus, RoomMember};
+use crate::rooms::room_member::RoomMember;
 use crate::utils::crop_image_from_center;
 
 pub struct RoomService;
@@ -18,7 +18,7 @@ pub struct RoomService;
 impl RoomService {
 
     pub async fn get_users_in_room(state: Arc<AppState>, room_id: Uuid, ) -> Result<Vec<RoomMember>, AppError> {
-        let users = state.room_repository.select_all_user_in_room(&room_id).await.map_err(|_| AppError::NotFound("Room not found:".to_string()))?;
+        let users = state.room_repository.select_all_room_member(&room_id).await.map_err(|_| AppError::NotFound("Room not found:".to_string()))?;
         Ok(users)
     }
 
@@ -48,7 +48,7 @@ impl RoomService {
 
         let (chat_room, users) = tokio::try_join!( //executing 2 queries async
             state.room_repository.find_specific_joined_room(&room_id, &client_id),
-            state.room_repository.select_all_user_in_room(&room_id)
+            state.room_repository.select_all_room_member(&room_id)
         )?;
 
         match chat_room {
@@ -78,7 +78,7 @@ impl RoomService {
     }
 
     pub async fn get_read_states(state: Arc<AppState>, room_id: Uuid) -> Result<Vec<RoomMember>, AppError> {
-        let users = state.room_repository.select_joined_user_in_room(&room_id).await?;
+        let users = state.room_repository.select_all_room_member(&room_id).await?;
         let room = state.room_repository.select_room(&room_id).await?;
         let read_users: Vec<RoomMember> = users.into_iter().filter(|user| {
             user_has_read(user, room.latest_message)
@@ -143,7 +143,7 @@ impl RoomService {
     pub async fn leave_room(state: Arc<AppState>, client_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
         let (room, users) = tokio::try_join!( //executing 2 queries async
             state.room_repository.select_room(&room_id),
-            state.room_repository.select_joined_user_in_room(&room_id)
+            state.room_repository.select_all_room_member(&room_id)
         )?;
         let leaving_user = match users.iter().find(|user| user.id == client_id) {
             Some(user) => user.clone(),
@@ -164,7 +164,7 @@ impl RoomService {
     pub async fn invite_to_room(state: Arc<AppState>, client_id: Uuid, room_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
         let (room, users, creator) = tokio::try_join!( //executing 3 queries async
             state.room_repository.select_room(&room_id),
-            state.room_repository.select_joined_user_in_room(&room_id),
+            state.room_repository.select_all_room_member(&room_id),
             state.user_repository.find_user_by_id(&client_id)
         )?;
 
@@ -272,12 +272,11 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
     Ok(())
 }
 
-async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>, mut leaving_user: RoomMember) -> Result<(), AppError> {
+async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, users: Vec<RoomMember>, leaving_user: RoomMember) -> Result<(), AppError> {
     let mut tx = state.room_repository.start_transaction().await?;
 
     let preview_message = LastMessagePreviewText::RoomChange { sender_username: leaving_user.display_name.clone(), room_change_type: RoomChangeType::LEAVE };
     state.room_repository.remove_user_from_room(&mut *tx, &room.id, &leaving_user.id, &preview_message).await?;
-    leaving_user.membership_status = MembershipStatus::Left;
 
     if users.len() == 1 { //last user, delete this room now
         state.chat_repository.delete_room_messages(&mut *tx, &room.id).await?;
@@ -332,16 +331,15 @@ mod tests {
     use super::*;
     use chrono::{Duration, Utc};
     use uuid::Uuid;
-    use crate::rooms::room_member::{MembershipStatus, RoomMember};
+    use crate::rooms::room_member::RoomMember;
 
     fn make_member(read_at: Option<chrono::DateTime<Utc>>) -> RoomMember {
         RoomMember {
             id: Uuid::new_v4(),
             display_name: "test".to_string(),
             profile_picture: None,
-            joined_at: Utc::now(),
+            joined_at: Some(Utc::now()),
             last_message_read_at: read_at,
-            membership_status: MembershipStatus::Joined
         }
     }
 

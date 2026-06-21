@@ -55,6 +55,17 @@ impl From<MessageEntity> for MessageDto {
     }
 }
 
+/// A page of the chat timeline: the messages plus the deduplicated profiles of every
+/// user that authored a message in this page (`senders`). Senders are resolved even if
+/// they have since left the room, so the client can render every message without a
+/// separate user lookup. New live senders arrive embedded in the `ChatMessage` event.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelinePage {
+    pub messages: Vec<MessageDto>,
+    pub senders: Vec<RoomMember>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageDto {

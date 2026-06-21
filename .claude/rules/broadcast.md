@@ -36,7 +36,7 @@ Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdA
 
 | Variant | Sent to | Trigger | Ephemeral |
 |---|---|---|---|
-| `ChatMessage { message, room_preview_text }` | all room members | new message | no |
+| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember`) | no |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite | no |
 | `NewRoom { room, created_by }` | invited user | room creation / invite | no |
 | `LeaveRoom { room_id }` | leaving user | user leaves room | no |
@@ -51,6 +51,6 @@ Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdA
 ```rust
 let bc = BroadcastChannel::get();
 bc.send_event_to_all(member_ids, Notification::new(
-    NotificationEvent::ChatMessage { message, room_preview_text },
+    NotificationEvent::ChatMessage { message, room_preview_text, sender },
 )).await;
 ```

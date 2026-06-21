@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                app_user.id,\n                app_user.display_name,\n                app_user.profile_picture,\n                chat_room_participant.joined_at AS \"joined_at?\",\n                chat_room_participant.last_message_read_at\n            FROM chat_room_participant\n                JOIN app_user ON chat_room_participant.user_id = app_user.id\n            WHERE chat_room_participant.room_id = $1 AND chat_room_participant.user_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "profile_picture",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "profile_picture"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "joined_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room_participant",
+            "name": "joined_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "last_message_read_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room_participant",
+            "name": "last_message_read_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "2e6762847f9788d44f79b2a16538c422881e89fccd4536118b6f1d4efa8c59dc"
+}

@@ -11,7 +11,7 @@ use crate::core::AppState;
 use crate::core::cursor::{clamp_page_size, decode_cursor, CursorResults};
 use crate::core::errors::AppError;
 use crate::auth::decode::KeycloakToken;
-use crate::messaging::model::MessageDto;
+use crate::messaging::model::TimelinePage;
 use crate::rooms::model::UploadResponse;
 use crate::rooms::room::{ChatRoomDto, ChatRoomWithUserDTO, NewRoom, RoomPaginationCursor, RoomType};
 use crate::rooms::room_member::RoomMember;
@@ -44,11 +44,11 @@ pub async fn handle_scroll_chat_timeline(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
     Query(params): Query<TimelineQueryParam>
-) -> Result<Json<Vec<MessageDto>>, AppError> {
+) -> Result<Json<TimelinePage>, AppError> {
 
     check_user_in_room(&state, &token.subject, &room_id).await?;
-    let messages = TimelineService::scroll_chat_timeline(state, room_id, params.timestamp).await?;
-    Ok(Json(messages))
+    let page = TimelineService::scroll_chat_timeline(state, room_id, params.timestamp).await?;
+    Ok(Json(page))
 }
 
 pub async fn handle_get_users_in_room(

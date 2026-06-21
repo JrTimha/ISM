@@ -16,7 +16,7 @@ Cursors are base64url-encoded JSON structs. New cursor types must implement `Ser
 
 - `UserPaginationCursor { last_seen_name, last_seen_id }` — user search, friends list, and friend requests; keyset over `(display_name, id)`, optional name filter via the `raw_name` index
 - `RoomPaginationCursor { last_seen_latest_message, last_seen_room_id }` — joined-rooms list; keyset over `(latest_message, id)` DESC, optional `ILIKE` name filter (other user for single rooms, room name for groups)
-- Message timeline — timestamp-based (`created_at` DESC), indexed column
+- Message timeline — timestamp-based (`created_at` DESC), indexed column. Returns `TimelinePage { messages, senders }`, where `senders` bundles the deduplicated `RoomMember`s that authored a message in the page or are the original author referenced by a reply (`reply_sender_id`); left authors still resolve from `app_user`, with null participant fields
 
 ## Page Size
 

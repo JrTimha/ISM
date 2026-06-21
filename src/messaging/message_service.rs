@@ -22,7 +22,7 @@ impl MessageService {
         let context = match state.cache.get_room_context(&message.chat_room_id).await? {
             Some(ctx) => ctx,
             None => {
-                let members = state.room_repository.select_room_member_contexts(&message.chat_room_id).await?;
+                let members = state.room_repository.select_all_room_member(&message.chat_room_id).await?;
                 let ctx = RoomContext { members };
                 state.cache.set_room_context(&message.chat_room_id, &ctx).await?;
                 ctx
@@ -33,6 +33,7 @@ impl MessageService {
         let sender = context.find_member(&client_id)
             .ok_or_else(|| AppError::Forbidden("User hasn't access to this room.".to_string()))?;
         let sender_display_name = sender.display_name.clone();
+        let sender_member = sender.clone();
 
         // 3. Build message body
         let msg_body = match message.msg_body.clone() {
@@ -64,7 +65,7 @@ impl MessageService {
 
         // 6. Broadcast to all room members
         let dto = MessageDto::from(entity);
-        let notification = Notification::new(ChatMessage { message: dto.clone(), room_preview_text });
+        let notification = Notification::new(ChatMessage { message: dto.clone(), room_preview_text, sender: sender_member });
         BroadcastChannel::get().send_event_to_all(context.member_ids(), notification).await;
         Ok(dto)
     }

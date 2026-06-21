@@ -6,22 +6,46 @@
       {
         "ordinal": 0,
         "name": "message_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "message_id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "chat_room_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "chat_room_id"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "sender_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "sender_id"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "msg_body: sqlx::types::Json<MessageBody>",
-        "type_info": "Jsonb"
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "msg_body"
+          }
+        }
       },
       {
         "ordinal": 4,
@@ -38,12 +62,24 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "msg_type"
+          }
         }
       },
       {
         "ordinal": 5,
         "name": "created_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {

@@ -306,7 +306,7 @@ Authorization: Bearer <your_jwt_token>
     - `room_id` (UUID): Room identifier
   - **Query Parameters**:
     - `timestamp` (DateTime): Load messages before this timestamp
-  - **Response**: `200 OK` with array of message objects
+  - **Response**: `200 OK` with a `TimelinePage` object: `{ messages: [...], senders: [...] }`, where `senders` is the deduplicated set of room members that authored a message in the page (plus the original authors referenced by replies; authors who have since left still resolve, with null participant fields). Combined with the `sender` field on live `ChatMessage` events, the client never needs a separate sender lookup.
 
 #### Mark Room as Read
 - **`POST /api/rooms/{room_id}/mark-read`**

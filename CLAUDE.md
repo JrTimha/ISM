@@ -126,7 +126,7 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 
 | Variant | Sent to | Trigger |
 |---|---|---|
-| `ChatMessage { message, room_preview_text }` | all room members | new message |
+| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember` so clients render a first-time sender without a lookup) |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite |
 | `NewRoom { room, created_by }` | invited user | room creation / invite |
 | `LeaveRoom { room_id }` | leaving user | user leaves room |
@@ -162,15 +162,14 @@ encode_cursor(&cursor) -> Result<String, CursorError>
 
 Existing cursor types:
 - `UserPaginationCursor { last_seen_name, last_seen_id }` — user search via `raw_name` index
-- Message timeline — timestamp-based (`created_at` DESC), efficient with indexed column
+- Message timeline — timestamp-based (`created_at` DESC), efficient with indexed column. Returns a `TimelinePage { messages, senders }`: `senders` is the deduplicated set of `RoomMember`s that authored a message in the page **or are the original author referenced by a reply** (`reply_sender_id`), resolved via `app_user LEFT JOIN chat_room_participant`, so authors who have since left still resolve, with `joined_at`/`last_message_read_at` as `null`. Combined with the `sender` on live `ChatMessage` events, the client never needs a separate sender lookup.
 
 ### Key Data Model Facts
 
 **Rooms & Membership** (`chat_room_participant`):
-- Tracks `MembershipStatus` per (room, user): `Joined`, `Invited`, `Left`
-- Rows are never deleted — leaving sets status to `Left` to preserve history
-- Most queries filter to `Joined` only
-- `RoomContext` / `RoomMemberContext` are cached in Redis for fast participant lookups
+- A row means the user is **currently in the room** — there is no membership state.
+- Leaving **deletes** the participant row. Message history is preserved independently in `chat_message`, and sender profiles resolve from `app_user` (see Timeline below), so deleting the row loses no history.
+- `RoomContext` (`Vec<RoomMember>`) is cached in Redis for fast participant lookups / broadcast fan-out.
 
 **Messages** (`chat_message`):
 - Stored in PostgreSQL, `msg_body` column is JSONB (`sqlx::types::Json<MessageBody>`)
@@ -187,7 +186,6 @@ Existing cursor types:
 **Read Receipts**:
 - `last_message_read_at` per (user, room) on `chat_room_participant`
 - Updated via `POST /api/rooms/{id}/mark-read`; broadcast as `UserReadChat` so all user devices sync
-- `allow_read_receipts` flag per participant (privacy control)
 
 ### Routing
 
@@ -252,7 +250,7 @@ All handlers return `Result<Json<T>, HttpError>`. `HttpError` serializes to:
 ```rust
 let bc = BroadcastChannel::get();
 bc.send_event_to_all(member_ids, Notification::new(
-    NotificationEvent::ChatMessage { message, room_preview_text },
+    NotificationEvent::ChatMessage { message, room_preview_text, sender },
 )).await;
 ```
 

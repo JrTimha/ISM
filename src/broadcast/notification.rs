@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::messaging::model::MessageDto;
 use crate::rooms::room::{ChatRoomDto, LastMessagePreviewText};
+use crate::rooms::room_member::RoomMember;
 use crate::users::model::User;
 
 /// Current wire-format version of the streaming envelope. Bump on breaking changes.
@@ -52,10 +53,12 @@ pub enum NotificationEvent {
     FriendRequestAccepted {from_user: User},
 
     /**
-    * Different chat messages, sent to all active users in a room
+    * Different chat messages, sent to all active users in a room. `sender` carries the
+    * message author's profile so clients can render a first-time sender without a
+    * separate lookup (the timeline page bundles historical senders the same way).
     */
     #[serde(rename_all = "camelCase")]
-    ChatMessage {message: MessageDto, room_preview_text: LastMessagePreviewText },
+    ChatMessage {message: MessageDto, room_preview_text: LastMessagePreviewText, sender: RoomMember },
 
     /**
     * A system message is a message not sent by a user, but by the system, whatever you want

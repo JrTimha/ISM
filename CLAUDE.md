@@ -117,10 +117,10 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 **Rules**:
 - Always broadcast **after** a successful DB write, never before.
 - Build notifications with `Notification::new(body)`; `seq` is assigned per-user during delivery, not at construction.
-- `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in Redis, and fall back to Kafka push notifications for offline users.
+- `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in a per-user Redis Stream (`user_notifications:{id}`, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N` — no background cleanup), and fall back to Kafka push notifications for offline users.
 - **Ephemeral** events (`NotificationEvent::is_ephemeral()`) get no `seq` and are never cached — live-only (e.g. `Resync`, future typing indicators).
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
-- Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/sse` and `/api/wss`; the server replays missing durable events or emits a `Resync` when the gap exceeds the cache retention. See `docs/streaming-sequencing.md`.
+- Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/sse` and `/api/wss`; the server replays missing durable events or emits a `Resync` when the gap was trimmed out of the retained window. See `docs/streaming-sequencing.md`.
 
 **`NotificationEvent` variants** (defined in `broadcast/notification.rs`):
 
@@ -208,6 +208,7 @@ GET    /api/rooms/{id}/read-states
 
 POST   /api/send-msg
 GET    /api/notifications
+GET    /api/notifications/cursor
 GET    /api/sse
 ANY    /api/wss
 

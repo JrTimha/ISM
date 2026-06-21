@@ -212,6 +212,10 @@ mod tests {
             *entry += 1;
             Ok(Some(*entry))
         }
+        async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>> {
+            let seqs = self.sequences.lock().unwrap();
+            Ok(Some(seqs.get(user_id).copied().unwrap_or(0)))
+        }
         async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult> {
             let cached = self.cached.lock().unwrap();
             let events = cached.iter()

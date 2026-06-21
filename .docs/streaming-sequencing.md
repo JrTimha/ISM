@@ -13,7 +13,8 @@ reconnect or a slow-consumer lag.
 - A monotonic **per-user** sequence number so a client can detect gaps and
   resume exactly where it left off.
 - A bounded, hybrid recovery model: replay small gaps from cache; for anything
-  older than the retention window, tell the client to reload via REST.
+  older than the retention window, tell the client to reload via REST. Retention
+  is count-bounded (the last ~N events per user), not time-bounded.
 - Ephemeral events (typing-style signals) must **not** be replayed — a typing
   indicator from 30 minutes ago is noise.
 
@@ -55,12 +56,20 @@ distinct `seq` for each recipient — there is no shared sequence across users.
 
 ## 5. Caching & Replay (`src/cache/redis_cache.rs`)
 
-- Durable notifications are stored as individual keys (TTL 1h) and indexed in a
-  per-user sorted set scored by `seq`.
+- Durable notifications are appended to a per-user **Redis Stream**
+  (`user_notifications:{id}`). Each entry's ID is `<seq>-0`, so the stream is
+  ordered by `seq` and the entry holds the serialized notification under the
+  `data` field.
+- `XADD ... MAXLEN ~ STREAM_MAX_LEN` trims older entries on every write (amortized
+  O(1)), bounding retention to the last ~N events. A TTL is refreshed on each
+  write so a fully inactive user's stream is reclaimed — there is **no background
+  cleanup task**.
 - `get_notifications_since_seq(user_id, last_seq)` → `ReplayResult`:
-  - `Events(vec)` — durable events with `seq > last_seq`, in order.
+  - `Events(vec)` — `XRANGE` from exclusive `(<last_seq>-0` to `+`, in order.
   - `ResyncNeeded` — the oldest retained `seq` is already newer than
-    `last_seq + 1` (gap fell out of the window), or an indexed key has expired.
+    `last_seq + 1` (the gap was trimmed). Because the stream is a single
+    structure, there is no separate index that can dangle, so this is the only
+    resync trigger.
 
 ## 6. Connection Handshake (`src/messaging/notifications.rs`)
 
@@ -78,12 +87,37 @@ distinct `seq` for each recipient — there is no shared sequence across users.
 The REST endpoint `GET /api/notifications?last_seq=<n>` exposes the same replay
 for explicit pulls; a `ResyncNeeded` surfaces as a single `Resync` element.
 
+`GET /api/notifications/cursor` → `{ "seq": <n> }` returns the highest sequence
+currently issued to the caller (0 if none yet) **without** advancing it. A client
+that has just done a full REST sync uses this to seed its stored cursor.
+
 ## 7. Client Contract
 
-- Persist the highest `seq` seen. Reconnect with `?last_seq=<that>`.
+There are two distinct (re)connection modes — keep them separate:
+
+- **Short reconnect** (no state reload, e.g. a brief network blip): reconnect with
+  `?last_seq=<highest seq seen>`. The server replays the small gap.
+- **Full REST sync** (cold start, post-`Resync`, or multi-device divergence where a
+  stale `seq` would replay events the snapshot already contains): connect to the
+  stream **without** any `last_seq` parameter. A fresh connection does no replay
+  and streams only events from subscription onward, so there is no flood of
+  already-applied events. **Subscribe before you snapshot**: open the stream first
+  (buffering live events), then issue the REST calls — the snapshot is then strictly
+  newer than the stream start, so any event produced in between arrives live and is
+  reconciled by idempotent application, closing the snapshot/stream race. Seed the
+  stored cursor from `GET /api/notifications/cursor` (or the `seq` of the first live
+  event) for subsequent short reconnects.
+
+Why this split matters: `seq` is **per-user**, shared across a user's devices. A
+device returning with a `seq` from before another device advanced the counter must
+*not* replay from that old `seq` after a full REST sync — it already holds current
+state. Connecting fresh avoids re-delivering events it has applied.
+
 - Treat `seq` as the ordering/dedup key (ignore `seq <= highestSeen`).
+- Apply events **idempotently** (dedup by stable IDs such as `message_id`):
+  delivery is at-least-once and the replay/live windows overlap by design.
 - On a `Resync` event: reload authoritative state via REST (timeline, friends,
-  rooms), then resume consuming live events.
+  rooms), then reconnect **without** `last_seq` (full-sync mode above).
 - Ephemeral events carry no `seq` — never use them for sync state.
 
 ## 8. Out of Scope / Next

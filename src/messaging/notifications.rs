@@ -9,7 +9,7 @@ use bytes::Bytes;
 use futures::Stream;
 use tokio::time;
 use log::{debug, error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -244,6 +244,23 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u6
 #[derive(Deserialize)]
 pub struct NotificationQueryParam {
     last_seq: u64
+}
+
+/// Current per-user sequence cursor. A client that has just completed a full REST sync reads this
+/// to learn the sequence its snapshot corresponds to, then persists it as the baseline for future
+/// short reconnects. The REST-sync itself opens its live stream **without** a `last_seq` parameter
+/// (fresh connection, no replay) — this endpoint only seeds the stored cursor.
+#[derive(Serialize)]
+pub struct NotificationCursor {
+    seq: u64,
+}
+
+pub async fn get_notification_cursor(
+    State(state): State<Arc<AppState>>,
+    Extension(token): Extension<KeycloakToken<String>>,
+) -> AppResponse<Json<NotificationCursor>> {
+    let seq = state.cache.current_sequence(&token.subject).await?.unwrap_or(0);
+    Ok(Json(NotificationCursor { seq }))
 }
 
 pub async fn get_latest_notification_events(

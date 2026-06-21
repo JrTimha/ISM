@@ -5,14 +5,30 @@ use redis::{aio::ConnectionManagerConfig};
 use redis::aio::ConnectionManager;
 use uuid::Uuid;
 use crate::broadcast::Notification;
-use crate::cache::cache_cleanup::periodic_cleanup_task;
 use crate::cache::redis_subscriber::run_event_processor;
-use crate::cache::util::{CHAT_CHANNEL, MASTER_INDEX_SET, NOTIFICATION, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
+use crate::cache::util::{CHAT_CHANNEL, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
 use crate::rooms::room_member::RoomContext;
 
-/// TTL for the per-user sequence counter. Refreshed on every increment, so it only expires
-/// after a user has been completely inactive for this long.
-const SEQUENCE_TTL_SECONDS: i64 = 7 * 24 * 3600;
+/// TTL for the per-user sequence counter and notification stream. Refreshed on every write, so a
+/// key only expires after a user has been completely inactive for this long. This is what reclaims
+/// storage for inactive users — there is no background cleanup task.
+const SEQUENCE_TTL_SECONDS: i64 = 24 * 3600;
+
+/// Approximate cap on retained notifications per user. `XADD ... MAXLEN ~ N` trims older entries on
+/// every write (amortized O(1)), so the replay buffer is count-bounded instead of time-bounded.
+/// A reconnecting client whose gap predates the retained window receives `ResyncNeeded`.
+const STREAM_MAX_LEN: usize = 300;
+
+/// Single field under which the serialized notification JSON is stored in each stream entry.
+const STREAM_FIELD: &str = "data";
+
+/// Decoded `XRANGE` reply: a list of `(entry_id, [(field, value), ...])`.
+type StreamEntries = Vec<(String, Vec<(String, String)>)>;
+
+/// Extract the numeric sequence from a `<seq>-<n>` stream entry ID.
+fn parse_stream_seq(id: &str) -> Option<u64> {
+    id.split('-').next()?.parse().ok()
+}
 
 /// Outcome of a replay request. Either the missing notifications could be served from the
 /// cache, or the client's last known sequence is too old (gap larger than the retention
@@ -30,6 +46,10 @@ pub trait Cache: Send + Sync {
     /// is unavailable (no Redis), in which case durable events are delivered best-effort
     /// without replay support.
     async fn next_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>>;
+    /// Read the highest sequence number currently issued to a user **without** advancing it.
+    /// Returns `Some(0)` when no event has been issued yet, or `None` when sequencing is
+    /// unavailable (no Redis). A freshly REST-synced client uses this as its replay baseline.
+    async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>>;
     /// Return all durable notifications for a user with sequence strictly greater than
     /// `last_seq`, or `ResyncNeeded` if part of that range has already fallen out of the cache.
     async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult>;
@@ -62,7 +82,6 @@ impl RedisCache {
         connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?;
 
         info!("Established connection to the redis cache.");
-        tokio::spawn(periodic_cleanup_task(connection_manager.clone()));
         tokio::spawn(run_event_processor(rx, connection_manager.clone()));
         Ok(Self { client: redis_client, connection: connection_manager })
     }
@@ -82,56 +101,77 @@ impl Cache for RedisCache {
         Ok(Some(seq as u64))
     }
 
+    async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>> {
+        let mut con = self.connection.clone();
+        let key = format!("{}{}", USER_SEQUENCE, user_id);
+        let current = con
+            .get(&key)
+            .await?
+            .and_then(|raw: String| raw.parse().ok())
+            .unwrap_or(0);
+        Ok(Some(current))
+    }
+
     async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult> {
         let mut con = self.connection.clone();
-        let sorted_set_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
+        let stream_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
+        let seq_key = format!("{}{}", USER_SEQUENCE, user_id);
 
-        // Determine the oldest sequence still retained for this user. If the client's last
-        // seen sequence is older than that, some events have already expired and we cannot
-        // replay them losslessly -> the client must resync via REST.
-        let oldest: Vec<(String, f64)> = redis::cmd("ZRANGE")
-            .arg(&sorted_set_key)
-            .arg(0)
-            .arg(0)
-            .arg("WITHSCORES")
+        // The sequence counter is the highest seq ever issued to this user. If the client's cursor
+        // is ahead of it, the server's sequence space has been reset (counter expired by TTL, or
+        // the cache was flushed) and the client references sequences that no longer exist. Silently
+        // continuing would let the dedup high-water swallow every new (now lower-numbered) event,
+        // so we force a resync instead.
+        let current_seq: u64 = con
+            .get(&seq_key)
+            .await?
+            .and_then(|raw: String| raw.parse().ok())
+            .unwrap_or(0);
+        if last_seq > current_seq {
+            return Ok(ReplayResult::ResyncNeeded);
+        }
+
+        // Determine the oldest sequence still retained for this user. If the client's last seen
+        // sequence is older than that, the gap has already been trimmed out of the stream and we
+        // cannot replay it losslessly -> the client must resync via REST. Because a stream is a
+        // single structure, there is no separate index that can dangle: an entry is either present
+        // or trimmed, so this is the only resync trigger.
+        let oldest: StreamEntries = redis::cmd("XRANGE")
+            .arg(&stream_key)
+            .arg("-")
+            .arg("+")
+            .arg("COUNT")
+            .arg(1)
             .query_async(&mut con)
             .await?;
 
-        match oldest.first() {
+        match oldest.first().and_then(|(id, _)| parse_stream_seq(id)) {
             // Nothing retained for this user: nothing to replay.
             None => return Ok(ReplayResult::Events(vec![])),
-            Some((_, oldest_score)) => {
-                if (*oldest_score as u64) > last_seq + 1 {
+            Some(oldest_seq) => {
+                if oldest_seq > last_seq + 1 {
                     return Ok(ReplayResult::ResyncNeeded);
                 }
             }
         }
 
-        // Fetch every notification key with sequence strictly greater than last_seq.
-        let notification_keys: Vec<String> = con
-            .zrangebyscore(
-                &sorted_set_key,
-                format!("({}", last_seq), // exclusive lower bound
-                "+inf",
-            )
+        // Fetch every entry with sequence strictly greater than last_seq. Entry IDs are `<seq>-0`,
+        // so an exclusive lower bound of `(<last_seq>-0` yields exactly seq > last_seq, in order.
+        let entries: StreamEntries = redis::cmd("XRANGE")
+            .arg(&stream_key)
+            .arg(format!("({}-0", last_seq))
+            .arg("+")
+            .query_async(&mut con)
             .await?;
 
-        if notification_keys.is_empty() {
-            return Ok(ReplayResult::Events(vec![]));
-        }
-
-        let notifications_json: Vec<Option<String>> = con.mget(&notification_keys).await?;
-
-        // A missing value means the individual notification key expired while its index entry
-        // still lingered -> the requested window has a hole, so the client must resync.
-        if notifications_json.iter().any(|opt| opt.is_none()) {
-            return Ok(ReplayResult::ResyncNeeded);
-        }
-
-        let notifications: Vec<Notification> = notifications_json
+        let notifications: Vec<Notification> = entries
             .into_iter()
-            .flatten()
-            .filter_map(|json| serde_json::from_str(&json).ok())
+            .filter_map(|(_, fields)| {
+                fields
+                    .into_iter()
+                    .find(|(field, _)| field == STREAM_FIELD)
+                    .and_then(|(_, json)| serde_json::from_str(&json).ok())
+            })
             .collect();
 
         Ok(ReplayResult::Events(notifications))
@@ -140,10 +180,10 @@ impl Cache for RedisCache {
     async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()> {
         let mut con = self.connection.clone();
 
-        // Durable notifications must carry a sequence number; it is both their ordering score
-        // and the cursor a reconnecting client replays from.
-        let score = match notification.seq {
-            Some(seq) => seq as f64,
+        // Durable notifications must carry a sequence number; it becomes the stream entry ID
+        // (`<seq>-0`) and the cursor a reconnecting client replays from.
+        let seq = match notification.seq {
+            Some(seq) => seq,
             None => {
                 return Err(RedisError::from((
                     ErrorKind::Client,
@@ -152,7 +192,6 @@ impl Cache for RedisCache {
             }
         };
 
-        let notification_key = format!("{}{}", NOTIFICATION, Uuid::new_v4());
         let notification_json = serde_json::to_string(notification)
             .map_err(|err| {
                 RedisError::from((
@@ -162,20 +201,22 @@ impl Cache for RedisCache {
                 ))
             })?;
 
-        let sorted_set_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
+        let stream_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
 
-        let mut pipe = redis::pipe(); //like a atomic transaction
+        let mut pipe = redis::pipe(); //single round trip: append (with trim) + refresh inactivity TTL
         pipe.atomic()
-            //add k/v string
-            .set_ex(
-                &notification_key,
-                notification_json,
-                3600,  //ttl is 60 minutes
-            )
-            //add to sorted set from user
-            .zadd(&sorted_set_key, &notification_key, score)
-            //add to master index set, to track all user sets and remove them if they are empty
-            .sadd(MASTER_INDEX_SET, user_id.to_string());
+            // Append using the per-user seq as the explicit entry ID and trim to ~STREAM_MAX_LEN.
+            // `~` lets Redis trim at node boundaries (amortized O(1)); it keeps at least N entries.
+            .cmd("XADD")
+                .arg(&stream_key)
+                .arg("MAXLEN").arg("~").arg(STREAM_MAX_LEN)
+                .arg(format!("{}-0", seq))
+                .arg(STREAM_FIELD).arg(&notification_json)
+                .ignore()
+            // Refresh the TTL so an active user's stream never disappears mid-session, while a
+            // fully inactive user's stream is eventually reclaimed without any cleanup task.
+            .expire(&stream_key, SEQUENCE_TTL_SECONDS)
+                .ignore();
 
         pipe.exec_async(&mut con).await?;
         Ok(())
@@ -227,6 +268,9 @@ pub struct NoOpCache;
 impl Cache for NoOpCache {
 
     async fn next_sequence(&self, _user_id: &Uuid) -> RedisResult<Option<u64>> {
+        Ok(None)
+    }
+    async fn current_sequence(&self, _user_id: &Uuid) -> RedisResult<Option<u64>> {
         Ok(None)
     }
     async fn get_notifications_since_seq(&self, _user_id: &Uuid, _last_seq: u64) -> RedisResult<ReplayResult> {

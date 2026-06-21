@@ -28,9 +28,9 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdAt, ...payload }`.
 
 - `seq` is a **monotonic per-user** sequence (`Cache::next_sequence`, backed by Redis `INCR`). Each recipient of a fan-out gets its **own** `seq`.
-- **Durable** events are sequenced and cached (sorted set scored by `seq`) so a reconnecting client can replay. **Ephemeral** events (`NotificationEvent::is_ephemeral() == true`) get no `seq` and are never cached — they are live-only.
+- **Durable** events are sequenced and cached (per-user Redis Stream, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N`) so a reconnecting client can replay. **Ephemeral** events (`NotificationEvent::is_ephemeral() == true`) get no `seq` and are never cached — they are live-only.
 - Without Redis (`NoOpCache`) there is no sequencing: `seq` is `None` and no replay is possible (best-effort delivery).
-- On connect, SSE/WebSocket clients pass `?last_seq=<n>`; the server replays missing durable events, deduping live events with `seq <= high_water`. If the gap is older than the cache retention (or a `Lagged` is hit), the server emits a `Resync` event and the client must reload state via REST. See `Cache::get_notifications_since_seq` → `ReplayResult`.
+- On connect, SSE/WebSocket clients pass `?last_seq=<n>`; the server replays missing durable events, deduping live events with `seq <= high_water`. If the gap was trimmed out of the retained window (or a `Lagged` is hit), the server emits a `Resync` event and the client must reload state via REST. See `Cache::get_notifications_since_seq` → `ReplayResult`.
 
 ## NotificationEvent Variants
 

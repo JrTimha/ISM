@@ -87,8 +87,10 @@ exclusively in Redis.
 > expire individually**. We therefore pair each `geo:friends` member with a
 > short-TTL `loc:fresh:{user_id}` key. On read we drop (and opportunistically
 > `ZREM`) any candidate whose freshness key has expired. A periodic sweep task
-> (mirroring the existing `cache_cleanup.rs` pattern) garbage-collects orphaned
-> GEO members.
+> garbage-collects orphaned GEO members. (Note: the notification cache used to
+> need such a sweep but was migrated to a Redis Stream that self-trims via
+> `XADD ... MAXLEN`; GEO sets have no stream equivalent, so a sweep is still
+> required here.)
 
 ---
 
@@ -186,7 +188,9 @@ optional — decide in Q3).
 - `src/cache/redis_cache.rs` — extend the `Cache` trait with geo + presence
   methods (`geo_add`, `geo_search_radius`, `set_presence`, `clear_presence`,
   `get_presence`). `NoOpCache` returns a "feature unavailable" error / empty.
-- `src/cache/cache_cleanup.rs` — add a sweep for orphaned `geo:friends` members.
+- A new sweep task for orphaned `geo:friends` members (the old
+  `src/cache/cache_cleanup.rs` was removed when notifications moved to a
+  self-trimming Redis Stream; reintroduce a dedicated task for GEO).
 - WebSocket handler (`broadcast/` / `wss`) — wire presence into connect /
   heartbeat / disconnect.
 - New `location` module (handler → service → cache), following the existing

@@ -83,16 +83,38 @@ REST (timeline, friends, rooms) and then keep consuming live events.
 - [ ] Do **not** update `highestSeqSeen` from events without a `seq`.
 
 ### Connecting / reconnecting
-- [ ] On first ever connect (no stored `seq`): connect **without** `last_seq`,
-      and load initial state via the existing REST endpoints.
-- [ ] On reconnect: connect with `?last_seq=<highestSeqSeen>`.
+- [ ] **After any full REST sync** (first connect, cold start, post-`Resync`, or
+      whenever you (re)load rooms/friends/timeline): connect **without**
+      `last_seq`. The snapshot is already authoritative, so a fresh connection
+      avoids replaying events you have applied — important for multi-device, where
+      `seq` is shared across devices and a stale stored value would otherwise
+      flood you with already-synced events.
+- [ ] **Order matters — subscribe before you snapshot.** Open the stream first
+      (fresh, no `last_seq`), and only **then** issue the REST sync calls. This
+      closes the gap where an event produced between the snapshot and the
+      subscription would otherwise be missed: with the stream open first, the
+      snapshot is strictly newer than the stream start, so anything in between
+      arrives live and is reconciled by idempotent application. Buffer live events
+      that arrive while the snapshot request is still in flight, then apply them
+      after the snapshot.
+- [ ] Seed `highestSeqSeen` after a full sync via
+      `GET /api/notifications/cursor` → `{ seq }` (or from the first live event's
+      `seq`).
+- [ ] **Short reconnect only** (brief blip, no state reload): connect with
+      `?last_seq=<highestSeqSeen>` to replay the small gap.
+- [ ] Apply events idempotently (dedup by stable IDs, e.g. `message_id`):
+      delivery is at-least-once.
 - [ ] Keep the existing WebSocket ping/pong + keep-alive handling (unchanged).
 
 ### Resync handling
-- [ ] On a `Resync` event (from the stream **or** as the REST response element):
-  1. Re-fetch authoritative state via REST (timeline / friends / rooms).
-  2. Update `highestSeqSeen` from the freshly loaded data if applicable.
-  3. Continue consuming live events normally.
+- [ ] On a `Resync` event (from the stream **or** as the REST response element),
+      follow the subscribe-before-snapshot order:
+  1. (Re)connect the stream **without** `last_seq` (full-sync mode) and start
+     buffering live events.
+  2. Re-fetch authoritative state via REST (timeline / friends / rooms).
+  3. Re-seed `highestSeqSeen` (via `/api/notifications/cursor` or the first live
+     event), then apply the buffered live events idempotently and continue
+     consuming normally.
 
 ### REST endpoint
 - [ ] Replace `GET /api/notifications?timestamp=...` calls with
@@ -112,8 +134,9 @@ REST (timeline, friends, rooms) and then keep consuming live events.
 |---|---|---|
 | Envelope | `{ type, createdAt, ...payload }` | `{ v, seq?, type, createdAt, ...payload }` |
 | Catch-up cursor | `createdAt` timestamp | per-user `seq` |
-| Stream handshake | — | `?last_seq=<n>` (optional) on `/api/sse`, `/api/wss` |
+| Stream handshake | — | `?last_seq=<n>` (optional) on `/api/sse`, `/api/wss`; omit after a full REST sync |
 | REST replay | `GET /api/notifications?timestamp=<iso>` | `GET /api/notifications?last_seq=<n>` |
+| Cursor seed | — | `GET /api/notifications/cursor` → `{ seq }` |
 | Gap signal | none (silent loss) | `Resync` event → reload via REST |
 | Dedup key | — | `seq` (ignore `<= highestSeqSeen`) |
 

@@ -173,10 +173,16 @@ Authorization: Bearer <your_jwt_token>
 
 #### Get Notifications
 - **`GET /api/notifications`**
-  - Retrieves notification events since a specific timestamp
+  - Replays durable notification events since a given per-user sequence number
   - **Query Parameters**:
-    - `timestamp` (DateTime): Retrieve notifications after this timestamp
-  - **Response**: `200 OK` with array of notification objects
+    - `last_seq` (number, required): Retrieve events with `seq > last_seq` (use `0` for everything still retained)
+  - **Response**: `200 OK` with array of notification objects; a single `Resync` element if the gap is no longer retained
+
+#### Get Notification Cursor
+- **`GET /api/notifications/cursor`**
+  - Returns the highest sequence currently issued to the caller without advancing it
+  - Used to seed the stored cursor after a full REST sync (which connects to the stream without `last_seq`)
+  - **Response**: `200 OK` with `{ "seq": <number> }` (`0` if no event issued yet)
 
 ---
 

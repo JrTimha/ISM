@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use chrono::Utc;
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
 use crate::broadcast::NotificationEvent::ChatMessage;
@@ -65,10 +64,7 @@ impl MessageService {
 
         // 6. Broadcast to all room members
         let dto = MessageDto::from(entity);
-        let notification = Notification {
-            body: ChatMessage { message: dto.clone(), room_preview_text },
-            created_at: Utc::now(),
-        };
+        let notification = Notification::new(ChatMessage { message: dto.clone(), room_preview_text });
         BroadcastChannel::get().send_event_to_all(context.member_ids(), notification).await;
         Ok(dto)
     }

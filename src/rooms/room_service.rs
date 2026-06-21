@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use bytes::Bytes;
-use chrono::Utc;
 use log::error;
 use uuid::Uuid;
 use crate::broadcast::{BroadcastChannel, Notification};
@@ -55,10 +54,7 @@ impl RoomService {
         let users_in_room = state.room_repository.select_room_participants_ids(&room_id).await?;
         BroadcastChannel::get().send_event_to_all(
             users_in_room,
-            Notification {
-                body: UserReadChat { user_id: client_id, room_id },
-                created_at: Utc::now()
-            }
+            Notification::new(UserReadChat { user_id: client_id, room_id })
         ).await;
         Ok(())
     }
@@ -95,15 +91,13 @@ impl RoomService {
 
                 let broadcast = BroadcastChannel::get();
 
-                broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: participator_room.to_dto(), created_by: creator_entity.clone()},
-                    created_at: Utc::now()
-                }, other_user).await;
+                broadcast.send_event(Notification::new(
+                    crate::broadcast::NotificationEvent::NewRoom {room: participator_room.to_dto(), created_by: creator_entity.clone()}
+                ), other_user).await;
 
-                broadcast.send_event(Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: creator_room.to_dto(), created_by: creator_entity},
-                    created_at: Utc::now()
-                }, &client_id).await;
+                broadcast.send_event(Notification::new(
+                    crate::broadcast::NotificationEvent::NewRoom {room: creator_room.to_dto(), created_by: creator_entity}
+                ), &client_id).await;
 
                 Ok(creator_room.to_dto())
             } else {
@@ -113,10 +107,9 @@ impl RoomService {
             let room_dto = room_entity.to_dto();
             BroadcastChannel::get().send_event_to_all(
                 users,
-                Notification {
-                    body: crate::broadcast::NotificationEvent::NewRoom {room: room_dto.clone(), created_by: creator_entity.clone()},
-                    created_at: Utc::now()
-                }
+                Notification::new(
+                    crate::broadcast::NotificationEvent::NewRoom {room: room_dto.clone(), created_by: creator_entity.clone()}
+                )
             ).await;
             Ok(room_dto)
         }
@@ -199,10 +192,9 @@ impl RoomService {
         })?;
 
         BroadcastChannel::get().send_event(
-            Notification {
-                body: crate::broadcast::NotificationEvent::NewRoom {room: room_for_user.to_dto(), created_by: creator_entity},
-                created_at: Utc::now()
-            },
+            Notification::new(
+                crate::broadcast::NotificationEvent::NewRoom {room: room_for_user.to_dto(), created_by: creator_entity}
+            ),
             &user.id
         ).await;
 
@@ -257,10 +249,7 @@ async fn handle_leave_private_room(state: Arc<AppState>, room: ChatRoomEntity, u
     let send_to: Vec<Uuid> = users.iter().map(|user| user.id).collect();
     BroadcastChannel::get().send_event_to_all(
         send_to,
-        Notification {
-            body: LeaveRoom {room_id: room.id},
-            created_at: Utc::now()
-        }
+        Notification::new(LeaveRoom {room_id: room.id})
     ).await;
     Ok(())
 }
@@ -280,10 +269,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
         state.cache.invalidate_room_context(&room.id).await?;
 
         BroadcastChannel::get().send_event(
-            Notification {
-                body: LeaveRoom {room_id: room.id},
-                created_at: Utc::now()
-            },
+            Notification::new(LeaveRoom {room_id: room.id}),
             &leaving_user.id
         ).await;
 
@@ -307,10 +293,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 
         //send ack to the leaving user
         BroadcastChannel::get().send_event(
-            Notification {
-                body: LeaveRoom {room_id: room.id},
-                created_at: Utc::now()
-            },
+            Notification::new(LeaveRoom {room_id: room.id}),
             &leaving_user.id
         ).await;
 
@@ -320,10 +303,7 @@ async fn handle_leave_group_room(state: Arc<AppState>, room: ChatRoomEntity, use
 
 async fn save_room_change_message_and_broadcast(message: MessageEntity, to_users: Vec<Uuid>, preview_text: LastMessagePreviewText) -> Result<(), AppError> {
     let mapped_msg = MessageDto::from(message);
-    let notification = Notification {
-        body: RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text},
-        created_at: Utc::now()
-    };
+    let notification = Notification::new(RoomChangeEvent{message: mapped_msg, room_preview_text: preview_text});
     BroadcastChannel::get().send_event_to_all(to_users, notification).await;
     Ok(())
 }

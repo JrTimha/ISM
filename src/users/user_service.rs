@@ -136,10 +136,7 @@ impl UserService {
             AppError::NotFound(format!("User with ID {} not found.", sender_id))
         })?;
         BroadcastChannel::get().send_event(
-            Notification {
-                body: FriendRequestReceived {from_user: client_dto},
-                created_at: Utc::now()
-            },
+            Notification::new(FriendRequestReceived {from_user: client_dto}),
             &receiver_id
         ).await;
         Ok(())
@@ -181,10 +178,7 @@ impl UserService {
         })?;
 
         BroadcastChannel::get().send_event(
-            Notification {
-                body: FriendRequestAccepted {from_user: client_dto},
-                created_at: Utc::now()
-            },
+            Notification::new(FriendRequestAccepted {from_user: client_dto}),
             &sender_id
         ).await;
 

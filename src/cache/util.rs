@@ -20,3 +20,8 @@ pub const NOTIFICATION: &str = "notification:";
  * Set of notifications for a user
  */
 pub const USER_NOTIFICATIONS: &str = "user_notifications:";
+
+/**
+ * Monotonic per-user sequence counter (INCR), used to order and replay durable notifications
+ */
+pub const USER_SEQUENCE: &str = "user_seq:";

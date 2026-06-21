@@ -116,8 +116,11 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 
 **Rules**:
 - Always broadcast **after** a successful DB write, never before.
-- `send_event` / `send_event_to_all` automatically cache the notification in Redis and fall back to Kafka push notifications for offline users.
+- Build notifications with `Notification::new(body)`; `seq` is assigned per-user during delivery, not at construction.
+- `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in Redis, and fall back to Kafka push notifications for offline users.
+- **Ephemeral** events (`NotificationEvent::is_ephemeral()`) get no `seq` and are never cached — live-only (e.g. `Resync`, future typing indicators).
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
+- Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/sse` and `/api/wss`; the server replays missing durable events or emits a `Resync` when the gap exceeds the cache retention. See `docs/streaming-sequencing.md`.
 
 **`NotificationEvent` variants** (defined in `broadcast/notification.rs`):
 
@@ -131,6 +134,7 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 | `FriendRequestAccepted { from_user }` | requester | request accepted |
 | `UserReadChat { user_id, room_id }` | all room members | room marked as read |
 | `SystemMessage { message }` | any | system-level events |
+| `Resync { reason }` | one client connection | replay gap / lag — client must reload via REST (ephemeral) |
 
 ### Database Pattern
 
@@ -246,10 +250,9 @@ All handlers return `Result<Json<T>, HttpError>`. `HttpError` serializes to:
 **Broadcasting after writes**:
 ```rust
 let bc = BroadcastChannel::get();
-bc.send_event_to_all(member_ids, Notification {
-    body: NotificationEvent::ChatMessage { message, room_preview_text },
-    created_at: Utc::now(),
-}).await;
+bc.send_event_to_all(member_ids, Notification::new(
+    NotificationEvent::ChatMessage { message, room_preview_text },
+)).await;
 ```
 
 ## Production Deployment

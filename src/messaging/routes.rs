@@ -10,9 +10,9 @@ use std::sync::Arc;
 
 pub fn create_messaging_routes() -> Router<Arc<AppState>> {
     Router::new() //add new routes here
-        .route("/api/notifications", get(get_latest_notification_events))
-        .route("/api/notifications/cursor", get(get_notification_cursor))
-        .route("/api/sse", get(stream_server_events))
-        .route("/api/wss", any(websocket_server_events))
-        .route("/api/send-msg", post(handle_send_message))
+        .route("/notifications", get(get_latest_notification_events))
+        .route("/notifications/cursor", get(get_notification_cursor))
+        .route("/sse", get(stream_server_events))
+        .route("/wss", any(websocket_server_events))
+        .route("/send-msg", post(handle_send_message))
 }

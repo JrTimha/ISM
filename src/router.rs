@@ -47,10 +47,14 @@ pub async fn init_router(app_state: AppState) -> Router {
             get(|| async { (StatusCode::OK, "Healthy").into_response() }),
         );
 
-    let protected_routing = Router::new() //add new routes here
-        .merge(create_room_routes())
-        .merge(create_user_routes())
-        .merge(create_messaging_routes())
+    let protected_routing = Router::new()
+        .nest(
+            "/api/v1", //add new routes here, the /api prefix is applied once via nest
+            Router::new()
+                .merge(create_room_routes())
+                .merge(create_user_routes())
+                .merge(create_messaging_routes()),
+        )
         //layering bottom to top middleware
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware

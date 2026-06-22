@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE chat_room\n                SET latest_message = NOW(),latest_message_preview_text = $2\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6d2680f522240bce19a38a27a262e5d68293e3c1b17a7eb05a2c6929deb5d105"
+}

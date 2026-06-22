@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build*)",
+      "Bash(cargo run*)",
+      "Bash(cargo check*)",
+      "Bash(cargo test*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo sqlx*)",
+      "Bash(sqlx migrate*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(docker compose up*)",
+      "Bash(docker compose ps*)",
+      "Bash(docker compose logs*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
+      "Bash(docker compose down*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cargo check 2>&1 | tail -30"
+          }
+        ]
+      }
+    ]
+  }
+}

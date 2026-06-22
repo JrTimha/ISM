@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT users.id,\n                   users.display_name,\n                   users.profile_picture,\n                   participants.joined_at AS \"joined_at?\",\n                   participants.last_message_read_at\n            FROM chat_room_participant AS participants\n            JOIN app_user AS users ON participants.user_id = users.id\n            WHERE participants.room_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "profile_picture",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "profile_picture"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "joined_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room_participant",
+            "name": "joined_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "last_message_read_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room_participant",
+            "name": "last_message_read_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "7b4800b86a71704c3eee7b4dfdfa9f4c9721c44a00006b5668dd260e2584b116"
+}

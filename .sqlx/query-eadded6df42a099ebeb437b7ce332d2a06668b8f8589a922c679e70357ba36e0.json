@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT r.id\n            FROM chat_room r\n                JOIN chat_room_participant p ON r.id = p.room_id\n            WHERE r.room_type = 'Single' AND p.user_id IN ($1, $2)\n            GROUP BY r.id\n            HAVING COUNT(p.user_id) = 2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eadded6df42a099ebeb437b7ce332d2a06668b8f8589a922c679e70357ba36e0"
+}

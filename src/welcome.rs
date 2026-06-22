@@ -2,7 +2,6 @@ use std::env;
 use tracing::info;
 
 pub fn welcome() {
-
     let version = env!("CARGO_PKG_VERSION");
     let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
 

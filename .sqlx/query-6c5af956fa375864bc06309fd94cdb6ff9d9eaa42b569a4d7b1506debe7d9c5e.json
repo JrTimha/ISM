@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            RETURNING id, room_name, created_at, room_type as \"room_type: RoomType\", latest_message, latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewText>\", room_image_url, TRUE as \"unread: _\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "room_name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "room_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "room_type: RoomType",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "room_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "latest_message",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "latest_message"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "latest_message_preview_text: Json<LastMessagePreviewText>",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "latest_message_preview_text"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "room_image_url",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "chat_room",
+            "name": "room_image_url"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "unread: _",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Timestamptz",
+        "Timestamptz",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "6c5af956fa375864bc06309fd94cdb6ff9d9eaa42b569a4d7b1506debe7d9c5e"
+}

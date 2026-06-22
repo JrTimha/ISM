@@ -1,0 +1,61 @@
+name: Security Audit
+
+# Scans all dependencies in Cargo.lock against the RustSec advisory database
+# (https://github.com/rustsec/advisory-db) for known vulnerabilities.
+on:
+  push:
+    branches: [ "master", "development" ]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/security.yml"
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/security.yml"
+  schedule:
+    # Re-scan weekly so newly disclosed advisories against otherwise unchanged
+    # dependencies are caught even when no code is pushed.
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      # No native build dependencies are needed: cargo-audit only parses
+      # Cargo.lock and compares it against the advisory database.
+      - name: Setup Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Cache cargo registry & cargo-audit binary
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-bin: true
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run vulnerability scan
+        # Fails the job when a dependency has a known security vulnerability.
+        # Non-security warnings (unmaintained / yanked crates) are reported but
+        # do not fail the build. Make it stricter with `--deny warnings`.
+        #
+        # Consciously accepted advisories that have no fix yet are listed (with
+        # justification) in `.cargo/audit.toml`, which `cargo audit` reads
+        # automatically. The scan stays strict for every other advisory.
+        run: cargo audit

@@ -1,15 +1,16 @@
+use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
+use crate::cache::util::ROOM_CONTEXT;
+use crate::rooms::room_member::RoomContext;
 use log::info;
-use redis::{PushInfo, from_redis_value, AsyncTypedCommands, RedisError};
 use redis::aio::ConnectionManager;
+use redis::{AsyncTypedCommands, PushInfo, RedisError, from_redis_value};
+use thiserror::Error;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{error, warn};
 use uuid::Uuid;
-use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
-use thiserror::Error;
 
 #[derive(Debug, Error)]
 enum ProcessorError {
-
     #[error("Ungültige Push-Nachrichten-Struktur")]
     InvalidPushFormat,
 
@@ -24,7 +25,6 @@ enum ProcessorError {
 }
 
 pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: ConnectionManager) {
-
     let _ = rx.recv().await;
     info!("Redis Event-Processing active.");
 
@@ -33,7 +33,10 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
         let notification = match parse_push_message(push_message) {
             Ok(message) => message,
             Err(error) => {
-                warn!("Parsing of received push message failed. Ignoring. Push message: {:?}", error);
+                warn!(
+                    "Parsing of received push message failed. Ignoring. Push message: {:?}",
+                    error
+                );
                 continue;
             }
         };
@@ -45,7 +48,6 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
 }
 
 fn parse_push_message(mut push_message: PushInfo) -> Result<Notification, ProcessorError> {
-    
     let Some(payload_value) = push_message.data.pop() else {
         return Err(ProcessorError::InvalidPushFormat);
     };
@@ -62,15 +64,17 @@ async fn handle_notification(
 ) -> Result<(), ProcessorError> {
     match &notification.body {
         NotificationEvent::ChatMessage { message, .. } => {
-            let room_key = format!("room_members:{}", message.chat_room_id);
-            let member_ids: Vec<Uuid> = match conn.smembers(&room_key).await {
-                Ok(ids) => ids.into_iter().filter_map(|id_str| Uuid::parse_str(&id_str).ok()).collect(),
-                Err(e) => {
-                    error!("Fehler beim Abrufen von Raum-Mitgliedern: {}", e);
-                    return Ok(())
-                }
-            };
-            BroadcastChannel::get().send_event_to_all(member_ids, notification).await;
+            let key = format!("{}{}", ROOM_CONTEXT, message.chat_room_id);
+            let json: Option<String> = conn.get(&key).await.unwrap_or(None);
+            let member_ids: Vec<Uuid> = json
+                .and_then(|s| serde_json::from_str::<RoomContext>(&s).ok())
+                .map(|ctx| ctx.member_ids())
+                .unwrap_or_default();
+            if !member_ids.is_empty() {
+                BroadcastChannel::get()
+                    .send_event_to_all(member_ids, notification)
+                    .await;
+            }
         }
         _ => {}
     }

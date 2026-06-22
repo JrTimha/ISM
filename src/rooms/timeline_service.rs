@@ -1,33 +1,43 @@
-use std::sync::Arc;
-use chrono::{DateTime, Utc};
-use log::error;
-use uuid::Uuid;
 use crate::core::AppState;
-use crate::errors::AppError;
-use crate::messaging::model::MessageDTO;
+use crate::core::errors::AppResponse;
+use crate::messaging::model::{MessageBody, MessageDto, TimelinePage};
+use chrono::{DateTime, Utc};
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct TimelineService;
 
 impl TimelineService {
-
     pub async fn scroll_chat_timeline(
         state: Arc<AppState>,
         room_id: Uuid,
-        timestamp: DateTime<Utc>
-    ) -> Result<Vec<MessageDTO>, AppError> {
-        
-        let data = state.message_repository.fetch_data(timestamp, room_id).await
-            .map_err(|err| AppError::DatabaseError(err))?;
-        
-        let mut mapped: Vec<MessageDTO> = vec![];
-        data.into_iter().for_each(|message| {
-            match message.to_dto() {
-                Ok(dto) => mapped.push(dto),
-                Err(err) => {
-                    error!("Failed to convert message to DTO: {}", err);
-                }
+        timestamp: DateTime<Utc>,
+    ) -> AppResponse<TimelinePage> {
+        let entities = state
+            .chat_repository
+            .fetch_messages(room_id, timestamp)
+            .await?;
+
+        // Collect the distinct authors of this page so the client can render every
+        // message without a separate lookup — including authors that have since left.
+        // Reply messages reference the original author (`reply_sender_id`), who may be
+        // outside this page, so include them too.
+        let mut sender_ids: Vec<Uuid> = Vec::with_capacity(entities.len());
+        for message in &entities {
+            sender_ids.push(message.sender_id);
+            if let MessageBody::Reply(reply) = &message.msg_body.0 {
+                sender_ids.push(reply.reply_sender_id);
             }
-        });
-        Ok(mapped)
+        }
+        sender_ids.sort();
+        sender_ids.dedup();
+
+        let senders = state
+            .room_repository
+            .select_message_senders(&room_id, &sender_ids)
+            .await?;
+        let messages = entities.into_iter().map(MessageDto::from).collect();
+
+        Ok(TimelinePage { messages, senders })
     }
 }

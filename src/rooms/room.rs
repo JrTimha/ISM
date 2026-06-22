@@ -1,0 +1,132 @@
+use crate::rooms::room_member::RoomMember;
+use crate::utils::truncate_and_serialize;
+use chrono::prelude::*;
+use serde::{Deserialize, Serialize};
+use sqlx::Type;
+use sqlx::types::Json;
+use uuid::Uuid;
+
+#[derive(sqlx::FromRow, sqlx::Type, Debug)]
+pub struct ChatRoomEntity {
+    pub id: Uuid,
+    pub room_type: RoomType,
+    pub room_name: Option<String>,
+    pub room_image_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub latest_message: Option<DateTime<Utc>>,
+    pub latest_message_preview_text: Option<Json<LastMessagePreviewText>>,
+    pub unread: Option<bool>,
+}
+
+impl ChatRoomEntity {
+    pub fn to_dto(&self) -> ChatRoomDto {
+        let last_message = self
+            .latest_message_preview_text
+            .as_ref()
+            .map(|j| j.0.clone())
+            .unwrap_or(LastMessagePreviewText::New);
+
+        ChatRoomDto {
+            id: self.id,
+            room_type: self.room_type.clone(),
+            room_image_url: self.room_image_url.clone(),
+            room_name: self.room_name.clone(),
+            created_at: self.created_at,
+            latest_message: self.latest_message,
+            unread: self.unread,
+            latest_message_preview_text: last_message,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRoomDto {
+    pub id: Uuid,
+    pub room_type: RoomType,
+    pub room_image_url: Option<String>,
+    pub room_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub latest_message: Option<DateTime<Utc>>,
+    pub unread: Option<bool>,
+    pub latest_message_preview_text: LastMessagePreviewText,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRoomWithUserDTO {
+    #[serde(flatten)]
+    pub room: ChatRoomDto,
+    pub users: Vec<RoomMember>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(tag = "type")]
+pub enum LastMessagePreviewText {
+    Text {
+        sender_username: String,
+        #[serde(serialize_with = "truncate_and_serialize")]
+        text: String,
+    },
+    Media {
+        sender_username: String,
+        media_type: String,
+    },
+    Reply {
+        sender_username: String,
+        #[serde(serialize_with = "truncate_and_serialize")]
+        reply_text: String,
+    },
+    RoomChange {
+        sender_username: String,
+        room_change_type: RoomChangeType,
+    },
+    New,
+}
+
+/// Keyset cursor for the joined-rooms list. Rooms are ordered by recent activity
+/// (`latest_message DESC`) with `id` as a deterministic tie-breaker.
+#[derive(Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RoomPaginationCursor {
+    pub last_seen_latest_message: Option<DateTime<Utc>>,
+    pub last_seen_room_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NewRoom {
+    pub room_type: RoomType,
+    pub room_name: Option<String>,
+    pub invited_users: Vec<Uuid>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub enum RoomChangeType {
+    LEAVE,
+    JOIN,
+    INVITE,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq)]
+#[sqlx(type_name = "room_type")]
+pub enum RoomType {
+    Single,
+    Group,
+}
+
+impl RoomType {
+    pub fn to_str(&self) -> &str {
+        match self {
+            RoomType::Single => "Single",
+            RoomType::Group => "Group",
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            RoomType::Single => String::from("Single"),
+            RoomType::Group => String::from("Group"),
+        }
+    }
+}

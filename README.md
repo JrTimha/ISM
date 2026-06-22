@@ -101,14 +101,14 @@ log_level = "info" # Logging level (e.g., "info", "debug", "warn", "error")
 cors_origin = "http://localhost:4200" # Allowed CORS origin for frontend applications (wildcards are not supported)
 use_kafka = false # Set to true to enable Kafka integration for custom notifications
 
-[message_db_config] # Configuration for the NoSQL database (Cassandra/ScyllaDB)
+[message_db_config] # Configuration for the NoSQL object_storage (Cassandra/ScyllaDB)
 db_url = "localhost:9042"
 db_user = "cassandra"
 db_password = "cassandra"
 db_keyspace = "messaging"
-with_db_init = true # Set to true to initialize required database tables on startup (use with caution in production)
+with_db_init = true # Set to true to initialize required object_storage tables on startup (use with caution in production)
 
-[user_db_config] # Configuration for the relational database (PostgreSQL)
+[user_db_config] # Configuration for the relational object_storage (PostgreSQL)
 db_host = "localhost"
 db_port = "32768"
 db_user = "postgres"
@@ -173,10 +173,16 @@ Authorization: Bearer <your_jwt_token>
 
 #### Get Notifications
 - **`GET /api/notifications`**
-  - Retrieves notification events since a specific timestamp
+  - Replays durable notification events since a given per-user sequence number
   - **Query Parameters**:
-    - `timestamp` (DateTime): Retrieve notifications after this timestamp
-  - **Response**: `200 OK` with array of notification objects
+    - `last_seq` (number, required): Retrieve events with `seq > last_seq` (use `0` for everything still retained)
+  - **Response**: `200 OK` with array of notification objects; a single `Resync` element if the gap is no longer retained
+
+#### Get Notification Cursor
+- **`GET /api/notifications/cursor`**
+  - Returns the highest sequence currently issued to the caller without advancing it
+  - Used to seed the stored cursor after a full REST sync (which connects to the stream without `last_seq`)
+  - **Response**: `200 OK` with `{ "seq": <number> }` (`0` if no event issued yet)
 
 ---
 
@@ -300,7 +306,7 @@ Authorization: Bearer <your_jwt_token>
     - `room_id` (UUID): Room identifier
   - **Query Parameters**:
     - `timestamp` (DateTime): Load messages before this timestamp
-  - **Response**: `200 OK` with array of message objects
+  - **Response**: `200 OK` with a `TimelinePage` object: `{ messages: [...], senders: [...] }`, where `senders` is the deduplicated set of room members that authored a message in the page (plus the original authors referenced by replies; authors who have since left still resolve, with null participant fields). Combined with the `sender` field on live `ChatMessage` events, the client never needs a separate sender lookup.
 
 #### Mark Room as Read
 - **`POST /api/rooms/{room_id}/mark-read`**

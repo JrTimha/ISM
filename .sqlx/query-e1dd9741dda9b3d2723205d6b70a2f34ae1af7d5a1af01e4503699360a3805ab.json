@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                message_id,\n                chat_room_id,\n                sender_id,\n                msg_body AS \"msg_body: sqlx::types::Json<MessageBody>\",\n                msg_type AS \"msg_type: MsgType\",\n                created_at\n            FROM chat_message\n            WHERE chat_room_id = $1 AND created_at < $2\n            ORDER BY created_at DESC\n            LIMIT 25\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "chat_room_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "chat_room_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "sender_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "sender_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "msg_body: sqlx::types::Json<MessageBody>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "msg_body"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "msg_type: MsgType",
+        "type_info": {
+          "Custom": {
+            "name": "msg_type",
+            "kind": {
+              "Enum": [
+                "Text",
+                "Media",
+                "RoomChange",
+                "Reply"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "msg_type"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat_message",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e1dd9741dda9b3d2723205d6b70a2f34ae1af7d5a1af01e4503699360a3805ab"
+}

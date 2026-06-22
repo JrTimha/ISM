@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM chat_message WHERE chat_room_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1ed4c19fd3f710e493cf0b694f2c0e8ec186f1743aeb6576bc8687b6666d0346"
+}

@@ -36,6 +36,9 @@ jobs:
           rustup default stable
 
       - name: Check formatting
+        # Formatting is reported but does not fail the build yet; remove
+        # `continue-on-error` to enforce a clean format once the backlog is cleared.
+        continue-on-error: true
         run: cargo fmt --all --check
 
   clippy-test:

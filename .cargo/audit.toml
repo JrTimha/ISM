@@ -1,0 +1,17 @@
+# cargo-audit configuration (read automatically by `cargo audit`).
+#
+# Advisories listed under `ignore` are consciously accepted. Every entry MUST
+# document *why* it is safe to accept and be revisited whenever a fix ships.
+# The scan stays strict for everything else: any new, unlisted vulnerability
+# still fails the build.
+
+[advisories]
+ignore = [
+    # rsa: "Marvin Attack" — timing side-channel during RSA *private-key*
+    # operations (signing / decryption). ISM only uses `jsonwebtoken` to
+    # *verify* Keycloak JWTs, which is a public-key operation; the vulnerable
+    # private-key path is never exercised. `rsa` is pulled in transitively via
+    # `jsonwebtoken`'s `rust_crypto` feature and no fixed version exists.
+    # Re-evaluate if a patched `rsa` is released or we switch crypto backend.
+    "RUSTSEC-2023-0071",
+]

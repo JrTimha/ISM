@@ -1,4 +1,3 @@
-use dotenvy::dotenv;
 use ism::core::{AppState, ISMConfig};
 use ism::router::init_router;
 use ism::welcome::welcome;
@@ -63,7 +62,6 @@ async fn shutdown_signal() {
 }
 
 fn init_configuration() -> ISMConfig {
-    dotenv().ok();
     let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
     let config =
         ISMConfig::new(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));

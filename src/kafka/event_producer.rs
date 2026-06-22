@@ -43,7 +43,6 @@ impl EventProducer for KafkaEventProducer {
         notification: Notification,
         to_user: Vec<Uuid>,
     ) -> Result<(), AppError> {
-
         let payload = serde_json::to_string(&PushNotification {
             to_user,
             notification,

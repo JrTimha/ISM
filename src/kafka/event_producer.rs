@@ -43,30 +43,18 @@ impl EventProducer for KafkaEventProducer {
         notification: Notification,
         to_user: Vec<Uuid>,
     ) -> Result<(), AppError> {
+
         let payload = serde_json::to_string(&PushNotification {
             to_user,
             notification,
-        })
-        .map_err(|e| AppError::from(e))?;
+        })?;
+
         let response = self
             .producer
             .send(
                 FutureRecord::<(), String>::to(&self.config.topic)
                     .payload(&payload)
-                    .headers(
-                        OwnedHeaders::new()
-                            .insert(Header {
-                                key: "__TypeId__",
-                                value: Some(
-                                    "com.meventure.api.notifications.model.UndeliveredMessage"
-                                        .as_bytes(),
-                                ),
-                            })
-                            .insert(Header {
-                                key: "contentType",
-                                value: Some("application/json".as_bytes()),
-                            }),
-                    ),
+                    .headers(generate_header()),
                 Duration::from_secs(0),
             )
             .await;
@@ -102,4 +90,16 @@ impl EventProducer for LogEventProducer {
     ) -> Result<(), AppError> {
         Ok(())
     }
+}
+
+fn generate_header() -> OwnedHeaders {
+    OwnedHeaders::new()
+        .insert(Header {
+            key: "__TypeId__",
+            value: Some("com.meventure.api.notifications.model.UndeliveredMessage".as_bytes()),
+        })
+        .insert(Header {
+            key: "contentType",
+            value: Some("application/json".as_bytes()),
+        })
 }

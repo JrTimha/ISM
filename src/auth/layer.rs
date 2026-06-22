@@ -133,7 +133,7 @@ mod test {
     async fn build_basic_layer() {
         let instance = KeycloakAuthInstance::new(
             KeycloakConfig::builder()
-                .server(Url::parse("https://localhost:8443/").unwrap())
+                .server(Url::parse("https://localhost:8443/").expect("invalid url"))
                 .realm(String::from("MyRealm"))
                 .retry((10, 2))
                 .build(),
@@ -150,7 +150,7 @@ mod test {
     async fn build_full_layer() {
         let instance = KeycloakAuthInstance::new(
             KeycloakConfig::builder()
-                .server(Url::parse("https://localhost:8443/").unwrap())
+                .server(Url::parse("https://localhost:8443/").expect("invalid url"))
                 .realm(String::from("MyRealm"))
                 .retry((10, 2))
                 .build(),

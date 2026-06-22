@@ -1,4 +1,4 @@
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use ism::core::{AppState, ISMConfig};
 use ism::router::init_router;
 use ism::welcome::welcome;

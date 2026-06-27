@@ -9,6 +9,7 @@ use crate::rooms::room::{
 };
 use crate::rooms::room_member::RoomMember;
 use crate::rooms::room_service::RoomService;
+use crate::rooms::share_service::{ShareService, ShareTarget, ShareTargetCursor};
 use crate::rooms::timeline_service::TimelineService;
 use crate::users::user_service::UserService;
 use crate::utils::check_user_in_room;
@@ -75,6 +76,21 @@ pub async fn handle_get_joined_rooms(
     let rooms =
         RoomService::get_joined_rooms(state, token.subject, params.name, cursor, page_size).await?;
     Ok(Json(rooms))
+}
+
+pub async fn handle_get_share_targets(
+    State(state): State<Arc<AppState>>,
+    Extension(token): Extension<KeycloakToken<String>>,
+    Query(params): Query<RoomListQueryParams>,
+) -> Result<Json<CursorResults<ShareTarget>>, AppError> {
+    let cursor: ShareTargetCursor = decode_cursor(params.cursor)
+        .map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
+    let page_size = clamp_page_size(params.limit);
+
+    let targets =
+        ShareService::get_share_targets(state, token.subject, params.name, cursor, page_size)
+            .await?;
+    Ok(Json(targets))
 }
 
 pub async fn handle_get_room_with_details(

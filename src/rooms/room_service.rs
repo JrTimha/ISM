@@ -149,7 +149,10 @@ impl RoomService {
         // Atomic: room + participants (+ optional first message) are created together,
         // so a failing message insert never leaves a half-created room behind.
         let mut tx = state.room_repository.start_transaction().await?;
-        let room_entity = state.room_repository.insert_room(&mut tx, &new_room).await?;
+        let room_entity = state
+            .room_repository
+            .insert_room(&mut tx, &new_room)
+            .await?;
 
         let first_message = match &new_room.first_message {
             Some(body) => {

@@ -21,6 +21,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::Arc;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Deserialize, Debug)]
 pub struct RoomSearchQueryParam {
@@ -103,6 +104,10 @@ pub async fn handle_create_room(
         return Err(AppError::Validation(
             "Sender ID is not in the list of invited users.".to_string(),
         ));
+    }
+
+    if let Some(first_message) = &payload.first_message {
+        first_message.validate().map_err(AppError::from)?;
     }
 
     //filter out all users that have an ignore-relationship with the sender

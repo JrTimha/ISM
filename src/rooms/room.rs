@@ -1,3 +1,4 @@
+use crate::messaging::model::FirstMessageBody;
 use crate::rooms::room_member::RoomMember;
 use crate::utils::truncate_and_serialize;
 use chrono::prelude::*;
@@ -99,6 +100,11 @@ pub struct NewRoom {
     pub room_type: RoomType,
     pub room_name: Option<String>,
     pub invited_users: Vec<Uuid>,
+    /// Optional first message sent together with the room. Only `Text` or `Media`
+    /// (a link to a post) — never a `Reply`, since the room starts empty. Embedded
+    /// into the `NewRoom` broadcast event so recipients render it without a lookup.
+    #[serde(default)]
+    pub first_message: Option<FirstMessageBody>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

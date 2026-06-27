@@ -38,7 +38,7 @@ Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdA
 |---|---|---|---|
 | `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember`) | no |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite | no |
-| `NewRoom { room, created_by }` | invited user | room creation / invite | no |
+| `NewRoom { room, created_by, first_message }` | invited user | room creation / invite (`first_message`: optional, embedded on creation) | no |
 | `LeaveRoom { room_id }` | leaving user | user leaves room | no |
 | `FriendRequestReceived { from_user }` | target user | friend request sent | no |
 | `FriendRequestAccepted { from_user }` | requester | request accepted | no |

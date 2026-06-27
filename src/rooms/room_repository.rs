@@ -178,20 +178,24 @@ impl RoomRepository {
         Ok(room)
     }
 
-    pub async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
+    /// Inserts the room row and its participants on the given connection. The caller
+    /// owns the transaction so room creation can be made atomic together with an
+    /// optional first message (see `RoomService::create_room`).
+    pub async fn insert_room(
+        &self,
+        conn: &mut PgConnection,
+        new_room: &NewRoom,
+    ) -> Result<ChatRoomEntity, sqlx::Error> {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
-            room_type: new_room.room_type,
-            room_name: new_room.room_name,
+            room_type: new_room.room_type.clone(),
+            room_name: new_room.room_name.clone(),
             room_image_url: None,
             created_at: Utc::now(),
             latest_message: Some(Utc::now()),
             latest_message_preview_text: Some(Json(LastMessagePreviewText::New)),
             unread: None,
         };
-
-        //https://docs.rs/sqlx/latest/sqlx/struct.Transaction.html
-        let mut tx = self.pool.begin().await?;
 
         let room = sqlx::query_as!(
             ChatRoomEntity,
@@ -206,7 +210,7 @@ impl RoomRepository {
             room_entity.created_at,
             room_entity.latest_message,
             room_entity.latest_message_preview_text as Option<Json<LastMessagePreviewText>>
-        ).fetch_one(&mut *tx).await?;
+        ).fetch_one(&mut *conn).await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
         let mut builder: QueryBuilder<Postgres> =
@@ -216,10 +220,9 @@ impl RoomRepository {
                 db.push_bind(user).push_bind(&room.id).push_bind(Utc::now());
             })
             .build()
-            .fetch_all(&mut *tx)
+            .execute(&mut *conn)
             .await?;
 
-        tx.commit().await?;
         Ok(room)
     }
 

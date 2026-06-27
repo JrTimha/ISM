@@ -180,6 +180,26 @@ impl Validate for NewMessageBody {
     }
 }
 
+/// Body of the optional first message that can be sent together with a new room.
+/// A brand-new room has no prior messages, so a `Reply` is impossible here — only
+/// `Text` and `Media` (a link to a post) are valid. `chat_room_id` is intentionally
+/// absent: the room id does not exist until the room has been created.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum FirstMessageBody {
+    Text(TextBody),
+    Media(MediaBody),
+}
+
+impl Validate for FirstMessageBody {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        match self {
+            FirstMessageBody::Text(body) => body.validate(),
+            FirstMessageBody::Media(body) => body.validate(),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct NewReplyBody {

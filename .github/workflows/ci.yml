@@ -1,8 +1,9 @@
 name: CI
 
 # Runs on every push to the development branch and on pull requests targeting
-# master. Compiles, lints and tests the crate. No Docker image is built, pushed
-# or stored here — image publishing is handled exclusively by cd.yml on master.
+# master. Compiles, lints and tests the crate. The PR-only docker-build job below
+# validates that the release image still builds, but pushes nothing — image
+# publishing is handled exclusively by cd.yml on release tags (v*.*.*).
 on:
   push:
     branches: [ "development" ]

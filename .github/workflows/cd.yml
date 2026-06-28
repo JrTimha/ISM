@@ -1,11 +1,15 @@
 name: CD
 
-# Builds and publishes the Docker image to GHCR. Runs only on master and on
-# release tags — never on the development branch, so no image is built or stored
-# for dev work.
+# Builds and publishes the Docker image to GHCR. Runs exclusively on release
+# tags (v*.*.*) — never on master pushes/merges or the development branch. This
+# guarantees a given commit is built and published exactly once: when it is
+# tagged for release. Merges to master only run CI quality checks (ci.yml).
+#
+# Git tags are not bound to a branch, so a `v*.*.*` tag could be pushed onto any
+# commit (e.g. on development). The `guard` job below rejects any tag whose commit
+# is not contained in master, so only master commits ever produce a release image.
 on:
   push:
-    branches: [ "master" ]
     tags: [ "v*.*.*" ]
 
 concurrency:
@@ -17,9 +21,31 @@ env:
   SQLX_OFFLINE: "true"
 
 jobs:
+  guard:
+    name: Verify tag is on master
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Ensure tagged commit is contained in master
+        run: |
+          git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "Tagged commit $GITHUB_SHA is on master — proceeding."
+          else
+            echo "::error::Tag '$GITHUB_REF_NAME' points to a commit that is not on master. Release images are only published from master — merge to master first, then tag the master commit."
+            exit 1
+          fi
+
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    needs: guard
     permissions:
       contents: read
     steps:
@@ -77,12 +103,13 @@ jobs:
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ghcr.io/jrtimha/ism
+          # A single release tag (e.g. v0.8.2) produces one image digest carrying
+          # these aliases: v0.8.2 (ref), 0.8.2 (semver), 0.8 (major.minor), latest.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-,format=short
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0

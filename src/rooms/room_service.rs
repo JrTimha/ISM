@@ -1,9 +1,11 @@
 use crate::broadcast::NotificationEvent::{LeaveRoom, RoomChangeEvent, UserReadChat};
-use crate::broadcast::{BroadcastChannel, Notification};
+use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::core::AppState;
 use crate::core::cursor::{CursorResults, next_cursor};
 use crate::core::errors::AppError;
-use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, RoomChangeBody};
+use crate::messaging::model::{
+    FirstMessageBody, MessageBody, MessageDto, MessageEntity, RoomChangeBody,
+};
 use crate::rooms::model::UploadResponse;
 use crate::rooms::room::{
     ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom,
@@ -138,12 +140,49 @@ impl RoomService {
         client_id: Uuid,
         new_room: NewRoom,
     ) -> Result<ChatRoomDto, AppError> {
-        let room_entity = state.room_repository.insert_room(new_room.clone()).await?;
         let creator_entity = state
             .user_repository
             .find_user_by_id(&client_id)
             .await?
             .ok_or_else(|| AppError::NotFound("UserID not found.".to_string()))?;
+
+        // Atomic: room + participants (+ optional first message) are created together,
+        // so a failing message insert never leaves a half-created room behind.
+        let mut tx = state.room_repository.start_transaction().await?;
+        let room_entity = state
+            .room_repository
+            .insert_room(&mut tx, &new_room)
+            .await?;
+
+        let first_message = match &new_room.first_message {
+            Some(body) => {
+                let msg_body = match body.clone() {
+                    FirstMessageBody::Text(text) => MessageBody::Text(text),
+                    FirstMessageBody::Media(media) => MessageBody::Media(media),
+                };
+                let entity = MessageEntity::new(room_entity.id, client_id, msg_body);
+                let preview_text =
+                    first_message_preview_text(body, creator_entity.display_name.clone());
+                state
+                    .chat_repository
+                    .insert_message(&mut *tx, &entity)
+                    .await?;
+                state
+                    .room_repository
+                    .apply_message_to_room(
+                        &mut tx,
+                        &room_entity.id,
+                        &preview_text,
+                        &entity.sender_id,
+                        entity.created_at,
+                    )
+                    .await?;
+                Some(MessageDto::from(entity))
+            }
+            None => None,
+        };
+        tx.commit().await?;
+
         let users = new_room.invited_users;
 
         if room_entity.room_type == RoomType::Single {
@@ -168,9 +207,10 @@ impl RoomService {
 
                 broadcast
                     .send_event(
-                        Notification::new(crate::broadcast::NotificationEvent::NewRoom {
+                        Notification::new(NotificationEvent::NewRoom {
                             room: participator_room.to_dto(),
                             created_by: creator_entity.clone(),
+                            first_message: first_message.clone(),
                         }),
                         other_user,
                     )
@@ -178,9 +218,10 @@ impl RoomService {
 
                 broadcast
                     .send_event(
-                        Notification::new(crate::broadcast::NotificationEvent::NewRoom {
+                        Notification::new(NotificationEvent::NewRoom {
                             room: creator_room.to_dto(),
                             created_by: creator_entity,
+                            first_message,
                         }),
                         &client_id,
                     )
@@ -198,9 +239,10 @@ impl RoomService {
             BroadcastChannel::get()
                 .send_event_to_all(
                     users,
-                    Notification::new(crate::broadcast::NotificationEvent::NewRoom {
+                    Notification::new(NotificationEvent::NewRoom {
                         room: room_dto.clone(),
                         created_by: creator_entity.clone(),
+                        first_message,
                     }),
                 )
                 .await;
@@ -331,9 +373,10 @@ impl RoomService {
 
         BroadcastChannel::get()
             .send_event(
-                Notification::new(crate::broadcast::NotificationEvent::NewRoom {
+                Notification::new(NotificationEvent::NewRoom {
                     room: room_for_user.to_dto(),
                     created_by: creator_entity,
+                    first_message: None,
                 }),
                 &user.id,
             )
@@ -382,6 +425,25 @@ impl RoomService {
             image_name: format!("{}.jpeg", object_id),
         };
         Ok(response)
+    }
+}
+
+/// Builds the room preview text for an optional first message sent on room creation.
+/// Mirrors `MessageService::generate_room_preview_text`, but for the restricted
+/// `FirstMessageBody` (no `Reply` in a brand-new room).
+fn first_message_preview_text(
+    body: &FirstMessageBody,
+    sender_username: String,
+) -> LastMessagePreviewText {
+    match body {
+        FirstMessageBody::Text(text) => LastMessagePreviewText::Text {
+            sender_username,
+            text: text.text.clone(),
+        },
+        FirstMessageBody::Media(media) => LastMessagePreviewText::Media {
+            sender_username,
+            media_type: media.media_type.clone(),
+        },
     }
 }
 

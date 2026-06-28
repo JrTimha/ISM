@@ -2,6 +2,7 @@ use crate::rooms::room::{
     ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomPaginationCursor, RoomType,
 };
 use crate::rooms::room_member::RoomMember;
+use crate::rooms::share_service::{ActiveShareRow, InactiveShareRow};
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
 use sqlx::{Error, PgConnection, Pool, Postgres, QueryBuilder, Transaction};
@@ -117,6 +118,136 @@ impl RoomRepository {
         Ok(rooms)
     }
 
+    /// *Active* section of the share-target list: group rooms the client is in, plus
+    /// friends with whom an 1-1 room already exists, merged and ordered by recent
+    /// activity (`active_at DESC`, `room_id` tie-breaker). Friends without a 1-1 room
+    /// are excluded here — they belong to the inactive section (`inactive_share_targets`),
+    /// so the two halves of the friend set never overlap.
+    ///
+    /// Optional case-insensitive name filter (friend `raw_name`, group `room_name`).
+    /// Keyset over `(active_at, room_id)`; callers pass `limit = page_size + 1`.
+    ///
+    /// Runtime query (not the `query_as!` macro) because of the optional cursor/name
+    /// binds — consistent with `get_joined_rooms` and the `UserRepository` queries.
+    pub async fn active_share_targets(
+        &self,
+        client_id: &Uuid,
+        name_filter: Option<&str>,
+        cursor_active_at: Option<DateTime<Utc>>,
+        cursor_id: Option<Uuid>,
+        limit: i64,
+    ) -> Result<Vec<ActiveShareRow>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, ActiveShareRow>(
+            r#"
+            SELECT name, room_id, image_url, active_at, is_group, user_id
+            FROM (
+                -- Friends with an existing 1-1 room (the share target is that room).
+                SELECT
+                    u.display_name AS name,
+                    sr.room_id     AS room_id,
+                    u.profile_picture AS image_url,
+                    sr.active_at   AS active_at,
+                    false          AS is_group,
+                    u.id           AS user_id
+                FROM app_user u
+                JOIN user_relationship rl
+                    ON u.id = CASE
+                                WHEN rl.user_a_id = $1 THEN rl.user_b_id
+                                WHEN rl.user_b_id = $1 THEN rl.user_a_id
+                              END
+                   AND rl.state = 'FRIEND'
+                JOIN LATERAL (
+                    SELECT r.id AS room_id,
+                           COALESCE(r.latest_message, r.created_at) AS active_at
+                    FROM chat_room r
+                    JOIN chat_room_participant p1 ON p1.room_id = r.id AND p1.user_id = $1
+                    JOIN chat_room_participant p2 ON p2.room_id = r.id AND p2.user_id = u.id
+                    WHERE r.room_type = 'Single'
+                    LIMIT 1
+                ) sr ON true
+                WHERE ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
+
+                UNION ALL
+
+                -- Group rooms the client is a member of.
+                SELECT
+                    r.room_name      AS name,
+                    r.id             AS room_id,
+                    r.room_image_url AS image_url,
+                    COALESCE(r.latest_message, r.created_at) AS active_at,
+                    true             AS is_group,
+                    NULL::uuid       AS user_id
+                FROM chat_room r
+                JOIN chat_room_participant p ON p.room_id = r.id AND p.user_id = $1
+                WHERE r.room_type = 'Group'
+                  AND ($2::text IS NULL OR r.room_name ILIKE concat('%', $2, '%'))
+            ) AS merged
+            WHERE (
+                $3::timestamptz IS NULL
+                OR active_at < $3
+                OR (active_at = $3 AND room_id < $4)
+            )
+            ORDER BY active_at DESC, room_id DESC
+            LIMIT $5
+            "#,
+        )
+        .bind(client_id)
+        .bind(name_filter)
+        .bind(cursor_active_at)
+        .bind(cursor_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// *Inactive* section of the share-target list: friends the client has no 1-1 room
+    /// with yet (sharing requires creating the room first). Ordered alphabetically
+    /// (`display_name ASC`, `id` tie-breaker), keyset over `(display_name, id)`.
+    ///
+    /// The `NOT EXISTS` is the exact complement of the 1-1-room join in
+    /// `active_share_targets`, so every friend appears in exactly one of the two sections.
+    pub async fn inactive_share_targets(
+        &self,
+        client_id: &Uuid,
+        name_filter: Option<&str>,
+        cursor_name: Option<String>,
+        cursor_id: Option<Uuid>,
+        limit: i64,
+    ) -> Result<Vec<InactiveShareRow>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, InactiveShareRow>(
+            r#"
+            SELECT u.display_name AS name, u.id AS user_id, u.profile_picture AS image_url
+            FROM app_user u
+            JOIN user_relationship rl
+                ON u.id = CASE
+                            WHEN rl.user_a_id = $1 THEN rl.user_b_id
+                            WHEN rl.user_b_id = $1 THEN rl.user_a_id
+                          END
+               AND rl.state = 'FRIEND'
+            WHERE ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM chat_room r
+                  JOIN chat_room_participant p1 ON p1.room_id = r.id AND p1.user_id = $1
+                  JOIN chat_room_participant p2 ON p2.room_id = r.id AND p2.user_id = u.id
+                  WHERE r.room_type = 'Single'
+              )
+              AND ($3::text IS NULL OR (u.display_name, u.id) > ($3, $4))
+            ORDER BY u.display_name ASC, u.id ASC
+            LIMIT $5
+            "#,
+        )
+        .bind(client_id)
+        .bind(name_filter)
+        .bind(cursor_name)
+        .bind(cursor_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     pub async fn delete_room(
         &self,
         conn: &mut PgConnection,
@@ -178,20 +309,24 @@ impl RoomRepository {
         Ok(room)
     }
 
-    pub async fn insert_room(&self, new_room: NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
+    /// Inserts the room row and its participants on the given connection. The caller
+    /// owns the transaction so room creation can be made atomic together with an
+    /// optional first message (see `RoomService::create_room`).
+    pub async fn insert_room(
+        &self,
+        conn: &mut PgConnection,
+        new_room: &NewRoom,
+    ) -> Result<ChatRoomEntity, sqlx::Error> {
         let room_entity = ChatRoomEntity {
             id: Uuid::new_v4(),
-            room_type: new_room.room_type,
-            room_name: new_room.room_name,
+            room_type: new_room.room_type.clone(),
+            room_name: new_room.room_name.clone(),
             room_image_url: None,
             created_at: Utc::now(),
             latest_message: Some(Utc::now()),
             latest_message_preview_text: Some(Json(LastMessagePreviewText::New)),
             unread: None,
         };
-
-        //https://docs.rs/sqlx/latest/sqlx/struct.Transaction.html
-        let mut tx = self.pool.begin().await?;
 
         let room = sqlx::query_as!(
             ChatRoomEntity,
@@ -206,7 +341,7 @@ impl RoomRepository {
             room_entity.created_at,
             room_entity.latest_message,
             room_entity.latest_message_preview_text as Option<Json<LastMessagePreviewText>>
-        ).fetch_one(&mut *tx).await?;
+        ).fetch_one(&mut *conn).await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
         let mut builder: QueryBuilder<Postgres> =
@@ -216,10 +351,9 @@ impl RoomRepository {
                 db.push_bind(user).push_bind(&room.id).push_bind(Utc::now());
             })
             .build()
-            .fetch_all(&mut *tx)
+            .execute(&mut *conn)
             .await?;
 
-        tx.commit().await?;
         Ok(room)
     }
 

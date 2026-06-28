@@ -69,10 +69,17 @@ pub enum NotificationEvent {
     SystemMessage { message: serde_json::Value },
 
     /**
-     * Sending this event to a newly invited user
+     * Sending this event to a newly invited user. `first_message` carries the optional
+     * first message the room was created with (authored by `created_by`), so the client
+     * can render it immediately without a separate timeline fetch. `None` for invites
+     * and rooms created without a first message.
      */
     #[serde(rename_all = "camelCase")]
-    NewRoom { room: ChatRoomDto, created_by: User },
+    NewRoom {
+        room: ChatRoomDto,
+        created_by: User,
+        first_message: Option<MessageDto>,
+    },
 
     /**
      * Sending this event to a user who has left a room

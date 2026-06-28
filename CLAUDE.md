@@ -128,7 +128,7 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 |---|---|---|
 | `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember` so clients render a first-time sender without a lookup) |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite |
-| `NewRoom { room, created_by }` | invited user | room creation / invite |
+| `NewRoom { room, created_by, first_message }` | invited user | room creation / invite (`first_message`: optional first message, embedded on creation) |
 | `LeaveRoom { room_id }` | leaving user | user leaves room |
 | `FriendRequestReceived { from_user }` | target user | friend request sent |
 | `FriendRequestAccepted { from_user }` | requester | request accepted |

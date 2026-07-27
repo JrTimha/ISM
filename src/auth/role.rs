@@ -85,7 +85,7 @@ pub trait ExpectRoles<R: Role> {
 #[macro_export]
 macro_rules! expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::role::ExpectRoles::expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
@@ -94,7 +94,7 @@ macro_rules! expect_roles {
 #[macro_export]
 macro_rules! expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::expect_roles($token, &[$role]) {
+        if let Err(err) = $crate::auth::role::ExpectRoles::expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
@@ -103,7 +103,7 @@ macro_rules! expect_role {
 #[macro_export]
 macro_rules! not_expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::not_expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::role::ExpectRoles::not_expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
@@ -112,8 +112,7 @@ macro_rules! not_expect_roles {
 #[macro_export]
 macro_rules! not_expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::not_expect_roles($token, &[$role])
-        {
+        if let Err(err) = $crate::auth::role::ExpectRoles::not_expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };

@@ -17,10 +17,10 @@ use axum::extract::{Multipart, Path, Query, State};
 use axum::{Extension, Json};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use log::error;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -242,7 +242,7 @@ pub async fn handle_save_room_image(
             }
             Err(err) => {
                 //read error
-                error!("Bad image upload: {}", err.to_string());
+                error!(error = %err, "Bad image upload");
                 return Err(AppError::Validation(
                     "Error reading the image byte stream.".to_string(),
                 ));

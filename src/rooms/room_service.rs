@@ -14,8 +14,8 @@ use crate::rooms::room::{
 use crate::rooms::room_member::RoomMember;
 use crate::utils::crop_image_from_center;
 use bytes::Bytes;
-use log::error;
 use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 
 pub struct RoomService;
@@ -403,7 +403,7 @@ impl RoomService {
         image_data: Bytes,
     ) -> Result<UploadResponse, AppError> {
         let img = crop_image_from_center(&image_data, 500, 500).map_err(|err| {
-            error!("Unable to crop image: {}", err.to_string());
+            error!(error = %err, "Unable to crop image");
             AppError::Processing("Unable to crop image.".to_string())
         })?;
 
@@ -413,7 +413,7 @@ impl RoomService {
             .insert_object(&room_id.to_string(), img)
             .await
         {
-            error!("{}", err.to_string());
+            error!(error = %err, "Image processing failed");
             return Err(AppError::S3("Unable save image in s3 bucket.".to_string()));
         };
         state

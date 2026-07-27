@@ -1,14 +1,14 @@
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     Json,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde_json::json;
 use snafu::Snafu;
 
 use crate::auth::oidc_discovery;
+use crate::core::errors::{ErrorCode, ErrorResponse};
 
 #[derive(Debug, Clone, Snafu)]
 #[snafu(visibility(pub(crate)))]
@@ -107,8 +107,8 @@ pub enum AuthError {
     ))]
     InvalidToken { reason: String },
 
-    /// Note: The `IntoResponse` implementation will only show the provided role in a debug build!
-    #[snafu(display("An expected role (omitted for security reasons) was missing."))]
+    /// Note: The role is only ever logged server-side, never returned to the client.
+    #[snafu(display("An expected role was missing: {role}"))]
     MissingExpectedRole { role: String },
 
     /// An unexpected role was present.
@@ -116,85 +116,110 @@ pub enum AuthError {
     UnexpectedRole,
 }
 
+impl AuthError {
+    /// Stable, low-cardinality discriminant used as a structured log field.
+    fn kind(&self) -> &'static str {
+        match self {
+            AuthError::NoOidcDiscovery => "no_oidc_discovery",
+            AuthError::OidcDiscovery { .. } => "oidc_discovery",
+            AuthError::NoJwkSetDiscovery => "no_jwk_set_discovery",
+            AuthError::JwkEndpoint { .. } => "jwk_endpoint",
+            AuthError::JwkSetDiscovery { .. } => "jwk_set_discovery",
+            AuthError::MissingAuthorizationHeader => "missing_authorization_header",
+            AuthError::InvalidAuthorizationHeader { .. } => "invalid_authorization_header",
+            AuthError::MissingBearerToken => "missing_bearer_token",
+            AuthError::MissingQueryParams => "missing_query_params",
+            AuthError::MissingTokenQueryParam => "missing_token_query_param",
+            AuthError::EmptyTokenQueryParam => "empty_token_query_param",
+            AuthError::MissingToken => "missing_token",
+            AuthError::CreateDecodingKey { .. } => "create_decoding_key",
+            AuthError::DecodeHeader { .. } => "decode_header",
+            AuthError::NoDecodingKeys => "no_decoding_keys",
+            AuthError::Decode { .. } => "decode",
+            AuthError::JsonParse { .. } => "json_parse",
+            AuthError::TokenExpired => "token_expired",
+            AuthError::InvalidToken { .. } => "invalid_token",
+            AuthError::MissingExpectedRole { .. } => "missing_expected_role",
+            AuthError::UnexpectedRole => "unexpected_role",
+        }
+    }
+
+    /// Maps the error onto its client-visible representation.
+    ///
+    /// The message deliberately never depends on the underlying source. Reporting *why* a token
+    /// was rejected — bad signature vs. wrong audience vs. expired — turns this endpoint into an
+    /// oracle for crafting tokens, so all rejections of the same class are indistinguishable.
+    /// The full detail is logged server-side instead.
+    fn classify(&self) -> (StatusCode, ErrorCode, &'static str) {
+        const UNAVAILABLE_MSG: &str = "Authentication service unavailable. Please try again later.";
+        const UNAUTHORIZED_MSG: &str = "Authentication required.";
+
+        match self {
+            // The identity provider is unreachable or misconfigured — this is our fault, not the
+            // caller's, and 503 matches how `AppError::Database`/`Cache` signal upstream trouble.
+            AuthError::NoOidcDiscovery
+            | AuthError::OidcDiscovery { .. }
+            | AuthError::NoJwkSetDiscovery
+            | AuthError::JwkEndpoint { .. }
+            | AuthError::JwkSetDiscovery { .. }
+            | AuthError::CreateDecodingKey { .. }
+            | AuthError::NoDecodingKeys => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorCode::AuthUnavailable,
+                UNAVAILABLE_MSG,
+            ),
+
+            AuthError::TokenExpired => (
+                StatusCode::UNAUTHORIZED,
+                ErrorCode::TokenExpired,
+                "Token expired.",
+            ),
+
+            // Everything from "no header" through "signature did not verify" collapses into one
+            // indistinguishable 401. `DecodeHeader` used to be a 400, which leaked that the token
+            // was malformed rather than merely invalid.
+            AuthError::MissingAuthorizationHeader
+            | AuthError::InvalidAuthorizationHeader { .. }
+            | AuthError::MissingBearerToken
+            | AuthError::MissingQueryParams
+            | AuthError::MissingTokenQueryParam
+            | AuthError::EmptyTokenQueryParam
+            | AuthError::MissingToken
+            | AuthError::DecodeHeader { .. }
+            | AuthError::Decode { .. }
+            | AuthError::InvalidToken { .. } => (
+                StatusCode::UNAUTHORIZED,
+                ErrorCode::Unauthorized,
+                UNAUTHORIZED_MSG,
+            ),
+
+            AuthError::MissingExpectedRole { .. } | AuthError::UnexpectedRole => (
+                StatusCode::FORBIDDEN,
+                ErrorCode::InsufficientPermissions,
+                "Insufficient permissions.",
+            ),
+
+            AuthError::JsonParse { .. } => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorCode::UnexpectedError,
+                "An unexpected error occurred.",
+            ),
+        }
+    }
+}
+
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            err @ AuthError::NoOidcDiscovery => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::OidcDiscovery { source: _ } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::NoJwkSetDiscovery => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::JwkEndpoint { source: _ } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::JwkSetDiscovery { source: _ } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::MissingAuthorizationHeader => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::InvalidAuthorizationHeader { reason: _ } => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::MissingBearerToken => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::MissingQueryParams => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::MissingTokenQueryParam => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::EmptyTokenQueryParam => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::MissingToken => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::CreateDecodingKey { source: _ } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::DecodeHeader { source: _ } => {
-                (StatusCode::BAD_REQUEST, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::NoDecodingKeys => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::Decode { source: _ } => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::JsonParse { source: _ } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Owned(err.to_string()),
-            ),
-            err @ AuthError::TokenExpired => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            err @ AuthError::InvalidToken { reason: _ } => {
-                (StatusCode::UNAUTHORIZED, Cow::Owned(err.to_string()))
-            }
-            AuthError::MissingExpectedRole { role } => (
-                StatusCode::FORBIDDEN,
-                match cfg!(debug_assertions) {
-                    true => Cow::Owned(format!("Missing expected role: {role}")),
-                    false => Cow::Borrowed("Missing expected role"),
-                },
-            ),
-            err @ AuthError::UnexpectedRole => (StatusCode::FORBIDDEN, Cow::Owned(err.to_string())),
-        };
-        let body = Json(json!({
-            "error": error_message,
-        }));
-        (status, body).into_response()
+        let (status, error_code, message) = self.classify();
+
+        // Full detail stays server-side; the client only ever sees the sanitised message above.
+        if status.is_server_error() {
+            tracing::error!(error.kind = self.kind(), error = %self, "Authentication failed");
+        } else {
+            tracing::debug!(error.kind = self.kind(), error = %self, "Rejected request");
+        }
+
+        let body = ErrorResponse::new(status, error_code, message);
+        (status, Json(body)).into_response()
     }
 }

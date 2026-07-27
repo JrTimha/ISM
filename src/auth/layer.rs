@@ -7,7 +7,8 @@ use tower::Layer;
 use typed_builder::TypedBuilder;
 
 use crate::auth::decode::{
-    KeycloakToken, ProfileAndEmail, RawToken, decode_and_validate, parse_raw_claims,
+    KeycloakToken, ProfileAndEmail, RawToken, ValidationPolicy, decode_and_validate,
+    parse_raw_claims,
 };
 use crate::auth::error::AuthError;
 use crate::auth::extract::TokenExtractor;
@@ -38,8 +39,13 @@ where
     #[builder(default = false)]
     pub persist_raw_claims: bool,
 
-    /// Allowed values of the JWT 'aud' (audiences) field. Token validation will fail immediately if this is left empty!
-    pub expected_audiences: Vec<String>,
+    /// Rules incoming tokens are validated against: accepted audiences, authorized parties and
+    /// signature algorithms. See `ValidationPolicy`.
+    ///
+    /// Behind an `Arc` because `KeycloakAuthService::call` clones the whole layer per request;
+    /// without it every request would deep-copy the policy including its prebuilt `Validation`.
+    #[builder(setter(into))]
+    pub validation_policy: Arc<ValidationPolicy>,
 
     /// These roles are always required.
     /// Should a route protected by this layer be accessed by a user not having this role, an error is generated.
@@ -80,12 +86,17 @@ where
         let raw_claims = decode_and_validate(
             self.instance.as_ref(),
             RawToken(raw_token),
-            &self.expected_audiences,
+            &self.validation_policy,
         )
         .await?;
 
-        parse_raw_claims::<R, Extra>(raw_claims, self.persist_raw_claims, &self.required_roles)
-            .await
+        parse_raw_claims::<R, Extra>(
+            raw_claims,
+            self.persist_raw_claims,
+            &self.required_roles,
+            &self.validation_policy,
+        )
+        .await
     }
 }
 
@@ -124,10 +135,20 @@ mod test {
 
     use crate::auth::{
         PassthroughMode,
+        decode::ValidationPolicy,
         extract::{AuthHeaderTokenExtractor, QueryParamTokenExtractor, TokenExtractor},
         instance::{KeycloakAuthInstance, KeycloakConfig},
         layer::KeycloakAuthLayer,
     };
+
+    fn test_policy() -> ValidationPolicy {
+        ValidationPolicy::new(
+            vec![String::from("account")],
+            vec![],
+            &[String::from("RS256")],
+        )
+        .expect("valid policy")
+    }
 
     #[tokio::test]
     async fn build_basic_layer() {
@@ -142,8 +163,49 @@ mod test {
         let _layer = KeycloakAuthLayer::<String>::builder()
             .instance(instance)
             .passthrough_mode(PassthroughMode::Block)
-            .expected_audiences(vec![String::from("account")])
+            .validation_policy(test_policy())
             .build();
+    }
+
+    #[test]
+    fn policy_rejects_symmetric_and_mixed_algorithms() {
+        // An `oct` JWK in the key set plus an HS entry here is the RS256 -> HS256 key-confusion
+        // setup, so the symmetric family is refused outright.
+        assert!(
+            ValidationPolicy::new(
+                vec![String::from("account")],
+                vec![],
+                &[String::from("HS256")]
+            )
+            .is_err()
+        );
+
+        // `jsonwebtoken` fails verification when the allow-list spans families; reject it here
+        // with an explanation instead of at request time with a blanket 401.
+        assert!(
+            ValidationPolicy::new(
+                vec![String::from("account")],
+                vec![],
+                &[String::from("RS256"), String::from("ES256")],
+            )
+            .is_err()
+        );
+
+        assert!(ValidationPolicy::new(vec![String::from("account")], vec![], &[]).is_err());
+        assert!(
+            ValidationPolicy::new(vec![], vec![], &[String::from("RS256")]).is_err(),
+            "an empty audience list would disable the audience check"
+        );
+
+        // Same family, multiple entries: allowed.
+        assert!(
+            ValidationPolicy::new(
+                vec![String::from("account")],
+                vec![],
+                &[String::from("RS256"), String::from("PS512")],
+            )
+            .is_ok()
+        );
     }
 
     #[tokio::test]
@@ -160,7 +222,7 @@ mod test {
             .instance(instance)
             .passthrough_mode(PassthroughMode::Block)
             .persist_raw_claims(false)
-            .expected_audiences(vec![String::from("account")])
+            .validation_policy(test_policy())
             .required_roles(vec![String::from("administrator")])
             .token_extractors(NonEmpty::<Arc<dyn TokenExtractor>> {
                 head: Arc::new(AuthHeaderTokenExtractor::default()),

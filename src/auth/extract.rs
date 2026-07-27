@@ -76,7 +76,12 @@ impl TokenExtractor for QueryParamTokenExtractor {
             .ok_or(AuthError::MissingTokenQueryParam)?
             .ok_or(AuthError::EmptyTokenQueryParam)?;
 
-        let first_token = std::str::from_utf8(first_token.as_ref()).expect("Valid UTF-8");
+        // Percent-decoding yields raw bytes, so `?token=%FF` is not necessarily valid UTF-8.
+        // This used to `expect`, which made a malformed query string a remote panic.
+        let first_token =
+            std::str::from_utf8(first_token.as_ref()).map_err(|_| AuthError::InvalidToken {
+                reason: "token query parameter was not valid UTF-8".to_owned(),
+            })?;
 
         Ok(ExtractedToken::Owned(first_token.to_owned()))
     }

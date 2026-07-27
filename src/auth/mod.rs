@@ -19,7 +19,7 @@
 //! ```rust
 //! use std::sync::Arc;
 //! use axum::{http::StatusCode, response::{Response, IntoResponse}, routing::get, Extension, Router};
-//! use ism::auth::{Url, error::AuthError, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, decode::KeycloakToken, PassthroughMode};
+//! use ism::auth::{Url, error::AuthError, instance::KeycloakConfig, instance::KeycloakAuthInstance, layer::KeycloakAuthLayer, decode::KeycloakToken, decode::ValidationPolicy, PassthroughMode};
 //! use ism::expect_role;
 //!
 //! pub fn public_router() -> Router {
@@ -35,7 +35,9 @@
 //!                  .instance(instance)
 //!                  .passthrough_mode(PassthroughMode::Block)
 //!                  .persist_raw_claims(false)
-//!                  .expected_audiences(vec![String::from("account")])
+//!                  .validation_policy(ValidationPolicy::new(
+//!                      vec![String::from("account")], vec![], &[String::from("RS256")],
+//!                  ).unwrap())
 //!                  .required_roles(vec![String::from("administrator")])
 //!                  .build(),
 //!         )
@@ -55,7 +57,9 @@
 //!             .instance(instance)
 //!             .passthrough_mode(PassthroughMode::Block)
 //!             .persist_raw_claims(false)
-//!             .expected_audiences(vec![String::from("account")])
+//!             .validation_policy(ValidationPolicy::new(
+//!                 vec![String::from("account")], vec![], &[String::from("RS256")],
+//!             ).unwrap())
 //!             .required_roles(vec![String::from("administrator")])
 //!             .build(),
 //!     )
@@ -122,7 +126,7 @@
 //!
 //! You probably noticed a generic `<String>` when creating the `KeycloakAuthLayer` and defining the handler extension.
 //!
-//! This is the type representing a single role and can be replaced with any type implementing the `axum_keycloak_auth::role::Role` trait.
+//! This is the type representing a single role and can be replaced with any type implementing the `crate::auth::role::Role` trait.
 //!
 //! You could for example create an enum containing all your known roles as variants with a special variant for unknown role names.
 //!
@@ -132,6 +136,8 @@
 //!     Administrator,
 //!     Unknown(String),
 //! }
+//!
+//! use ism::auth;
 //!
 //! impl auth::role::Role for Role {}
 //!
@@ -156,9 +162,8 @@
 //! // You could then (remember to update both locations of the generic type) check for roles using your enum:
 //!
 //! use axum::{http::StatusCode, response::{Response, IntoResponse}, Extension};
-//! use ism::auth::{decode::KeycloakToken};//!
-//!
-//! use ism::{expect_role, auth};
+//! use ism::auth::decode::KeycloakToken;
+//! use ism::expect_role;
 //!
 //! pub async fn protected(Extension(token): Extension<KeycloakToken<Role>>) -> Response {
 //!     expect_role!(&token, Role::Administrator);
@@ -187,6 +192,7 @@
 //! use std::sync::Arc;
 //! use ism::auth::{
 //!     NonEmpty, PassthroughMode,
+//!     decode::ValidationPolicy,
 //!     instance::KeycloakAuthInstance,
 //!     layer::KeycloakAuthLayer,
 //!     extract::{AuthHeaderTokenExtractor, QueryParamTokenExtractor, TokenExtractor}
@@ -197,7 +203,13 @@
 //! let layer = KeycloakAuthLayer::<String>::builder()
 //!     .instance(instance)
 //!     .passthrough_mode(PassthroughMode::Block)
-//!     .expected_audiences(vec![String::from("account")])
+//!     .validation_policy(
+//!         ValidationPolicy::new(
+//!             vec![String::from("account")],
+//!             vec![],
+//!             &[String::from("RS256")],
+//!         ).unwrap()
+//!     )
 //!     // ...
 //!     .token_extractors(NonEmpty::<Arc<dyn TokenExtractor>> {
 //!         head: Arc::new(AuthHeaderTokenExtractor::default()),
@@ -237,6 +249,8 @@ pub mod layer;
 pub mod oidc;
 pub mod oidc_discovery;
 pub mod role;
+#[cfg(test)]
+mod security_tests;
 pub mod service;
 
 // Re-export the Url struct used when configuring a `KeycloakAuthInstance`.

@@ -6,9 +6,9 @@ use crate::messaging::chat_repository::ChatRepository;
 use crate::object_storage::ObjectStorage;
 use crate::rooms::room_repository::RoomRepository;
 use crate::users::user_repository::UserRepository;
-use log::info;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use std::sync::Arc;
+use tracing::info;
 
 #[derive(Clone)]
 pub struct AppState {

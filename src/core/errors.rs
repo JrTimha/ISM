@@ -33,18 +33,18 @@ impl ErrorResponse {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[allow(dead_code)]
 pub enum ErrorCode {
     // Authentication & Authorization
+    /// The request carried no usable credentials, or they were rejected.
+    Unauthorized,
+    /// The presented token was well-formed but has expired.
+    TokenExpired,
+    /// The caller is authenticated but lacks the required permission.
     InsufficientPermissions,
-
-    // User & Profile Errors
-    UserNotFound,
+    /// The identity provider could not be reached or its configuration is unusable.
+    AuthUnavailable,
 
     // Content & Interaction Errors
-    RoomNotFound,
-    MessageNotFound,
-    InvalidContent,
     FileProcessingError,
     ContentNotFound,
 
@@ -106,6 +106,22 @@ impl From<ValidationErrors> for AppError {
     }
 }
 
+impl AppError {
+    /// Stable, low-cardinality discriminant used as a structured log field.
+    fn kind(&self) -> &'static str {
+        match self {
+            AppError::Validation(_) => "validation",
+            AppError::NotFound(_) => "not_found",
+            AppError::Forbidden(_) => "forbidden",
+            AppError::Database(_) => "database",
+            AppError::Cache(_) => "cache",
+            AppError::Serialization(_) => "serialization",
+            AppError::S3(_) => "s3",
+            AppError::Processing(_) => "processing",
+        }
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         // Log every internal error with its full details before the message is sanitised.
@@ -114,7 +130,9 @@ impl IntoResponse for AppError {
             | AppError::Cache(_)
             | AppError::Serialization(_)
             | AppError::S3(_)
-            | AppError::Processing(_) => tracing::error!("{}", self),
+            | AppError::Processing(_) => {
+                tracing::error!(error.kind = self.kind(), error = %self, "Internal error")
+            }
             _ => {}
         }
 

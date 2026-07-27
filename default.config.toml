@@ -1,6 +1,12 @@
 ism_url = "localhost"
 ism_port= 5403
-log_level = "debug"
+# Tracing filter: a global default plus any number of `target=level` overrides, comma-separated.
+# Targets are module paths, so they can be narrowed arbitrarily (`ism::auth::decode=trace`).
+# Overridden entirely by the ISM_LOG_LEVEL env var. Noisy targets worth pinning:
+#   sqlx=warn        - sqlx logs every executed statement at INFO
+#   hyper=info,h2=info - wire-level noise at DEBUG (already covered by a global `info`)
+#   tower_http=info  - HTTP request spans
+log_level = "info,ism=debug,sqlx=warn"
 cors_origin = "http://localhost:4200"
 use_kafka = true
 
@@ -14,6 +20,21 @@ db_name = "postgres"
 [token_issuer]
 iss_host = "http://localhost:8180/"
 iss_realm = "meventure"
+# Accepted `aud` values. "account" is added by Keycloak's default audience-resolve mapper to every
+# access token of every client in the realm, so on its own it does NOT restrict access to this
+# application. To tighten: add a dedicated audience mapper in Keycloak, then set
+#   expected_audiences = ["<your-audience>"]
+#   expected_azp       = ["<your-client-id>"]
+expected_audiences = ["account"]
+# Accepted `azp` (authorized party) values. Empty = no check.
+expected_azp = []
+# Signature algorithms accepted for incoming tokens. Never taken from the JWT header.
+allowed_algorithms = ["RS256"]
+# The JWKS is refreshed on demand: a token that fails to verify against the cached keys triggers
+# a re-discovery and a retry within the same request, so key rotation costs one slow request and
+# is never visible to a client. This is the rate limit between two discoveries, so a flood of
+# invalid tokens cannot hammer Keycloak.
+jwks_min_refresh_interval_secs = 30
 
 [object_db_config]
 access_key = "minioadmin"

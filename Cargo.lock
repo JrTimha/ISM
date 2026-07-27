@@ -1814,7 +1814,6 @@ dependencies = [
  "http",
  "image",
  "jsonwebtoken",
- "log",
  "minio",
  "nonempty",
  "rdkafka",

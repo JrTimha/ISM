@@ -6,7 +6,6 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-use tracing_subscriber::filter::LevelFilter;
 
 //learn to code rust axum here:
 //https://gitlab.com/famedly/conduit/-/tree/next?ref_type=heads
@@ -66,12 +65,29 @@ fn init_configuration() -> ISMConfig {
     let config =
         ISMConfig::new(&run_mode).unwrap_or_else(|err| panic!("Missing needed env: {}", err));
 
-    let filter = EnvFilter::builder()
-        .with_env_var("ISM_LOG_LEVEL")
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy();
-
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing(&config.log_level);
 
     config
+}
+
+/// Installs the tracing subscriber.
+///
+/// `configured` is a full `EnvFilter` directive list, not a single level: a global default
+/// followed by any number of `target=level` overrides, e.g. `"info,sqlx=warn,ism::auth=debug"`.
+/// Targets are module paths, so they can be narrowed as far as needed.
+///
+/// `ISM_LOG_LEVEL` replaces the configured value entirely when set and non-empty.
+fn init_tracing(configured: &str) {
+    let directives = env::var("ISM_LOG_LEVEL")
+        .ok()
+        .filter(|it| !it.trim().is_empty())
+        .unwrap_or_else(|| configured.to_owned());
+
+    // Parse strictly and fail at startup. A typo previously fell back to a bare INFO default,
+    // silently discarding every per-target override the operator had configured.
+    let filter = EnvFilter::builder()
+        .parse(&directives)
+        .unwrap_or_else(|err| panic!("Invalid log filter {directives:?}: {err}"));
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 }

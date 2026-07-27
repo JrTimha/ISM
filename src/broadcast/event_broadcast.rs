@@ -1,11 +1,11 @@
 use crate::broadcast::{Notification, NotificationEvent};
 use crate::cache::redis_cache::{Cache, ReplayResult};
 use crate::kafka::{EventProducer, PushNotificationProducer};
-use log::{debug, error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender, channel};
 use tokio::sync::{OnceCell, RwLock};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
@@ -115,12 +115,14 @@ impl BroadcastChannel {
                         .add_notification_for_user(user_id, &notification)
                         .await
                     {
-                        error!("Failed to cache notification: {}", error);
+                        error!(%user_id, error = %error, "Failed to cache notification");
                     }
                 }
                 // No sequencing (no Redis): deliver best-effort without replay support.
                 Ok(None) => {}
-                Err(err) => error!("Failed to allocate sequence for user {}: {}", user_id, err),
+                Err(err) => {
+                    error!(%user_id, error = %err, "Failed to allocate notification sequence")
+                }
             }
         }
 
@@ -130,11 +132,14 @@ impl BroadcastChannel {
                 // `send` only errors when there are no active receivers, i.e. the user is offline.
                 Some(sender) => match sender.send(notification.clone()) {
                     Ok(sc) => {
-                        info!("Successfully sent {:?} broadcast event.", sc);
+                        debug!(%user_id, receivers = sc, "Broadcast event delivered");
                         true
                     }
                     Err(err) => {
-                        error!("Unable to broadcast notification: {}", err);
+                        // `send` only fails when nobody is listening, i.e. the user is offline.
+                        // That is expected, not an error: the push-notification path below picks
+                        // it up.
+                        debug!(%user_id, error = %err, "No active receiver for notification");
                         false
                     }
                 },
@@ -162,25 +167,26 @@ impl BroadcastChannel {
         );
 
         if should_send {
+            let recipients = to_user.len();
             if let Err(error) = self
                 .push_notification_producer
                 .send_notification(notification, to_user)
                 .await
             {
-                error!("Failed to send push notification: {}", error);
+                error!(recipients, error = %error, "Failed to send push notification");
             }
         }
     }
 
     pub async fn unsubscribe(&self, user_id: Uuid) {
-        debug!("Unsubscribing user {:?} from broadcasting events.", user_id);
+        debug!(%user_id, "Unsubscribing user from broadcast events");
         let mut lock = self.channel.write().await;
         if let Some(sender) = lock.get(&user_id) {
             if sender.receiver_count() > 0 {
                 return;
             } else {
                 lock.remove(&user_id);
-                debug!("Removed stale sender for user {:?}", user_id);
+                debug!(%user_id, "Removed stale broadcast sender");
             }
         }
     }

@@ -52,13 +52,14 @@ where
         let is_ready = self.layer.instance.discovery.version() > 0;
 
         if is_ready {
-            tracing::debug!("Ready to process requests.");
+            tracing::trace!("Ready to process requests.");
         } else {
             tracing::debug!("Not ready to process requests. Waiting for initial discovery...");
 
-            // We have to assume that the discovery action was initialized.
-            // Our waker handling in would otherwise be wrong!
-            assert!(self.layer.instance.discovery.is_pending());
+            // `KeycloakAuthInstance::new` dispatches discovery and marks it pending synchronously,
+            // so a waker registered here is guaranteed to be woken. This used to `assert!` that
+            // invariant, which turned the (then real) gap between dispatch and the task being
+            // scheduled into a panicking worker thread.
             let instance = self.layer.instance.clone();
             let waker = cx.waker().clone();
             tokio::spawn(async move {

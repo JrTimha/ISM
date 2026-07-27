@@ -1,12 +1,11 @@
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::cache::util::ROOM_CONTEXT;
 use crate::rooms::room_member::RoomContext;
-use log::info;
 use redis::aio::ConnectionManager;
 use redis::{AsyncTypedCommands, PushInfo, RedisError, from_redis_value};
 use thiserror::Error;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{error, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -29,20 +28,17 @@ pub async fn run_event_processor(mut rx: UnboundedReceiver<PushInfo>, mut conn: 
     info!("Redis Event-Processing active.");
 
     while let Some(push_message) = rx.recv().await {
-        info!("Received push message: {:?}", push_message);
+        debug!(?push_message, "Received push message");
         let notification = match parse_push_message(push_message) {
             Ok(message) => message,
             Err(error) => {
-                warn!(
-                    "Parsing of received push message failed. Ignoring. Push message: {:?}",
-                    error
-                );
+                warn!(?error, "Parsing of received push message failed, ignoring");
                 continue;
             }
         };
 
         if let Err(e) = handle_notification(notification, &mut conn).await {
-            error!("Fehler bei der Verarbeitung der Notification: {}", e);
+            error!(error = %e, "Failed to process notification");
         }
     }
 }

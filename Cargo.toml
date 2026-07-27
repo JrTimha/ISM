@@ -4,7 +4,6 @@ version = "0.8.0"
 edition = "2024"
 
 [dependencies]
-log = "0.4.33"
 axum = { version = "0.8.9", features = ["multipart", "ws"] }
 tokio = {version = "1.52.3", features = ["full"]}
 tower = "0.5.3"

@@ -125,12 +125,15 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
         let value = self.value.clone();
         let value_received = self.value_received.clone();
 
-        tokio::spawn(async move {
-            let started = Some(std::time::Instant::now());
+        let started = Some(std::time::Instant::now());
+        // Mark pending *before* spawning. Setting it inside the task leaves a window in which the
+        // action is dispatched but not yet observably pending, so concurrent callers checking
+        // `is_pending()` would each dispatch their own duplicate run.
+        input_send.store(started, std::sync::atomic::Ordering::Release);
+        pending.store(true, std::sync::atomic::Ordering::Release);
 
+        tokio::spawn(async move {
             *input.write().await = Some(action_input.clone());
-            input_send.store(started, std::sync::atomic::Ordering::Release);
-            pending.store(true, std::sync::atomic::Ordering::Release);
             let new_value: O = fut.await;
             let new_value_received_at = Some(std::time::Instant::now());
             *value.write().await = Some(new_value);

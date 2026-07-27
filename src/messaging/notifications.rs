@@ -10,7 +10,6 @@ use axum::response::{IntoResponse, Sse};
 use axum::{Extension, Json};
 use bytes::Bytes;
 use futures::Stream;
-use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +17,7 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::time;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use tracing::warn;
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// Handshake parameters shared by the SSE and WebSocket endpoints. The client passes the
@@ -89,7 +88,7 @@ async fn resolve_handshake(
             0,
         ),
         Err(err) => {
-            error!("Failed to fetch replay for {}: {}", user_id, err);
+            error!(%user_id, error = %err, "Failed to fetch notification replay");
             (
                 vec![resync_notification("replay error, please resync via REST")],
                 0,
@@ -131,10 +130,7 @@ pub async fn stream_server_events(
                     }
                 }
                 Err(BroadcastStreamRecvError::Lagged(n)) => {
-                    warn!(
-                        "SSE client {} lagged by {} events, signalling resync",
-                        user_id, n
-                    );
+                    warn!(%user_id, lagged_events = n, "SSE client lagged, signalling resync");
                     Some(Ok(notification_to_sse(&resync_notification(
                         "stream lagged, please resync via REST",
                     ))))
@@ -195,7 +191,7 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u6
                         }
                         let json_msg = serde_json::to_string(&event).unwrap_or_default();
                         if socket.send(Message::text(json_msg)).await.is_err() {
-                            error!("Failed to send message to client, closing.");
+                            debug!(%user_id, "Failed to send message to client, closing");
                             break;
                         }
                     }
@@ -204,7 +200,7 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u6
                         break;
                     }
                     Err(RecvError::Lagged(n)) => {
-                        warn!("WS client {} lagged by {} events, signalling resync", user_id, n);
+                        warn!(%user_id, lagged_events = n, "WS client lagged, signalling resync");
                         let resync = serde_json::to_string(&resync_notification("stream lagged, please resync via REST")).unwrap_or_default();
                         if socket.send(Message::text(resync)).await.is_err() {
                             break;

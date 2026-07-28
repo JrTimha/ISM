@@ -5,12 +5,12 @@
 //! `KeycloakConfig::min_refresh_interval`.
 
 use educe::Educe;
+use jsonwebtoken::DecodingKey;
+use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet, PublicKeyUse};
 use std::future::Future;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use jsonwebtoken::DecodingKey;
-use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet, PublicKeyUse};
 use tokio::sync::RwLockReadGuard;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;

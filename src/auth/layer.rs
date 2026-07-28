@@ -6,7 +6,6 @@
 //! `instance` stays an `Arc` in its own right: a `KeycloakAuthInstance` is meant to be shared
 //! across several layers so they do not each run their own OIDC discovery.
 
-use nonempty::NonEmpty;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -55,9 +54,12 @@ where
     #[builder(default = vec![], setter(into))]
     pub required_roles: Vec<R>,
 
-    /// Specifies where the token is expected to be found.
-    #[builder(default = nonempty::nonempty![Arc::new(crate::auth::extract::AuthHeaderTokenExtractor {})])]
-    pub token_extractors: NonEmpty<Arc<dyn TokenExtractor>>,
+    /// Specifies where the token is expected to be found. Tried in order, first hit wins.
+    ///
+    /// An empty list is accepted and fails closed: no extractor yields a token, so every request
+    /// is rejected with `AuthError::MissingToken`.
+    #[builder(default = vec![Arc::new(crate::auth::extract::AuthHeaderTokenExtractor {})], setter(into))]
+    pub token_extractors: Vec<Arc<dyn TokenExtractor>>,
 
     #[builder(default = uuid::Uuid::now_v7(), setter(skip))]
     id: uuid::Uuid,
@@ -131,7 +133,6 @@ where
 mod test {
     use std::sync::Arc;
 
-    use nonempty::NonEmpty;
     use url::Url;
 
     use crate::auth::{
@@ -225,13 +226,11 @@ mod test {
             .persist_raw_claims(false)
             .validation_policy(test_policy())
             .required_roles(vec![AppRole::Admin])
-            .token_extractors(NonEmpty::<Arc<dyn TokenExtractor>> {
-                head: Arc::new(AuthHeaderTokenExtractor::default()),
-                tail: vec![
-                    Arc::new(QueryParamTokenExtractor::default()),
-                    Arc::new(QueryParamTokenExtractor::extracting_key("jwt")),
-                ],
-            })
+            .token_extractors(vec![
+                Arc::new(AuthHeaderTokenExtractor::default()) as Arc<dyn TokenExtractor>,
+                Arc::new(QueryParamTokenExtractor::default()),
+                Arc::new(QueryParamTokenExtractor::extracting_key("jwt")),
+            ])
             .build();
     }
 }

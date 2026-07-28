@@ -1,12 +1,11 @@
 //! Strategies for locating the raw JWT in an incoming request.
 //!
-//! The layer holds a non-empty list of these and uses the first one that yields a token. ISM
-//! keeps the default (`Authorization: Bearer …`) only.
+//! The layer holds a list of these and uses the first one that yields a token. ISM keeps the
+//! default (`Authorization: Bearer …`) only.
 
 use std::{borrow::Cow, sync::Arc};
 
 use axum::extract::Request;
-use nonempty::NonEmpty;
 use url::form_urlencoded;
 
 use crate::auth::error::AuthError;
@@ -102,6 +101,25 @@ impl TokenExtractor for QueryParamTokenExtractor {
         // Borrowed when the value needed no unescaping, owned otherwise — see `ExtractedToken`.
         Ok(token)
     }
+}
+
+/// Returns the token from the first extractor that succeeds, or `None` if all of them fail.
+///
+/// An empty slice yields `None`, which the caller turns into `AuthError::MissingToken` — a layer
+/// configured without extractors rejects every request rather than letting one through.
+pub fn extract_jwt<'a>(
+    request: &'a Request<axum::body::Body>,
+    extractors: &[Arc<dyn TokenExtractor>],
+) -> Option<ExtractedToken<'a>> {
+    for extractor in extractors {
+        match extractor.extract(request) {
+            Ok(jwt) => return Some(jwt),
+            Err(err) => {
+                tracing::debug!(?extractor, ?err, "Extractor failed");
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -217,10 +235,10 @@ mod test {
 
     #[test]
     fn extract_jwt_falls_through_to_the_next_extractor() {
-        let extractors: NonEmpty<Arc<dyn TokenExtractor>> = NonEmpty {
-            head: Arc::new(AuthHeaderTokenExtractor {}),
-            tail: vec![Arc::new(QueryParamTokenExtractor::default())],
-        };
+        let extractors: Vec<Arc<dyn TokenExtractor>> = vec![
+            Arc::new(AuthHeaderTokenExtractor {}),
+            Arc::new(QueryParamTokenExtractor::default()),
+        ];
 
         let with_query = request("http://localhost/api/v1/wss?token=from.query");
         assert_eq!(
@@ -231,20 +249,17 @@ mod test {
         let neither = request("http://localhost/api/v1/wss");
         assert_eq!(extract_jwt(&neither, &extractors), None);
     }
-}
 
-/// Returns the token from the first extractor that succeeds, or `None` if all of them fail.
-pub fn extract_jwt<'a>(
-    request: &'a Request<axum::body::Body>,
-    extractors: &NonEmpty<Arc<dyn TokenExtractor>>,
-) -> Option<ExtractedToken<'a>> {
-    for extractor in extractors {
-        match extractor.extract(request) {
-            Ok(jwt) => return Some(jwt),
-            Err(err) => {
-                tracing::debug!(?extractor, ?err, "Extractor failed");
-            }
-        }
+    #[test]
+    fn extract_jwt_without_extractors_fails_closed() {
+        // The list is a plain `Vec` rather than a non-empty type, so the empty case is
+        // representable. It must reject, never pass a request through unauthenticated.
+        let with_credentials = Request::builder()
+            .uri("http://localhost/?token=from.query")
+            .header(http::header::AUTHORIZATION, "Bearer abc.def.ghi")
+            .body(Body::empty())
+            .expect("valid test request");
+
+        assert_eq!(extract_jwt(&with_credentials, &[]), None);
     }
-    None
 }

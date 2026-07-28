@@ -197,9 +197,10 @@ read, and the extractor rejects with 401.
 
 ### Custom token extractors
 
-By default the layer looks for `Authorization: Bearer <token>`. `token_extractors` takes a
-non-empty list of `TokenExtractor` implementations, tried in order; the first one to yield a
-token wins and the rest are skipped.
+By default the layer looks for `Authorization: Bearer <token>`. `token_extractors` takes a list of
+`TokenExtractor` implementations, tried in order; the first one to yield a token wins and the rest
+are skipped. An empty list fails closed — no extractor produces a token, so every request is
+rejected with 401.
 
 Two implementations ship in `extract.rs`:
 
@@ -210,13 +211,11 @@ Two implementations ship in `extract.rs`:
 KeycloakAuthLayer::<AppRole>::builder()
     .instance(instance)
     .validation_policy(policy)
-    .token_extractors(NonEmpty::<Arc<dyn TokenExtractor>> {
-        head: Arc::new(AuthHeaderTokenExtractor::default()),
-        tail: vec![
-            Arc::new(QueryParamTokenExtractor::default()),
-            Arc::new(QueryParamTokenExtractor::extracting_key("jwt")),
-        ],
-    })
+    .token_extractors(vec![
+        Arc::new(AuthHeaderTokenExtractor::default()) as Arc<dyn TokenExtractor>,
+        Arc::new(QueryParamTokenExtractor::default()),
+        Arc::new(QueryParamTokenExtractor::extracting_key("jwt")),
+    ])
     .build()
 ```
 

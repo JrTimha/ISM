@@ -1,3 +1,8 @@
+//! Serde models of Keycloak's `.well-known/openid-configuration` document.
+//!
+//! Modelled in full against the OIDC/OAuth discovery specs, even though ISM only reads `issuer`
+//! and `jwks_uri` today. The HTTP calls that fetch these live in `oidc_discovery.rs`.
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -44,7 +49,7 @@ pub struct OidcConfig {
 pub struct OAuthDiscoveryClaims {
     /// OPTIONAL. URL of the authorization server's OAuth 2.0
     /// introspection endpoint [RFC7662].
-    introspection_endpoint: Option<String>,
+    pub introspection_endpoint: Option<String>,
 
     /// OPTIONAL. JSON array containing a list of client authentication
     /// methods supported by this introspection endpoint.  The valid
@@ -55,7 +60,7 @@ pub struct OAuthDiscoveryClaims {
     /// values are and will remain distinct, due to Section 7.2.)  If
     /// omitted, the set of supported authentication methods MUST be
     /// determined by other means.
-    introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
+    pub introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
 
     /// OPTIONAL. JSON array containing a list of the JWS signing
     /// algorithms ("alg" values) supported by the introspection endpoint
@@ -66,7 +71,7 @@ pub struct OAuthDiscoveryClaims {
     /// specified in the "introspection_endpoint_auth_methods_supported"
     /// entry.  No default algorithms are implied if this entry is
     /// omitted.  The value "none" MUST NOT be used.
-    introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    pub introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
 }
 
 /// See: `https://openid.net/specs/openid-connect-frontchannel-1_0.html#OPLogout`

@@ -1,3 +1,9 @@
+//! Realm and client roles, and the macros that assert them inside a handler.
+//!
+//! ISM does not check roles yet — every handler is reachable by any authenticated user — but the
+//! `Role` trait is what the `<R>` generic on `KeycloakToken` and `KeycloakAuthLayer` binds, and
+//! `String` is the default role type. See `docs/auth.md` for using a custom enum instead.
+
 use std::fmt::{Debug, Display};
 
 use axum::response::IntoResponse;
@@ -29,14 +35,44 @@ pub enum KeycloakRole<R: Role> {
 }
 
 impl<R: Role> KeycloakRole<R> {
+    /// The role name, whether it came from the realm or from a client.
+    ///
+    /// Deliberately *not* what an access check should compare against — see `realm_role`. Keycloak
+    /// puts the roles of every client the user holds roles on into `resource_access`, and
+    /// `ExtractRoles` flattens those into the same list as the realm roles. Matching on the bare
+    /// name therefore treats a client role named `ADMIN`, defined by some unrelated service in the
+    /// realm, as if the realm itself had granted it.
     pub fn role(&self) -> &R {
         match self {
             KeycloakRole::Realm { role } => role,
             KeycloakRole::Client { client: _, role } => role,
         }
     }
+
+    /// The role name if the *realm* granted it, `None` for a client role.
+    ///
+    /// This is what `ExpectRoles::expect_roles` matches on, so that granting a client role can
+    /// never widen a caller's access here.
+    pub fn realm_role(&self) -> Option<&R> {
+        match self {
+            KeycloakRole::Realm { role } => Some(role),
+            KeycloakRole::Client { .. } => None,
+        }
+    }
+
+    /// The role name if `client` granted it, `None` otherwise.
+    pub fn client_role(&self, client: &str) -> Option<&R> {
+        match self {
+            KeycloakRole::Client {
+                client: owner,
+                role,
+            } if owner == client => Some(role),
+            _ => None,
+        }
+    }
 }
 
+/// How many roles a claim section carries, so `ExtractRoles` can size its target vec once.
 pub trait NumRoles {
     fn num_roles(&self) -> usize;
 }
@@ -47,6 +83,7 @@ impl<T: NumRoles> NumRoles for Option<T> {
     }
 }
 
+/// Flattens a claim section (`realm_access`, `resource_access`) into a single role list.
 pub trait ExtractRoles<R: Role> {
     fn extract_roles(self, target: &mut Vec<KeycloakRole<R>>);
 }
@@ -75,6 +112,15 @@ where
     }
 }
 
+/// Asserts the presence (or absence) of roles on something that carries them.
+///
+/// The two directions deliberately consult different role sources, so that both fail closed:
+///
+/// - `expect_roles` grants access and therefore only accepts **realm** roles. A client role of the
+///   same name must never be enough, or any service in the realm could widen access to ISM by
+///   naming one of its own roles `ADMIN`.
+/// - `not_expect_roles` denies access and therefore considers **every** role source. A role that
+///   should keep a caller out must do so no matter who granted it.
 pub trait ExpectRoles<R: Role> {
     type Rejection: IntoResponse;
 
@@ -82,38 +128,45 @@ pub trait ExpectRoles<R: Role> {
     fn not_expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection>;
 }
 
+// The four macros below are `#[macro_export]`ed, so they land at the crate root
+// (`crate::expect_role!`) regardless of this module being private. They must therefore reach
+// `ExpectRoles` through the `auth` facade rather than through `auth::role`.
+
+/// Returns from the handler with an error response unless the token carries all `$roles`.
 #[macro_export]
 macro_rules! expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response unless the token carries `$role`.
 #[macro_export]
 macro_rules! expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::expect_roles($token, &[$role]) {
+        if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response if the token carries any of `$roles`.
 #[macro_export]
 macro_rules! not_expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::not_expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response if the token carries `$role`.
 #[macro_export]
 macro_rules! not_expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = axum_keycloak_auth::role::ExpectRoles::not_expect_roles($token, &[$role])
-        {
+        if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };

@@ -1,6 +1,5 @@
 use crate::core::ObjectStorageConfig;
 use bytes::Bytes;
-use log::{debug, info};
 use minio::s3::builders::{ObjectContent, ObjectToDelete};
 use minio::s3::creds::StaticProvider;
 use minio::s3::http::BaseUrl;
@@ -8,6 +7,7 @@ use minio::s3::segmented_bytes::SegmentedBytes;
 use minio::s3::types::S3Api;
 use minio::s3::{Client, ClientBuilder};
 use std::sync::Arc;
+use tracing::{debug, info};
 
 #[derive(Debug, Clone)]
 pub struct ObjectStorage {
@@ -75,7 +75,7 @@ impl ObjectStorage {
             .delete_object(&self.config.bucket_name, ObjectToDelete::from(object_id))
             .send()
             .await?;
-        debug!("Deleted object, marker: {:?}", response.version_id);
+        debug!(version_id = ?response.version_id, "Deleted object");
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl ObjectStorage {
             .content_type("image/jpeg".to_string())
             .send()
             .await?;
-        debug!("Saved object with name: {:?}", response.object);
+        debug!(object = ?response.object, "Saved object");
         Ok(())
     }
 }

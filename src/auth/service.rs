@@ -1,3 +1,10 @@
+//! The per-request tower `Service` the auth layer produces.
+//!
+//! `poll_ready` holds requests back until the first OIDC discovery has succeeded, so no request
+//! is ever rejected merely because the key set had not arrived yet. `call` then extracts and
+//! validates the token and, in `PassthroughMode::Block`, either inserts the `KeycloakToken` into
+//! the request extensions or answers the error itself.
+
 use std::{
     sync::Arc,
     task::{Context, Poll},
@@ -12,6 +19,7 @@ use futures::future::BoxFuture;
 use http::Request;
 use serde::de::DeserializeOwned;
 
+/// Wraps the inner service with token validation. Created by `KeycloakAuthLayer::layer`.
 #[derive(Clone)]
 pub struct KeycloakAuthService<S, R, Extra>
 where
@@ -19,7 +27,10 @@ where
     Extra: DeserializeOwned + Clone,
 {
     inner: S,
-    layer: KeycloakAuthLayer<R, Extra>,
+    /// Shared rather than owned: tower clones the whole service per request, and `call` needs a
+    /// `'static` handle to move into the response future. Both are then a single refcount bump
+    /// instead of a structural copy of every field the layer holds.
+    layer: Arc<KeycloakAuthLayer<R, Extra>>,
 }
 
 impl<S, R, Extra> KeycloakAuthService<S, R, Extra>
@@ -27,10 +38,11 @@ where
     R: Role,
     Extra: DeserializeOwned + Clone,
 {
+    /// Clones the layer exactly once, when the router is built — never per request.
     pub fn new(inner: S, layer: &KeycloakAuthLayer<R, Extra>) -> Self {
         Self {
             inner,
-            layer: layer.clone(),
+            layer: Arc::new(layer.clone()),
         }
     }
 }
@@ -47,48 +59,25 @@ where
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Once ready, we shall always be ready, independent of future discovery requests,
-        // satisfying a `poll_ready` requirement!
-        let is_ready = self.layer.instance.discovery.version() > 0;
-
-        if is_ready {
-            tracing::debug!("Ready to process requests.");
-        } else {
-            tracing::debug!("Not ready to process requests. Waiting for initial discovery...");
-
-            // We have to assume that the discovery action was initialized.
-            // Our waker handling in would otherwise be wrong!
-            assert!(self.layer.instance.discovery.is_pending());
-            let instance = self.layer.instance.clone();
-            let waker = cx.waker().clone();
-            tokio::spawn(async move {
-                instance.discovery.notified().await;
-                waker.wake();
-            });
-        }
-
-        match (is_ready, self.inner.poll_ready(cx)) {
-            (true, Poll::Ready(t)) => Poll::Ready(t),
-            (false, _) => Poll::Pending,
-            (_, Poll::Pending) => Poll::Pending,
-        }
+        // No discovery gate here: `KeycloakAuthInstance::new` does not return until one discovery
+        // has succeeded, and a later failed refresh keeps the keys it already had. There is
+        // therefore no state in which this service exists without a usable key set to wait for.
+        self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, mut request: Request<Body>) -> Self::Future {
         tracing::debug!("Validating request...");
 
         let clone = self.inner.clone();
-        let cloned_layer = self.layer.clone();
+        let layer = Arc::clone(&self.layer);
 
         // Take the service that was ready!
         let mut inner = std::mem::replace(&mut self.inner, clone);
 
-        let passthrough_mode = cloned_layer.passthrough_mode;
-
         Box::pin(async move {
             // Process the request.
-            let result = match extract::extract_jwt(&request, &cloned_layer.token_extractors) {
-                Some(token) => cloned_layer.validate_raw_token(&token).await,
+            let result = match extract::extract_jwt(&request, &layer.token_extractors) {
+                Some(token) => layer.validate_raw_token(&token).await,
                 None => Err(AuthError::MissingToken),
             };
 
@@ -97,7 +86,7 @@ where
                     if let Some(raw_claims) = raw_claims {
                         request.extensions_mut().insert(raw_claims);
                     }
-                    match cloned_layer.passthrough_mode {
+                    match layer.passthrough_mode {
                         PassthroughMode::Block => {
                             request.extensions_mut().insert(keycloak_token);
                         }
@@ -109,7 +98,7 @@ where
                     };
                     inner.call(request).await
                 }
-                Err(err) => match passthrough_mode {
+                Err(err) => match layer.passthrough_mode {
                     PassthroughMode::Block => Ok(err.into_response()),
                     PassthroughMode::Pass => {
                         request

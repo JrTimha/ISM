@@ -1,0 +1,23 @@
+# Local development configuration.
+#
+# On Windows a running executable cannot be relinked, and `cargo test` always rebuilds the
+# package's binaries — an integration test may reference `env!("CARGO_BIN_EXE_ism")`, which is
+# resolved at compile time, so Cargo has to produce `ism.exe` before it can compile a single test.
+# A dev server started from `target/debug/ism.exe` therefore blocks every `cargo test` and
+# `cargo build` for as long as it runs, with `os error 5`.
+#
+# The fix is to keep the long-running server out of the shared build directory:
+#
+#   cargo serve                     instead of `cargo run`
+#   cargo attack                    the black-box auth suite in tests/auth_attacks.rs
+#
+# `cargo serve` builds into `target/server/`, leaving `target/` free for tests, clippy and the
+# IDE. Extra arguments are appended, so `cargo attack rejects_kid` filters by test name and
+# `cargo attack -- --test-threads=1` still works.
+#
+# The first `cargo serve` rebuilds every dependency into the new directory, librdkafka included —
+# that one is slow. It happens once.
+
+[alias]
+serve = ["run", "--target-dir", "target/server"]
+attack = ["test", "--test", "auth_attacks", "--", "--nocapture"]

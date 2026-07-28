@@ -1,4 +1,4 @@
-use crate::auth::decode::KeycloakToken;
+use crate::auth::CurrentUser;
 use crate::core::AppState;
 use crate::core::cursor::{CursorResults, clamp_page_size, decode_cursor};
 use crate::core::errors::AppError;
@@ -13,14 +13,14 @@ use crate::rooms::share_service::{ShareService, ShareTarget, ShareTargetCursor};
 use crate::rooms::timeline_service::TimelineService;
 use crate::users::user_service::UserService;
 use crate::utils::check_user_in_room;
+use axum::Json;
 use axum::extract::{Multipart, Path, Query, State};
-use axum::{Extension, Json};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use log::error;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -44,29 +44,29 @@ pub struct TimelineQueryParam {
 }
 
 pub async fn handle_scroll_chat_timeline(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
     Query(params): Query<TimelineQueryParam>,
 ) -> Result<Json<TimelinePage>, AppError> {
-    check_user_in_room(&state, &token.subject, &room_id).await?;
+    check_user_in_room(&state, &user.subject, &room_id).await?;
     let page = TimelineService::scroll_chat_timeline(state, room_id, params.timestamp).await?;
     Ok(Json(page))
 }
 
 pub async fn handle_get_users_in_room(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMember>>, AppError> {
-    check_user_in_room(&state, &token.subject, &room_id).await?;
+    check_user_in_room(&state, &user.subject, &room_id).await?;
     let users = RoomService::get_users_in_room(state, room_id).await?;
     Ok(Json(users))
 }
 
 pub async fn handle_get_joined_rooms(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<RoomListQueryParams>,
 ) -> Result<Json<CursorResults<ChatRoomDto>>, AppError> {
     let cursor: RoomPaginationCursor = decode_cursor(params.cursor)
@@ -74,13 +74,13 @@ pub async fn handle_get_joined_rooms(
     let page_size = clamp_page_size(params.limit);
 
     let rooms =
-        RoomService::get_joined_rooms(state, token.subject, params.name, cursor, page_size).await?;
+        RoomService::get_joined_rooms(state, user.subject, params.name, cursor, page_size).await?;
     Ok(Json(rooms))
 }
 
 pub async fn handle_get_share_targets(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<RoomListQueryParams>,
 ) -> Result<Json<CursorResults<ShareTarget>>, AppError> {
     let cursor: ShareTargetCursor = decode_cursor(params.cursor)
@@ -88,35 +88,35 @@ pub async fn handle_get_share_targets(
     let page_size = clamp_page_size(params.limit);
 
     let targets =
-        ShareService::get_share_targets(state, token.subject, params.name, cursor, page_size)
+        ShareService::get_share_targets(state, user.subject, params.name, cursor, page_size)
             .await?;
     Ok(Json(targets))
 }
 
 pub async fn handle_get_room_with_details(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<ChatRoomWithUserDTO>, AppError> {
-    let room = RoomService::get_room_with_details(state, token.subject, room_id).await?;
+    let room = RoomService::get_room_with_details(state, user.subject, room_id).await?;
     Ok(Json(room))
 }
 
 pub async fn mark_room_as_read(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Path(room_id): Path<Uuid>,
 ) -> Result<(), AppError> {
-    RoomService::mark_room_as_read(state, token.subject, room_id).await?;
+    RoomService::mark_room_as_read(state, user.subject, room_id).await?;
     Ok(())
 }
 
 pub async fn handle_create_room(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Json(mut payload): Json<NewRoom>,
 ) -> Result<Json<ChatRoomDto>, AppError> {
-    if !payload.invited_users.contains(&token.subject) {
+    if !payload.invited_users.contains(&user.subject) {
         return Err(AppError::Validation(
             "Sender ID is not in the list of invited users.".to_string(),
         ));
@@ -128,7 +128,7 @@ pub async fn handle_create_room(
 
     //filter out all users that have an ignore-relationship with the sender
     let ignored =
-        UserService::get_blocked_users(state.clone(), &token.subject, &payload.invited_users)
+        UserService::get_blocked_users(state.clone(), &user.subject, &payload.invited_users)
             .await?;
     let filter_set: HashSet<_> = ignored.iter().collect();
     payload
@@ -145,12 +145,12 @@ pub async fn handle_create_room(
             let other_user = payload
                 .invited_users
                 .iter()
-                .find(|&&el| el != token.subject)
+                .find(|&&el| el != user.subject)
                 .ok_or_else(|| {
                     AppError::Validation("Personal rooms must contain another user.".to_string())
                 })?;
             let has_active_chat =
-                RoomService::find_existing_single_room(state.clone(), &token.subject, other_user)
+                RoomService::find_existing_single_room(state.clone(), &user.subject, other_user)
                     .await?;
             if has_active_chat.is_some() {
                 return Err(AppError::Validation(
@@ -166,60 +166,61 @@ pub async fn handle_create_room(
             }
         }
     }
-    let room = RoomService::create_room(state, token.subject, payload).await?;
+    let room = RoomService::create_room(state, user.subject, payload).await?;
     Ok(Json(room))
 }
 
 pub async fn handle_get_room_list_item_by_id(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<ChatRoomDto>, AppError> {
-    let room = RoomService::get_room_list_item_by_id(state, token.subject, room_id).await?;
+    let room = RoomService::get_room_list_item_by_id(state, user.subject, room_id).await?;
     Ok(Json(room))
 }
 
 pub async fn handle_leave_room(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
 ) -> Result<(), AppError> {
-    RoomService::leave_room(state, token.subject, room_id).await?;
+    RoomService::leave_room(state, user.subject, room_id).await?;
     Ok(())
 }
 
 pub async fn handle_invite_to_room(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
-    Path((room_id, user_id)): Path<(Uuid, Uuid)>,
+    Path((room_id, invited_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
     let ignored =
-        UserService::get_blocked_users(state.clone(), &token.subject, &vec![user_id]).await?;
-    if ignored.contains(&user_id) {
+        UserService::get_blocked_users(state.clone(), &user.subject, &vec![invited_user_id])
+            .await?;
+    if ignored.contains(&invited_user_id) {
         return Err(AppError::Forbidden("User is blocked.".to_string()));
     }
 
-    RoomService::invite_to_room(state, token.subject, room_id, user_id).await?;
+    RoomService::invite_to_room(state, user.subject, room_id, invited_user_id).await?;
     Ok(())
 }
 
 pub async fn handle_search_existing_single_room(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Query(params): Query<RoomSearchQueryParam>,
 ) -> Result<Json<Option<Uuid>>, AppError> {
     let result =
-        RoomService::find_existing_single_room(state, &token.subject, &params.with_user).await?;
+        RoomService::find_existing_single_room(state, &user.subject, &params.with_user).await?;
     Ok(Json(result))
 }
 
 pub async fn handle_save_room_image(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, AppError> {
-    check_user_in_room(&state, &token.subject, &room_id).await?;
+    check_user_in_room(&state, &user.subject, &room_id).await?;
     let mut image_data: Option<Bytes> = None;
     loop {
         match multipart.next_field().await {
@@ -242,7 +243,7 @@ pub async fn handle_save_room_image(
             }
             Err(err) => {
                 //read error
-                error!("Bad image upload: {}", err.to_string());
+                error!(error = %err, "Bad image upload");
                 return Err(AppError::Validation(
                     "Error reading the image byte stream.".to_string(),
                 ));
@@ -261,11 +262,11 @@ pub async fn handle_save_room_image(
 }
 
 pub async fn handle_get_read_states(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMember>>, AppError> {
-    check_user_in_room(&state, &token.subject, &room_id).await?;
+    check_user_in_room(&state, &user.subject, &room_id).await?;
     let read_states = RoomService::get_read_states(state, room_id).await?;
     Ok(Json(read_states))
 }

@@ -3,10 +3,10 @@ use crate::cache::redis_subscriber::run_event_processor;
 use crate::cache::util::{CHAT_CHANNEL, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
 use crate::rooms::room_member::RoomContext;
 use async_trait::async_trait;
-use log::info;
 use redis::aio::ConnectionManager;
 use redis::aio::ConnectionManagerConfig;
 use redis::{AsyncTypedCommands, Client, ErrorKind, RedisError, RedisResult};
+use tracing::info;
 use uuid::Uuid;
 
 /// TTL for the per-user sequence counter and notification stream. Refreshed on every write, so a

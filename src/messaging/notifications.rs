@@ -1,16 +1,15 @@
-use crate::auth::decode::KeycloakToken;
+use crate::auth::CurrentUser;
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::cache::redis_cache::ReplayResult;
 use crate::core::AppState;
 use crate::core::errors::AppResponse;
+use axum::Json;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::response::sse::Event;
 use axum::response::{IntoResponse, Sse};
-use axum::{Extension, Json};
 use bytes::Bytes;
 use futures::Stream;
-use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +17,7 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::time;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use tracing::warn;
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// Handshake parameters shared by the SSE and WebSocket endpoints. The client passes the
@@ -89,7 +88,7 @@ async fn resolve_handshake(
             0,
         ),
         Err(err) => {
-            error!("Failed to fetch replay for {}: {}", user_id, err);
+            error!(%user_id, error = %err, "Failed to fetch notification replay");
             (
                 vec![resync_notification("replay error, please resync via REST")],
                 0,
@@ -99,12 +98,13 @@ async fn resolve_handshake(
 }
 
 pub async fn stream_server_events(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<StreamHandshakeParams>,
 ) -> Sse<impl Stream<Item = Result<Event, BroadcastStreamRecvError>>> {
     use futures::StreamExt;
 
-    let user_id = token.subject;
+    // Bound out of the token: the live stream below outlives this scope and only needs the id.
+    let user_id = user.subject;
     let bc = BroadcastChannel::get();
 
     // Subscribe before reading the replay so live events produced during the handshake are
@@ -131,10 +131,7 @@ pub async fn stream_server_events(
                     }
                 }
                 Err(BroadcastStreamRecvError::Lagged(n)) => {
-                    warn!(
-                        "SSE client {} lagged by {} events, signalling resync",
-                        user_id, n
-                    );
+                    warn!(%user_id, lagged_events = n, "SSE client lagged, signalling resync");
                     Some(Ok(notification_to_sse(&resync_notification(
                         "stream lagged, please resync via REST",
                     ))))
@@ -154,12 +151,14 @@ pub async fn stream_server_events(
 
 pub async fn websocket_server_events(
     websocket: WebSocketUpgrade,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<StreamHandshakeParams>,
 ) -> impl IntoResponse {
+    // Bound out of the token so the upgrade closure captures a `Copy` id, not the whole token.
+    let user_id = user.subject;
     websocket
         .on_failed_upgrade(|error| warn!("Error upgrading websocket: {}", error))
-        .on_upgrade(move |socket| handle_socket(socket, token.subject, params.last_seq))
+        .on_upgrade(move |socket| handle_socket(socket, user_id, params.last_seq))
 }
 
 async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u64>) {
@@ -195,7 +194,7 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u6
                         }
                         let json_msg = serde_json::to_string(&event).unwrap_or_default();
                         if socket.send(Message::text(json_msg)).await.is_err() {
-                            error!("Failed to send message to client, closing.");
+                            debug!(%user_id, "Failed to send message to client, closing");
                             break;
                         }
                     }
@@ -204,7 +203,7 @@ async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u6
                         break;
                     }
                     Err(RecvError::Lagged(n)) => {
-                        warn!("WS client {} lagged by {} events, signalling resync", user_id, n);
+                        warn!(%user_id, lagged_events = n, "WS client lagged, signalling resync");
                         let resync = serde_json::to_string(&resync_notification("stream lagged, please resync via REST")).unwrap_or_default();
                         if socket.send(Message::text(resync)).await.is_err() {
                             break;
@@ -269,11 +268,11 @@ pub struct NotificationCursor {
 
 pub async fn get_notification_cursor(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
 ) -> AppResponse<Json<NotificationCursor>> {
     let seq = state
         .cache
-        .current_sequence(&token.subject)
+        .current_sequence(&user.subject)
         .await?
         .unwrap_or(0);
     Ok(Json(NotificationCursor { seq }))
@@ -281,12 +280,12 @@ pub async fn get_notification_cursor(
 
 pub async fn get_latest_notification_events(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<NotificationQueryParam>,
 ) -> AppResponse<Json<Vec<Notification>>> {
     let notifications = match state
         .cache
-        .get_notifications_since_seq(&token.subject, params.last_seq)
+        .get_notifications_since_seq(&user.subject, params.last_seq)
         .await?
     {
         ReplayResult::Events(events) => events,

@@ -1,0 +1,8 @@
+# rustfmt configuration for ISM
+# Only stable options — usable with the standard `cargo fmt`.
+
+edition = "2024"
+
+# Allow wider lines than the 100-column default: breaking long expressions
+# and signatures across lines often hurts readability more than it helps.
+max_width = 160

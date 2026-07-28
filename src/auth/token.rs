@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use chrono::{DateTime, TimeDelta, Utc};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::{OneOrMany, serde_as};
@@ -117,9 +118,9 @@ where
     Extra: DeserializeOwned + Clone,
 {
     /// Expiration time (UTC).
-    pub expires_at: time::OffsetDateTime,
+    pub expires_at: DateTime<Utc>,
     /// Issued at time (UTC).
-    pub issued_at: time::OffsetDateTime,
+    pub issued_at: DateTime<Utc>,
     /// JWT ID (unique identifier for this token).
     pub jwt_id: String,
     /// Issuer (who created and signed this token).
@@ -144,17 +145,19 @@ where
 {
     pub fn parse(raw: StandardClaims<Extra>) -> Result<Self, AuthError> {
         Ok(Self {
-            expires_at: time::OffsetDateTime::from_unix_timestamp(raw.exp).map_err(|err| {
+            expires_at: DateTime::from_timestamp(raw.exp, 0).ok_or_else(|| {
                 AuthError::InvalidToken {
                     reason: format!(
-                        "Could not parse 'exp' (expires_at) field as unix timestamp: {err}"
+                        "Could not parse 'exp' (expires_at) field as unix timestamp: {}",
+                        raw.exp
                     ),
                 }
             })?,
-            issued_at: time::OffsetDateTime::from_unix_timestamp(raw.iat).map_err(|err| {
+            issued_at: DateTime::from_timestamp(raw.iat, 0).ok_or_else(|| {
                 AuthError::InvalidToken {
                     reason: format!(
-                        "Could not parse 'iat' (issued_at) field as unix timestamp: {err}"
+                        "Could not parse 'iat' (issued_at) field as unix timestamp: {}",
+                        raw.iat
                     ),
                 }
             })?,
@@ -174,12 +177,21 @@ where
         })
     }
 
-    pub fn is_expired(&self) -> bool {
-        time::OffsetDateTime::now_utc() > self.expires_at
+    /// Whether the token is past its `exp`, allowing `leeway` of clock drift.
+    ///
+    /// `leeway` must match what `ValidationPolicy` hands to `jsonwebtoken` — see
+    /// `decode::EXPIRY_LEEWAY_SECS`. Both checks run on every request, and the stricter one decides,
+    /// so a mismatch would silently make one of them dead.
+    pub fn is_expired(&self, leeway: TimeDelta) -> bool {
+        // An `exp` so far out that adding the leeway leaves the representable range is, by any
+        // reading, not expired.
+        self.expires_at
+            .checked_add_signed(leeway)
+            .is_some_and(|deadline| Utc::now() > deadline)
     }
 
-    pub fn assert_not_expired(&self) -> Result<(), AuthError> {
-        match self.is_expired() {
+    pub fn assert_not_expired(&self, leeway: TimeDelta) -> Result<(), AuthError> {
+        match self.is_expired(leeway) {
             true => Err(AuthError::TokenExpired),
             false => Ok(()),
         }

@@ -8,15 +8,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::auth::error::AuthError;
-use crate::auth::error::DecodeHeaderSnafu;
-use crate::auth::error::DecodeSnafu;
 use crate::auth::instance::KeycloakAuthInstance;
 use crate::auth::role::{ExpectRoles, Role};
 use crate::auth::token::{KeycloakToken, StandardClaims};
+use chrono::TimeDelta;
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, AlgorithmFamily, DecodingKey, Header, Validation, decode};
 use serde::de::DeserializeOwned;
-use snafu::ResultExt;
 use std::str::FromStr;
 use tracing::debug;
 
@@ -28,6 +26,16 @@ type DecodedTokenResult =
 /// Token type Keycloak stamps onto access tokens. ID and refresh tokens carry a different `typ`
 /// but are signed by the same realm key, so this claim is what separates them.
 const ACCESS_TOKEN_TYP: &str = "Bearer";
+
+/// How far past its `exp` a token is still accepted, absorbing clock drift between the Keycloak
+/// host and this one.
+///
+/// Applied in two places that both run on every request: `jsonwebtoken`'s own `exp`/`nbf`
+/// validation below, and the explicit `assert_not_expired` in `decode_and_validate`. The stricter
+/// of the two decides, so they must agree — this constant is what makes them agree. It deliberately
+/// replaces `jsonwebtoken`'s 60-second default, which was previously dead anyway because the
+/// explicit check ran with no leeway at all.
+pub(crate) const EXPIRY_LEEWAY_SECS: i64 = 5;
 
 /// The rules incoming tokens are validated against, fixed at startup from configuration.
 ///
@@ -93,10 +101,11 @@ impl ValidationPolicy {
         // The algorithm allow-list comes from configuration, never from `header.alg`. Deriving it
         // from the header lets the caller choose the family their token is verified under, which
         // is the setup for RS256 -> HS256 key-confusion forgery.
-        let mut validation = jsonwebtoken::Validation::new_for_family(first.family());
+        let mut validation = Validation::new_for_family(first.family());
         validation.algorithms = allowed_algorithms.clone();
         validation.set_audience(&expected_audiences);
         validation.validate_nbf = true;
+        validation.leeway = EXPIRY_LEEWAY_SECS as u64;
         // `iss` is required here even though it is compared by hand below, so a token that omits
         // it is rejected before the comparison ever runs.
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
@@ -125,7 +134,8 @@ pub struct RawToken<'a>(pub &'a str);
 
 impl RawToken<'_> {
     pub fn decode_header(&self) -> Result<Header, AuthError> {
-        let jwt_header = jsonwebtoken::decode_header(self.0).context(DecodeHeaderSnafu {})?;
+        let jwt_header = jsonwebtoken::decode_header(self.0)
+            .map_err(|source| AuthError::DecodeHeader { source })?;
         debug!(?jwt_header, "Decoded JWT header");
         Ok(jwt_header)
     }
@@ -140,8 +150,8 @@ impl RawToken<'_> {
         let mut token_data: DecodedTokenResult = Err(AuthError::NoDecodingKeys);
 
         for key in decoding_keys {
-            token_data =
-                decode::<RawClaims>(self.0, key, &policy.validation).context(DecodeSnafu {});
+            token_data = decode::<RawClaims>(self.0, key, &policy.validation)
+                .map_err(|source| AuthError::Decode { source });
             if token_data.is_ok() {
                 break;
             }
@@ -276,7 +286,7 @@ where
     }
 
     let keycloak_token = KeycloakToken::<R, Extra>::parse(standard_claims)?;
-    keycloak_token.assert_not_expired()?;
+    keycloak_token.assert_not_expired(TimeDelta::seconds(EXPIRY_LEEWAY_SECS))?;
     policy.assert_authorized_party(&keycloak_token.authorized_party)?;
     keycloak_token.expect_roles(required_roles)?;
     Ok((raw_claims_clone, keycloak_token))

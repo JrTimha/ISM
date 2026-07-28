@@ -29,6 +29,22 @@ The `ValidationPolicy` is built once at startup from the `[token_issuer]` config
 misconfiguration (unknown algorithm, symmetric algorithm, empty audience list) panics at startup
 rather than turning into a blanket 401 at runtime.
 
+### Expiry and clock drift
+
+Expiry is checked twice per request — once by `jsonwebtoken` as part of signature validation, once
+explicitly by `KeycloakToken::assert_not_expired` — and the stricter of the two decides. Both read
+the same `EXPIRY_LEEWAY_SECS` (`decode.rs`, currently **5 seconds**), so a token is accepted up to
+five seconds past its `exp`. The same leeway applies to `nbf`.
+
+That window exists to absorb clock drift between the Keycloak host and this one; it deliberately
+replaces `jsonwebtoken`'s 60-second default. If you change it, change the constant — never one of
+the two call sites, or the looser check silently becomes dead code. `security_tests.rs` pins the
+boundary from both sides (expired by 2s must pass, expired by 10s must fail).
+
+Beyond that window, correct expiry depends on both hosts having a synchronised clock. Neither
+`chrono` nor any other date library affects this: every expiry check ultimately reads the host's
+`CLOCK_REALTIME`, so NTP on both machines is the actual control.
+
 ### Key rotation
 
 There is no refresh timer and no background task. When a token fails to verify in a way that
@@ -61,7 +77,7 @@ pub async fn handle_get_friends(
 | `roles` | `Vec<KeycloakRole<AppRole>>` | realm and client roles |
 | `extra.profile` | `Profile` | `preferred_username` |
 | `extra.email` | `Email` | `email`, `email_verified` |
-| `expires_at`, `issued_at` | `OffsetDateTime` | |
+| `expires_at`, `issued_at` | `DateTime<Utc>` | |
 | `issuer`, `audience`, `authorized_party`, `jwt_id` | | standard JWT claims |
 
 `subject` is `Copy`, so `user.subject` inline is free. Bind a local only when the id has to

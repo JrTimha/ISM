@@ -66,8 +66,8 @@ mod tests {
 
     fn token_with(roles: Vec<AppRole>) -> CurrentUser {
         CurrentUser {
-            expires_at: time::OffsetDateTime::now_utc() + time::Duration::minutes(5),
-            issued_at: time::OffsetDateTime::now_utc(),
+            expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(5),
+            issued_at: chrono::Utc::now(),
             jwt_id: "b7c1e5a2-3f4d-4e5a-9b8c-7d6e5f4a3b2c".to_owned(),
             issuer: "https://keycloak.example/realms/meventure".to_owned(),
             audience: vec!["account".to_owned()],

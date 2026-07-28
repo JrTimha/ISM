@@ -7,17 +7,30 @@ use std::sync::Arc;
 use crate::auth::oidc::OidcConfig;
 use reqwest::IntoUrl;
 use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
+use thiserror::Error;
 
 /// A discovery request that never produced a usable document.
-#[derive(Debug, Clone, Snafu)]
-#[snafu(visibility(pub))]
+#[derive(Debug, Clone, Error)]
 pub enum RequestError {
-    #[snafu(display("RequestError: Could not send request"))]
+    #[error("RequestError: Could not send request")]
     Send { source: Arc<reqwest::Error> },
 
-    #[snafu(display("RequestError: Could not decode payload"))]
+    #[error("RequestError: Could not decode payload")]
     Decode { source: Arc<reqwest::Error> },
+}
+
+impl RequestError {
+    fn send(source: reqwest::Error) -> Self {
+        Self::Send {
+            source: Arc::new(source),
+        }
+    }
+
+    fn decode(source: reqwest::Error) -> Self {
+        Self::Decode {
+            source: Arc::new(source),
+        }
+    }
 }
 
 /// Fetches the realm's `.well-known/openid-configuration` document.
@@ -28,12 +41,10 @@ pub async fn retrieve_oidc_config(
         .get(discovery_endpoint)
         .send()
         .await
-        .map_err(Arc::new)
-        .context(SendSnafu {})?
+        .map_err(RequestError::send)?
         .json::<OidcConfig>()
         .await
-        .map_err(Arc::new)
-        .context(DecodeSnafu {})
+        .map_err(RequestError::decode)
 }
 
 /// Fetches the JWK set, parsing each key on its own so one unusable entry does not discard the
@@ -49,12 +60,10 @@ pub async fn retrieve_jwk_set(
         .get(jwk_set_endpoint)
         .send()
         .await
-        .map_err(Arc::new)
-        .context(SendSnafu {})?
+        .map_err(RequestError::send)?
         .json::<RawJwkSet>()
         .await
-        .map_err(Arc::new)
-        .context(DecodeSnafu {})?;
+        .map_err(RequestError::decode)?;
     let mut set = jsonwebtoken::jwk::JwkSet { keys: Vec::new() };
     for key in raw_set.keys {
         match serde_json::from_value::<jsonwebtoken::jwk::Jwk>(key) {

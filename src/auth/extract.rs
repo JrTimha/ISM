@@ -7,6 +7,7 @@ use std::{borrow::Cow, sync::Arc};
 
 use axum::extract::Request;
 use nonempty::NonEmpty;
+use url::form_urlencoded;
 
 use crate::auth::error::AuthError;
 
@@ -78,24 +79,157 @@ impl TokenExtractor for QueryParamTokenExtractor {
     fn extract<'a>(&self, request: &'a Request) -> Result<ExtractedToken<'a>, AuthError> {
         let query = request.uri().query().ok_or(AuthError::MissingQueryParams)?;
 
-        let mut tokens = serde_querystring::DuplicateQS::parse(query.as_bytes())
-            .values(self.key.as_bytes())
-            .unwrap_or_default()
-            .into_iter();
+        // First occurrence wins, matching how a duplicated parameter was resolved before.
+        let (_, token) = form_urlencoded::parse(query.as_bytes())
+            .find(|(key, _)| key.as_ref() == self.key.as_str())
+            .ok_or(AuthError::MissingTokenQueryParam)?;
 
-        let first_token = tokens
-            .next()
-            .ok_or(AuthError::MissingTokenQueryParam)?
-            .ok_or(AuthError::EmptyTokenQueryParam)?;
+        if token.is_empty() {
+            return Err(AuthError::EmptyTokenQueryParam);
+        }
 
-        // Percent-decoding yields raw bytes, so `?token=%FF` is not necessarily valid UTF-8.
-        // This used to `expect`, which made a malformed query string a remote panic.
-        let first_token =
-            std::str::from_utf8(first_token.as_ref()).map_err(|_| AuthError::InvalidToken {
-                reason: "token query parameter was not valid UTF-8".to_owned(),
-            })?;
+        // `form_urlencoded` decodes lossily, so `?token=%FF` arrives as U+FFFD instead of failing.
+        // A JWT is base64url segments joined by dots and therefore pure ASCII, so anything outside
+        // that range is rejected here rather than handed to the decoder as a silently mangled
+        // string. (The previous implementation returned raw bytes and had to guard UTF-8 itself —
+        // before that it `expect`ed, which made a malformed query string a remote panic.)
+        if !token.is_ascii() {
+            return Err(AuthError::InvalidToken {
+                reason: "token query parameter contained non-ASCII characters".to_owned(),
+            });
+        }
 
-        Ok(ExtractedToken::Owned(first_token.to_owned()))
+        // Borrowed when the value needed no unescaping, owned otherwise — see `ExtractedToken`.
+        Ok(token)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use axum::body::Body;
+
+    fn request(uri: &str) -> Request {
+        Request::builder()
+            .uri(uri)
+            .body(Body::empty())
+            .expect("valid test request")
+    }
+
+    #[test]
+    fn reads_the_configured_query_parameter() {
+        let request = request("http://localhost/api/v1/wss?token=abc.def.ghi");
+        let token = QueryParamTokenExtractor::default()
+            .extract(&request)
+            .expect("token to be extracted");
+        assert_eq!(token, "abc.def.ghi");
+    }
+
+    #[test]
+    fn percent_decodes_the_value() {
+        let request = request("http://localhost/?token=a%2Eb");
+        let token = QueryParamTokenExtractor::default()
+            .extract(&request)
+            .expect("token to be extracted");
+        assert_eq!(token, "a.b");
+    }
+
+    #[test]
+    fn ignores_other_parameters_and_takes_the_first_duplicate() {
+        let request = request("http://localhost/?last_seq=7&token=first&token=second");
+        let token = QueryParamTokenExtractor::default()
+            .extract(&request)
+            .expect("token to be extracted");
+        assert_eq!(token, "first");
+    }
+
+    #[test]
+    fn honours_a_custom_key() {
+        let request = request("http://localhost/?token=wrong&jwt=right");
+        let token = QueryParamTokenExtractor::extracting_key("jwt")
+            .extract(&request)
+            .expect("token to be extracted");
+        assert_eq!(token, "right");
+    }
+
+    #[test]
+    fn distinguishes_absent_missing_and_empty_parameters() {
+        let no_query = request("http://localhost/api/v1/wss");
+        assert!(matches!(
+            QueryParamTokenExtractor::default().extract(&no_query),
+            Err(AuthError::MissingQueryParams)
+        ));
+
+        let other_key = request("http://localhost/?last_seq=7");
+        assert!(matches!(
+            QueryParamTokenExtractor::default().extract(&other_key),
+            Err(AuthError::MissingTokenQueryParam)
+        ));
+
+        let empty_value = request("http://localhost/?token=");
+        assert!(matches!(
+            QueryParamTokenExtractor::default().extract(&empty_value),
+            Err(AuthError::EmptyTokenQueryParam)
+        ));
+    }
+
+    #[test]
+    fn rejects_a_non_ascii_token_instead_of_mangling_it() {
+        // `%FF` is not valid UTF-8; percent-decoding it lossily yields U+FFFD, which must not be
+        // passed on to the JWT decoder as if it were the token the caller sent.
+        let request = request("http://localhost/?token=%FF");
+        assert!(matches!(
+            QueryParamTokenExtractor::default().extract(&request),
+            Err(AuthError::InvalidToken { .. })
+        ));
+    }
+
+    #[test]
+    fn header_extractor_requires_the_bearer_prefix() {
+        let bearer = Request::builder()
+            .uri("http://localhost/")
+            .header(http::header::AUTHORIZATION, "Bearer abc.def.ghi")
+            .body(Body::empty())
+            .expect("valid test request");
+        assert_eq!(
+            AuthHeaderTokenExtractor {}
+                .extract(&bearer)
+                .expect("token to be extracted"),
+            "abc.def.ghi"
+        );
+
+        let basic = Request::builder()
+            .uri("http://localhost/")
+            .header(http::header::AUTHORIZATION, "Basic abc")
+            .body(Body::empty())
+            .expect("valid test request");
+        assert!(matches!(
+            AuthHeaderTokenExtractor {}.extract(&basic),
+            Err(AuthError::MissingBearerToken)
+        ));
+
+        let none = request("http://localhost/");
+        assert!(matches!(
+            AuthHeaderTokenExtractor {}.extract(&none),
+            Err(AuthError::MissingAuthorizationHeader)
+        ));
+    }
+
+    #[test]
+    fn extract_jwt_falls_through_to_the_next_extractor() {
+        let extractors: NonEmpty<Arc<dyn TokenExtractor>> = NonEmpty {
+            head: Arc::new(AuthHeaderTokenExtractor {}),
+            tail: vec![Arc::new(QueryParamTokenExtractor::default())],
+        };
+
+        let with_query = request("http://localhost/api/v1/wss?token=from.query");
+        assert_eq!(
+            extract_jwt(&with_query, &extractors).as_deref(),
+            Some("from.query")
+        );
+
+        let neither = request("http://localhost/api/v1/wss");
+        assert_eq!(extract_jwt(&neither, &extractors), None);
     }
 }
 

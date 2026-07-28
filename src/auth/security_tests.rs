@@ -294,12 +294,34 @@ fn rejects_wrong_audience() {
 
 #[test]
 fn rejects_expired_token() {
-    // Well beyond the 60s leeway `jsonwebtoken` applies by default.
+    // Well beyond `EXPIRY_LEEWAY_SECS`.
     let token = sign(
         &rs256_header(),
         &claims_with(json!({ "exp": now() - 3600 })),
     );
     verify(&token).expect_err("an expired token must be rejected");
+}
+
+#[tokio::test]
+async fn accepts_a_token_expired_within_the_leeway() {
+    // Two checks decide expiry — `jsonwebtoken`'s own validation and `assert_not_expired` — and
+    // the stricter one wins. This passes only while both apply `EXPIRY_LEEWAY_SECS`, so it is what
+    // catches the two drifting apart.
+    let token = sign(&rs256_header(), &claims_with(json!({ "exp": now() - 2 })));
+    authenticate(&token, &policy())
+        .await
+        .expect("expiry within the leeway must still authenticate");
+}
+
+#[tokio::test]
+async fn rejects_a_token_expired_beyond_the_leeway() {
+    // Ten seconds is outside the five the leeway grants, but far inside `jsonwebtoken`'s 60-second
+    // default — so this fails the moment someone drops the explicit leeway and lets that default
+    // back in.
+    let token = sign(&rs256_header(), &claims_with(json!({ "exp": now() - 10 })));
+    authenticate(&token, &policy())
+        .await
+        .expect_err("expiry beyond the leeway must be rejected");
 }
 
 #[test]

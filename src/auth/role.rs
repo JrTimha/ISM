@@ -36,10 +36,38 @@ pub enum KeycloakRole<R: Role> {
 
 impl<R: Role> KeycloakRole<R> {
     /// The role name, whether it came from the realm or from a client.
+    ///
+    /// Deliberately *not* what an access check should compare against — see `realm_role`. Keycloak
+    /// puts the roles of every client the user holds roles on into `resource_access`, and
+    /// `ExtractRoles` flattens those into the same list as the realm roles. Matching on the bare
+    /// name therefore treats a client role named `ADMIN`, defined by some unrelated service in the
+    /// realm, as if the realm itself had granted it.
     pub fn role(&self) -> &R {
         match self {
             KeycloakRole::Realm { role } => role,
             KeycloakRole::Client { client: _, role } => role,
+        }
+    }
+
+    /// The role name if the *realm* granted it, `None` for a client role.
+    ///
+    /// This is what `ExpectRoles::expect_roles` matches on, so that granting a client role can
+    /// never widen a caller's access here.
+    pub fn realm_role(&self) -> Option<&R> {
+        match self {
+            KeycloakRole::Realm { role } => Some(role),
+            KeycloakRole::Client { .. } => None,
+        }
+    }
+
+    /// The role name if `client` granted it, `None` otherwise.
+    pub fn client_role(&self, client: &str) -> Option<&R> {
+        match self {
+            KeycloakRole::Client {
+                client: owner,
+                role,
+            } if owner == client => Some(role),
+            _ => None,
         }
     }
 }
@@ -85,6 +113,14 @@ where
 }
 
 /// Asserts the presence (or absence) of roles on something that carries them.
+///
+/// The two directions deliberately consult different role sources, so that both fail closed:
+///
+/// - `expect_roles` grants access and therefore only accepts **realm** roles. A client role of the
+///   same name must never be enough, or any service in the realm could widen access to ISM by
+///   naming one of its own roles `ADMIN`.
+/// - `not_expect_roles` denies access and therefore considers **every** role source. A role that
+///   should keep a caller out must do so no matter who granted it.
 pub trait ExpectRoles<R: Role> {
     type Rejection: IntoResponse;
 

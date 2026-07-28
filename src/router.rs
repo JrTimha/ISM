@@ -1,6 +1,6 @@
 use crate::auth::{
     AppRole, KeycloakAuthInstance, KeycloakAuthLayer, KeycloakConfig, PassthroughMode,
-    ValidationPolicy,
+    ValidationPolicy, error_chain,
 };
 use crate::core::{AppState, TokenIssuer};
 use crate::messaging::routes::create_messaging_routes;
@@ -30,7 +30,7 @@ use url::Url;
  */
 pub async fn init_router(app_state: AppState) -> Router {
     let origin = app_state.env.cors_origin.clone();
-    let cors = CorsLayer::new()
+    let cors_layer = CorsLayer::new()
         .allow_origin(origin.parse::<HeaderValue>().expect("Invalid CORS Origin"))
         .allow_headers([
             AUTHORIZATION,
@@ -43,12 +43,11 @@ pub async fn init_router(app_state: AppState) -> Router {
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE]);
 
+    let auth_layer = init_auth(app_state.env.token_issuer.clone()).await;
+
     let public_routing = Router::new()
         .route("/", get(|| async { "Hello, world! I'm your new ISM. 🤗" }))
-        .route(
-            "/health",
-            get(|| async { (StatusCode::OK, "Healthy").into_response() }),
-        );
+        .route("/health", get(|| async { (StatusCode::OK, "Healthy").into_response() }), );
 
     let protected_routing = Router::new()
         .nest(
@@ -62,8 +61,8 @@ pub async fn init_router(app_state: AppState) -> Router {
         .layer(
             ServiceBuilder::new() //layering top to bottom middleware
                 .layer(http_trace_layer()) //1
-                .layer(cors) //2
-                .layer(init_auth(app_state.env.token_issuer.clone())) //3..
+                .layer(cors_layer) //2
+                .layer(auth_layer) //3..
                 .layer(DefaultBodyLimit::max(5 * 1024 * 1024)), //max 5mb files
         )
         .layer(axum::middleware::from_fn(inject_request_path))
@@ -135,7 +134,13 @@ async fn inject_request_path(
     Response::from_parts(parts, axum::body::Body::from(bytes))
 }
 
-fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<AppRole> {
+/// Builds the auth middleware, performing the initial OIDC discovery on the way.
+///
+/// Panics if that discovery does not succeed, in line with the other startup-configuration
+/// failures here and in `main`. Without discovered keys not a single token can be verified and
+/// nothing re-runs discovery on a timer, so the alternative is a process that answers every
+/// authenticated request with a 503 for as long as it stays up.
+async fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<AppRole> {
     let server = Url::parse(&config.iss_host).expect("Invalid Keycloak Host");
 
     if server.scheme() != "https" {
@@ -169,7 +174,11 @@ fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<AppRole> {
             .realm(config.iss_realm)
             .min_refresh_interval(Duration::from_secs(config.jwks_min_refresh_interval_secs))
             .build(),
-    );
+    )
+    .await
+    .unwrap_or_else(|err| {
+        panic!("Initial OIDC discovery failed, refusing to start: {}", error_chain(&err))
+    });
 
     KeycloakAuthLayer::<AppRole>::builder()
         .instance(keycloak_auth_instance)

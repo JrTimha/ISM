@@ -1,8 +1,15 @@
 //! OIDC discovery and the cached verification keys every request is validated against.
 //!
-//! A `KeycloakAuthInstance` starts discovery when it is built and afterwards refreshes purely on
-//! demand — a token that fails to verify triggers one re-discovery, rate-limited by
-//! `KeycloakConfig::min_refresh_interval`.
+//! A `KeycloakAuthInstance` performs its first discovery while it is being built, and fails
+//! construction if that does not succeed — a process that cannot verify a single token is more
+//! useful dead, where an orchestrator will restart it, than alive serving blanket 503s.
+//!
+//! Afterwards the key set refreshes purely on demand: no timer, no background task, and no traffic
+//! towards Keycloak while nothing is rotating. A request whose token names an unknown `kid`
+//! triggers one re-discovery and retries within that same request, bounded by
+//! `KeycloakConfig::refresh_timeout` so a slow Keycloak cannot stall it, and rate-limited by
+//! `KeycloakConfig::min_refresh_interval` so a flood of fabricated `kid`s cannot become a request
+//! storm. A refresh that fails leaves the previously discovered keys in place.
 
 use educe::Educe;
 use jsonwebtoken::DecodingKey;
@@ -12,6 +19,7 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLockReadGuard;
+use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use url::Url;
@@ -52,18 +60,39 @@ pub struct KeycloakConfig {
     /// The realm of you Keycloak server.
     pub realm: String,
 
-    /// The retry strategy to be used: (maximum attempts, delay in seconds).
+    /// Retry strategy for the *initial* discovery: (maximum attempts, delay in seconds).
     ///
     /// `maximum attempts` counts the first try, so `(5, 1)` means five requests one second apart,
     /// not five retries on top of an initial one.
-    #[builder(default = (5, 5))]
-    pub retry: (usize, u64),
+    ///
+    /// Generous by default, because failing here aborts startup: in a compose stack Keycloak is
+    /// routinely slower to become ready than ISM is, and crash-looping through that is noise. It
+    /// only delays the abort — a wrong realm or an unreachable host still brings the process down,
+    /// just ~90s later.
+    #[builder(default = (18, 5))]
+    pub startup_retry: (usize, u64),
+
+    /// Retry strategy for an on-demand refresh, in the same shape as `startup_retry`.
+    ///
+    /// One attempt, because this runs inside a request. A reachable Keycloak answers in
+    /// milliseconds; an unreachable one must not be waited on while a caller holds a connection
+    /// open. If the single attempt fails the cached keys still stand and the request gets a 401.
+    #[builder(default = (1, 0))]
+    pub refresh_retry: (usize, u64),
+
+    /// Hard ceiling on how long a request may be held while an on-demand refresh runs.
+    ///
+    /// Without it, `refresh_retry` bounds the number of attempts but not the time each one takes,
+    /// and a Keycloak that accepts connections without answering would hang the request for as
+    /// long as the HTTP client allows.
+    #[builder(default = std::time::Duration::from_secs(2))]
+    pub refresh_timeout: Duration,
 
     /// Minimum time between two OIDC discoveries.
     ///
-    /// The JWKS is refreshed on demand, when a token fails to verify against the cached keys.
-    /// Since that trigger is caller-controlled, this cooldown is what keeps a flood of
-    /// unverifiable tokens from turning into a request storm against Keycloak.
+    /// The JWKS is refreshed on demand, when a token names a `kid` the cached key set does not
+    /// contain. Since that trigger is caller-controlled, this cooldown is what keeps a flood of
+    /// fabricated `kid`s from turning into a request storm against Keycloak.
     #[builder(default = std::time::Duration::from_secs(30))]
     pub min_refresh_interval: Duration,
 }
@@ -105,35 +134,56 @@ pub struct KeycloakAuthInstance {
     pub id: uuid::Uuid,
     pub config: KeycloakConfig,
     pub oidc_discovery_endpoint: OidcDiscoveryEndpoint,
-    pub discovery: Action<OidcDiscoveryEndpoint, Result<DiscoveredData, AuthError>>,
+    /// Holds the last *successful* discovery. A failed refresh leaves the previous one in place,
+    /// so this is `Some` from construction onwards — `KeycloakAuthInstance::new` does not return
+    /// until one discovery has succeeded.
+    pub discovery: Action<OidcDiscoveryEndpoint, DiscoveredData>,
     /// Monotonic base for `last_refresh_ms`.
     started_at: Instant,
-    /// Millis since `started_at` at which the last discovery was started. Drives both the staleness
-    /// check and the cooldown that keeps unverifiable tokens from hammering Keycloak.
+    /// Millis since `started_at` at which the last discovery was started. Drives the cooldown that
+    /// keeps a flood of unknown `kid`s from hammering Keycloak.
+    ///
+    /// Starts at `0` against a `started_at` stamped once the initial discovery has succeeded, so
+    /// the cooldown applies from startup — nothing can have rotated in the moment since.
     ///
     /// An atomic rather than a lock: this is read on *every* authenticated request, and a relaxed
     /// load neither suspends nor bounces a cache line between cores the way even an uncontended
-    /// mutex acquire does. The compare-exchange in `perform_oidc_discovery` also expresses the
+    /// mutex acquire does. The compare-exchange in `refresh_for_request` also expresses the
     /// "exactly one caller starts the refresh" rule more directly than holding a lock across the
     /// check and the stamp.
     last_refresh_ms: AtomicU64,
 }
 
 impl KeycloakAuthInstance {
-    /// Creates a new KeycloakAuthInstance. This immediately starts an initial OIDC discovery
-    /// process; until it completes, `KeycloakAuthService::poll_ready` holds requests back.
+    /// Creates a new `KeycloakAuthInstance`, running the initial OIDC discovery to completion
+    /// before returning.
     ///
-    /// Afterwards the key set is refreshed purely on demand: when a token cannot be verified
-    /// against the cached keys, `decode_and_validate` re-runs discovery and retries the decode
-    /// within the same request. Signing-key rotation therefore costs added latency on exactly one
-    /// request and is never visible to a client — no timer, no background task, and no traffic
-    /// towards Keycloak while nothing is rotating.
-    pub fn new(kc_config: KeycloakConfig) -> Self {
+    /// Deliberately fallible and deliberately awaited here rather than dispatched into a task:
+    /// without discovered keys not one token can be verified, so a process that starts anyway only
+    /// serves blanket 503s, forever, since nothing re-runs discovery on a timer. Returning `Err` —
+    /// which the caller turns into a startup abort — surfaces a bad realm or an unreachable
+    /// Keycloak where it can actually be seen and restarted.
+    ///
+    /// Afterwards the key set is refreshed purely on demand: a token naming a `kid` outside the
+    /// cached set makes `decode_and_validate` re-run discovery and retry within the same request.
+    /// Signing-key rotation therefore costs added latency on exactly one request and is never
+    /// visible to a client — no timer, no background task, and no traffic towards Keycloak while
+    /// nothing is rotating.
+    pub async fn new(kc_config: KeycloakConfig) -> Result<Self, AuthError> {
         let id = uuid::Uuid::now_v7();
         let oidc_discovery_endpoint = OidcDiscoveryEndpoint::from_server_and_realm(
             kc_config.server.clone(),
             &kc_config.realm,
         );
+
+        // The initial run, on the generous startup budget. Its result is installed directly, so a
+        // failure is returned to the caller instead of being buried in a spawned task.
+        let discovered = perform_oidc_discovery(
+            oidc_discovery_endpoint.clone(),
+            kc_config.startup_retry.0,
+            Duration::from_secs(kc_config.startup_retry.1),
+        )
+        .await?;
 
         let discovery = Action::new(move |oidc_discovery_endpoint: &OidcDiscoveryEndpoint| {
             let oidc_discovery_endpoint = oidc_discovery_endpoint.clone();
@@ -141,16 +191,17 @@ impl KeycloakAuthInstance {
             async move {
                 perform_oidc_discovery(
                     oidc_discovery_endpoint,
-                    kc_config.retry.0,
-                    Duration::from_secs(kc_config.retry.1),
+                    kc_config.refresh_retry.0,
+                    Duration::from_secs(kc_config.refresh_retry.1),
                 )
                 .await
+                .ok()
             }
         });
 
-        discovery.dispatch(oidc_discovery_endpoint.clone());
+        discovery.seed(discovered).await;
 
-        Self {
+        Ok(Self {
             id,
             config: kc_config,
             oidc_discovery_endpoint,
@@ -158,7 +209,7 @@ impl KeycloakAuthInstance {
             // Discovery was just dispatched above, so the key set counts as fresh from now on.
             started_at: Instant::now(),
             last_refresh_ms: AtomicU64::new(0),
-        }
+        })
     }
 
     /// Milliseconds elapsed since this instance was created.
@@ -169,17 +220,31 @@ impl KeycloakAuthInstance {
     /// Refreshes the OIDC configuration and JWKS, subject to the configured cooldown.
     ///
     /// Callers may invoke this per failing request; the cooldown is what keeps that safe.
-    pub async fn perform_oidc_discovery(&self) {
-        // Wait for an ongoing discovery rather than starting a competing one.
+    pub async fn refresh_for_request(&self) {
+        // Created *before* testing `is_pending`, and that order is the point. `notify_waiters`
+        // stores no permit and wakes only waiters that already exist when it fires; a `Notified`
+        // counts as registered from the moment it is created, not when it is first polled.
+        // Reversed, a discovery completing in the gap between the check and this line would leave
+        // the caller waiting for the *next* discovery — and nothing here runs on a timer, so there
+        // may not be one.
+        let notified = self.discovery.notified();
+
+        // Wait for an ongoing discovery rather than starting a competing one. The timeout is a
+        // second, independent guard: it bounds this wait no matter what happens to that discovery.
         if self.discovery.is_pending() {
-            self.discovery.notified().await;
+            if timeout(self.config.refresh_timeout, notified)
+                .await
+                .is_err()
+            {
+                debug!("Gave up waiting for an in-flight OIDC discovery.");
+            }
             return;
         }
 
         let now = self.now_ms();
         let last = self.last_refresh_ms.load(Ordering::Acquire);
         if now.saturating_sub(last) < self.config.min_refresh_interval.as_millis() as u64 {
-            tracing::trace!("Skipping OIDC discovery: still within the refresh cooldown.");
+            debug!("Skipping OIDC discovery: still within the refresh cooldown.");
             return;
         }
 
@@ -194,14 +259,25 @@ impl KeycloakAuthInstance {
             return;
         }
 
-        if let Err(err) = self
+        let dispatched = self
             .discovery
-            .dispatch(self.oidc_discovery_endpoint.clone())
-            .await
-        {
-            // Happens when the runtime is shutting down and the task is aborted. The next request
-            // will retry; there is nothing to recover here.
-            tracing::warn!(error = %err, "OIDC discovery task did not complete.");
+            .dispatch(self.oidc_discovery_endpoint.clone());
+
+        match timeout(self.config.refresh_timeout, dispatched).await {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => {
+                // Happens when the runtime is shutting down and the task is aborted. The next
+                // request will retry; there is nothing to recover here.
+                warn!(error = %err, "OIDC discovery task did not complete.");
+            }
+            Err(_) => {
+                // The discovery keeps running in the background and will install its result if it
+                // succeeds. We simply stop holding the request open for it.
+                debug!(
+                    timeout = ?self.config.refresh_timeout,
+                    "OIDC discovery outlasted the request budget. Continuing with the cached keys."
+                );
+            }
         }
     }
 
@@ -212,48 +288,71 @@ impl KeycloakAuthInstance {
             lock: self.discovery.value().await,
         }
     }
+
+    /// Builds an instance without contacting Keycloak, for tests that only need the surrounding
+    /// wiring rather than a working key set.
+    ///
+    /// The key set stays empty, so every token validated through it is rejected — which is why
+    /// this is test-only: it is precisely the state `new` exists to make unreachable.
+    #[cfg(test)]
+    pub(crate) fn without_discovery(kc_config: KeycloakConfig) -> Self {
+        let oidc_discovery_endpoint = OidcDiscoveryEndpoint::from_server_and_realm(
+            kc_config.server.clone(),
+            &kc_config.realm,
+        );
+
+        Self {
+            id: uuid::Uuid::now_v7(),
+            config: kc_config,
+            oidc_discovery_endpoint,
+            discovery: Action::new(|_: &OidcDiscoveryEndpoint| async move { None }),
+            started_at: Instant::now(),
+            last_refresh_ms: AtomicU64::new(0),
+        }
+    }
 }
 
 /// Borrowed view onto the cached discovery result, held for the duration of one validation.
 pub struct Discovered<'a> {
-    lock: RwLockReadGuard<'a, Option<Result<DiscoveredData, AuthError>>>,
+    lock: RwLockReadGuard<'a, Option<DiscoveredData>>,
 }
 
 impl Discovered<'_> {
-    fn data(&self) -> Option<&DiscoveredData> {
-        self.lock.as_ref().and_then(|r| r.as_ref().ok())
-    }
-
-    /// The issuer Keycloak advertises in its discovery document. `None` until discovery succeeds.
+    /// The issuer Keycloak advertises in its discovery document.
+    ///
+    /// Only `None` if the cached data were somehow never installed, which construction rules out.
     pub fn issuer(&self) -> Option<&str> {
-        self.data()
+        self.lock
+            .as_ref()
             .map(|d| d.oidc_config.standard_claims.issuer.as_str())
     }
 
-    /// Keys worth trying for a token carrying `kid`.
-    ///
-    /// Matching on `kid` keeps an invalid token to a single signature verification. Trying every
-    /// key in the set instead turns each unauthenticated request into N public-key operations.
-    /// Falls back to the full set when the token names no `kid`, or names one we do not know —
-    /// the latter is what a just-rotated key looks like, and the caller re-discovers on failure.
-    pub fn candidate_keys(&self, kid: Option<&str>) -> Vec<&DecodingKey> {
-        let Some(keys) = self.data().map(|d| d.decoding_keys.as_slice()) else {
-            return Vec::new();
-        };
-
-        if let Some(kid) = kid {
-            let matching: Vec<_> = keys
-                .iter()
-                .filter(|it| it.kid.as_deref() == Some(kid))
-                .map(|it| &it.key)
-                .collect();
-            if !matching.is_empty() {
-                return matching;
-            }
-        }
-
-        keys.iter().map(|it| &it.key).collect()
+    /// The keys installed by the last successful discovery. Pass them to `keys_for_kid`.
+    pub fn decoding_keys(&self) -> &[JwkDecodingKey] {
+        self.lock.as_ref().map_or(&[], |d| &d.decoding_keys)
     }
+}
+
+/// The keys published under `kid`, or `None` when none of them carries it.
+///
+/// A miss is the single failure shape a signing-key rotation can produce, and it is what
+/// `decode_and_validate` gates rediscovery on — the signature check itself cannot tell a rotated
+/// key from a forged token, so the decision has to be made here, before any crypto.
+///
+/// Deliberately no fall back to the whole key set on a miss: that both destroyed the signal (every
+/// unknown `kid` then failed the same way a tampered token does) and turned each such request into
+/// N public-key operations.
+///
+/// A free function over the key slice rather than a method on `Discovered`, so it can be tested
+/// against a hand-built key set instead of a live discovery.
+pub fn keys_for_kid<'a>(keys: &'a [JwkDecodingKey], kid: &str) -> Option<Vec<&'a DecodingKey>> {
+    let matching: Vec<_> = keys
+        .iter()
+        .filter(|it| it.kid.as_deref() == Some(kid))
+        .map(|it| &it.key)
+        .collect();
+
+    (!matching.is_empty()).then_some(matching)
 }
 
 /// Runs `op` until it succeeds, at most `max_attempts` times, sleeping `delay` in between.
@@ -275,7 +374,7 @@ where
         match op().await {
             Ok(value) => return Ok(value),
             Err(err) => {
-                debug!(
+                warn!(
                     attempt,
                     max_attempts,
                     err = error_chain(&err),
@@ -293,8 +392,9 @@ async fn perform_oidc_discovery(
     max_attempts: usize,
     fixed_delay: Duration,
 ) -> Result<DiscoveredData, AuthError> {
-    // Discovery now also runs on a timer, so a successful run is routine and stays at DEBUG.
-    // Failures below remain at ERROR, which is what actually needs to be visible.
+    // A successful run is routine and stays at DEBUG. Failures below remain at ERROR: discovery
+    // only ever runs at startup or on a suspected rotation, so a failure always means either the
+    // process is about to abort or a rotation went unpicked-up.
     debug!("Starting OIDC discovery.");
 
     // Load OIDC config.
@@ -348,10 +448,7 @@ fn parse_jwks(jwk_set: &JwkSet) -> Vec<JwkDecodingKey> {
     for jwk in &jwk_set.keys {
         // Keycloak publishes its RSA-OAEP encryption key in the same set. Loading it as a
         // verification key is pointless and widens what a token can be verified against.
-        if !matches!(
-            jwk.common.public_key_use,
-            Some(PublicKeyUse::Signature) | None
-        ) {
+        if !matches!(jwk.common.public_key_use,Some(PublicKeyUse::Signature) | None) {
             continue;
         }
 
@@ -363,10 +460,7 @@ fn parse_jwks(jwk_set: &JwkSet) -> Vec<JwkDecodingKey> {
                     key_type_name(&jwk.algorithm),
                     jwk.common.key_algorithm,
                 ));
-                decoding_keys.push(JwkDecodingKey {
-                    kid: jwk.common.key_id.clone(),
-                    key,
-                });
+                decoding_keys.push(JwkDecodingKey { kid: jwk.common.key_id.clone(), key, });
             }
             Err(err) => {
                 error!(
@@ -379,16 +473,10 @@ fn parse_jwks(jwk_set: &JwkSet) -> Vec<JwkDecodingKey> {
     }
 
     if decoding_keys.is_empty() {
-        warn!(
-            "No public key for signature verification available. Every token verification will fail."
-        );
+        warn!("No public key for signature verification available. Every token verification will fail.");
     } else {
-        info!(
-            keys = ?usable_keys,
-            "Public key(s) for signature verification available."
-        );
+        info!(keys = ?usable_keys,"Public key(s) for signature verification available.");
     }
-
     decoding_keys
 }
 

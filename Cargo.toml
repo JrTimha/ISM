@@ -41,3 +41,13 @@ url = "2.5.8"
 
 [dev-dependencies]
 assertr = "0.6.0"
+
+# Used by tests/auth_attacks.rs, the black-box attack suite. Same versions as the runtime
+# dependencies above, so they add nothing to the build graph — integration tests are separate
+# crates and do not inherit `[dependencies]`.
+base64 = "0.23.0"
+jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+# `form` is what the Keycloak direct access grant is posted with; it affects the test build only.
+reqwest = { version = "0.13.4", features = ["json", "form"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["full"] }

@@ -37,7 +37,7 @@ Path parameters are named after what they refer to (`target_id`, `friend_id`, `s
 expect_role!(&user, AppRole::Admin);   // returns 403 early if absent
 ```
 
-See `docs/auth.md`.
+See `../../.docs/auth.md`.
 
 ## Return Type
 

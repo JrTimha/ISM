@@ -49,6 +49,9 @@ pub use app_role::AppRole;
 pub use current_user::CurrentUser;
 pub use decode::ValidationPolicy;
 pub use error::AuthError;
+// Several `AuthError` variants keep their `Display` free of the source, so `{err}` alone drops the
+// actual cause. Startup needs the full chain to make a failed discovery diagnosable from a crash log.
+pub(crate) use error::error_chain;
 pub use instance::{KeycloakAuthInstance, KeycloakConfig};
 pub use layer::KeycloakAuthLayer;
 pub use mode::{KeycloakAuthStatus, PassthroughMode};

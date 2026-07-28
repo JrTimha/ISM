@@ -59,32 +59,10 @@ where
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Once ready, we shall always be ready, independent of future discovery requests,
-        // satisfying a `poll_ready` requirement!
-        let is_ready = self.layer.instance.discovery.version() > 0;
-
-        if is_ready {
-            tracing::trace!("Ready to process requests.");
-        } else {
-            tracing::debug!("Not ready to process requests. Waiting for initial discovery...");
-
-            // `KeycloakAuthInstance::new` dispatches discovery and marks it pending synchronously,
-            // so a waker registered here is guaranteed to be woken. This used to `assert!` that
-            // invariant, which turned the (then real) gap between dispatch and the task being
-            // scheduled into a panicking worker thread.
-            let instance = self.layer.instance.clone();
-            let waker = cx.waker().clone();
-            tokio::spawn(async move {
-                instance.discovery.notified().await;
-                waker.wake();
-            });
-        }
-
-        match (is_ready, self.inner.poll_ready(cx)) {
-            (true, Poll::Ready(t)) => Poll::Ready(t),
-            (false, _) => Poll::Pending,
-            (_, Poll::Pending) => Poll::Pending,
-        }
+        // No discovery gate here: `KeycloakAuthInstance::new` does not return until one discovery
+        // has succeeded, and a later failed refresh keeps the keys it already had. There is
+        // therefore no state in which this service exists without a usable key set to wait for.
+        self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, mut request: Request<Body>) -> Self::Future {

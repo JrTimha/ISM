@@ -86,9 +86,22 @@ pub enum AuthError {
     #[error("The JWT header could not be decoded. Source: {source}")]
     DecodeHeader { source: jsonwebtoken::errors::Error },
 
-    /// No decoding keys were fetched jet.
+    /// No decoding keys were available to verify against.
+    ///
+    /// Unreachable via `Discovered::keys_for_kid`, which never yields an empty set. Kept as the
+    /// guard for a direct caller of `RawToken::decode_and_validate` handing over an empty slice.
     #[error("There were no decoding keys available.")]
     NoDecodingKeys,
+
+    /// The token names a `kid` that the discovered key set does not contain.
+    ///
+    /// The one failure a signing-key rotation produces, and therefore the only one
+    /// `decode_and_validate` re-runs OIDC discovery for. Still returned after that refresh when the
+    /// `kid` was fabricated rather than rotated.
+    ///
+    /// Note: the `kid` is only ever logged server-side, never returned to the client.
+    #[error("The token names an unknown signing key: {kid}")]
+    UnknownSigningKey { kid: String },
 
     /// The JWT could not be decoded.
     #[error("The JWT could not be decoded. Source: {source}")]
@@ -150,6 +163,7 @@ impl AuthError {
             AuthError::CreateDecodingKey { .. } => "create_decoding_key",
             AuthError::DecodeHeader { .. } => "decode_header",
             AuthError::NoDecodingKeys => "no_decoding_keys",
+            AuthError::UnknownSigningKey { .. } => "unknown_signing_key",
             AuthError::Decode { .. } => "decode",
             AuthError::JsonParse { .. } => "json_parse",
             AuthError::TokenExpired => "token_expired",
@@ -201,6 +215,7 @@ impl AuthError {
             | AuthError::EmptyTokenQueryParam
             | AuthError::MissingToken
             | AuthError::DecodeHeader { .. }
+            | AuthError::UnknownSigningKey { .. }
             | AuthError::Decode { .. }
             | AuthError::InvalidToken { .. } => (
                 StatusCode::UNAUTHORIZED,

@@ -17,9 +17,14 @@ use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header};
 use serde_json::{Value, json};
 
+use url::Url;
+
 use crate::auth::app_role::AppRole;
-use crate::auth::decode::{RawClaims, RawToken, ValidationPolicy, parse_raw_claims};
+use crate::auth::decode::{
+    RawClaims, RawToken, ValidationPolicy, decode_and_validate, parse_raw_claims,
+};
 use crate::auth::error::AuthError;
+use crate::auth::instance::{JwkDecodingKey, KeycloakAuthInstance, KeycloakConfig, keys_for_kid};
 use crate::auth::token::ProfileAndEmail;
 
 /// Test-only RSA-2048 keypair. Not a secret and never used outside this file.
@@ -154,8 +159,17 @@ fn verify(token: &str) -> Result<RawClaims, AuthError> {
 
 /// Full pipeline including the claim-level checks that run after signature verification.
 async fn authenticate(token: &str, policy: &ValidationPolicy) -> Result<(), AuthError> {
+    authenticate_expecting_roles(token, policy, &[]).await
+}
+
+/// `authenticate`, additionally requiring `required_roles` — the layer-wide role gate.
+async fn authenticate_expecting_roles(
+    token: &str,
+    policy: &ValidationPolicy,
+    required_roles: &[AppRole],
+) -> Result<(), AuthError> {
     let raw_claims = verify_with(token, policy)?;
-    parse_raw_claims::<AppRole, ProfileAndEmail>(raw_claims, false, &[], policy)
+    parse_raw_claims::<AppRole, ProfileAndEmail>(raw_claims, false, required_roles, policy)
         .await
         .map(|_| ())
 }
@@ -271,6 +285,182 @@ fn rejects_token_signed_by_an_unknown_key() {
     );
 }
 
+// ── Rediscovery trigger: rotation vs. forgery ───────────────────────────────
+//
+// `decode_and_validate` may re-run OIDC discovery when a token fails to verify, which makes the
+// trigger reachable by anyone who can send a request. The signature check cannot decide who
+// deserves it: `InvalidSignature` means only "the verify operation returned false", so a forged
+// token and a token signed by a rotated key are indistinguishable there. The decision is therefore
+// made from the header's `kid`, before any crypto — and these tests pin that split.
+
+/// The cached key set as it looks after a successful discovery: one key, published under `KID`.
+fn cached_keys() -> Vec<JwkDecodingKey> {
+    vec![JwkDecodingKey {
+        kid: Some(KID.to_owned()),
+        key: verification_key(),
+    }]
+}
+
+/// An instance that never contacted Keycloak, for the header checks that must reject a token
+/// before the key set is consulted at all.
+fn test_instance() -> KeycloakAuthInstance {
+    KeycloakAuthInstance::without_discovery(
+        KeycloakConfig::builder()
+            .server(Url::parse("https://localhost:8443/").expect("valid url"))
+            .realm(String::from("meventure"))
+            .build(),
+    )
+}
+
+#[tokio::test]
+async fn rejects_token_without_kid_before_touching_the_key_set() {
+    // Keycloak stamps a `kid` on every access token. Without one there is nothing to match a key
+    // against, so this is refused outright rather than tried against every key we hold — which is
+    // what the old fall-back did, turning one such request into N public-key operations.
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = None;
+    let token = sign(&header, &base_claims());
+
+    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+        .await
+        .expect_err("a token without a kid must be rejected");
+    assert!(
+        matches!(&err, AuthError::InvalidToken { reason } if reason.contains("kid")),
+        "expected rejection for the missing kid, got {err:?}"
+    );
+}
+
+#[test]
+fn a_forgery_reusing_a_known_kid_does_not_look_like_rotation() {
+    // The realistic forgery: copy a genuine token's header — `kid` and all — and sign a payload of
+    // your own. The verify step fails exactly as a rotated key would, so keying rediscovery off
+    // that error let every forged token reach for Keycloak. The `kid` tells them apart: we hold
+    // the key it names, so the failure is a property of the token and rediscovery cannot help.
+    let foreign_key = EncodingKey::from_rsa_pem(FOREIGN_PRIVATE_KEY_PEM.as_bytes())
+        .expect("foreign private key parses");
+    let forged = jsonwebtoken::encode(&rs256_header(), &base_claims(), &foreign_key)
+        .expect("forged token encodes");
+
+    verify(&forged).expect_err("a foreign signature must be rejected");
+    assert!(
+        keys_for_kid(&cached_keys(), KID).is_some(),
+        "the forged token names a kid we already hold, so it must not trigger rediscovery"
+    );
+}
+
+#[test]
+fn an_unknown_kid_is_the_only_rediscovery_trigger() {
+    // The one shape a genuine rotation takes: Keycloak signs with a key whose thumbprint we have
+    // never seen. This is the *only* case worth spending a discovery on.
+    assert!(
+        keys_for_kid(&cached_keys(), "rotated-signing-key").is_none(),
+        "a kid outside the cached set must be reported as a miss"
+    );
+    assert!(
+        keys_for_kid(&cached_keys(), KID).is_some(),
+        "a kid inside the cached set must resolve"
+    );
+}
+
+#[test]
+fn an_unknown_kid_does_not_fall_back_to_the_other_keys() {
+    // The lookup used to return the whole key set on a miss. That destroyed the signal — an
+    // unknown `kid` then failed identically to a tampered token — and made each such request cost
+    // one public-key operation per cached key.
+    let mut keys = cached_keys();
+    keys.push(JwkDecodingKey {
+        kid: Some(String::from("second-signing-key")),
+        key: verification_key(),
+    });
+
+    assert!(
+        keys_for_kid(&keys, "neither-of-them").is_none(),
+        "a miss must stay a miss, never widen to the full key set"
+    );
+    assert_eq!(
+        keys_for_kid(&keys, KID).expect("kid resolves").len(),
+        1,
+        "a hit must yield only the keys published under that kid"
+    );
+}
+
+#[tokio::test]
+async fn rejects_a_kid_carrying_control_characters() {
+    // `kid` is read before any signature is verified, so its content is entirely attacker-chosen,
+    // and it flows into log fields from there. A newline lets an unauthenticated caller forge log
+    // lines in any plain-text subscriber.
+    let mut header = rs256_header();
+    header.kid = Some(String::from("real-key\nlevel=INFO msg=\"forged log line\""));
+    let token = sign(&header, &base_claims());
+
+    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+        .await
+        .expect_err("a kid with control characters must be rejected");
+    let AuthError::InvalidToken { reason } = &err else {
+        panic!("expected InvalidToken, got {err:?}");
+    };
+    assert!(
+        !reason.contains('\n'),
+        "the rejection must not echo the kid back into its own message: {reason}"
+    );
+}
+
+#[tokio::test]
+async fn rejects_an_overlong_kid() {
+    // Unbounded, every rejected request costs as much log volume as the sender chooses. Keycloak's
+    // own kid is a ~43 character base64url thumbprint.
+    let mut header = rs256_header();
+    header.kid = Some("A".repeat(4096));
+    let token = sign(&header, &base_claims());
+
+    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+        .await
+        .expect_err("an overlong kid must be rejected");
+    assert!(
+        matches!(err, AuthError::InvalidToken { .. }),
+        "expected InvalidToken, got {err:?}"
+    );
+}
+
+// ── Role attacks ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn a_client_role_does_not_satisfy_a_realm_role_check() {
+    // Keycloak ships the roles of *every* client the user holds roles on in `resource_access`, and
+    // `ExtractRoles` flattens those into the same list as the realm roles. Matching on the bare
+    // name would therefore let any other service in the realm grant access to ISM by naming one of
+    // its own roles `ADMIN` — no cooperation from this realm's admins required.
+    let token = sign(
+        &rs256_header(),
+        &claims_with(json!({
+            "realm_access": { "roles": ["USER"] },
+            "resource_access": { "some-other-service": { "roles": ["ADMIN"] } },
+        })),
+    );
+
+    let err = authenticate_expecting_roles(&token, &policy(), &[AppRole::Admin])
+        .await
+        .expect_err("a client role must not satisfy a realm role check");
+    assert!(
+        matches!(err, AuthError::MissingExpectedRole { .. }),
+        "expected MissingExpectedRole, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_realm_role_satisfies_a_realm_role_check() {
+    // The control for the test above: without this, that one could pass because role checking is
+    // broken outright rather than because the realm/client split works.
+    let token = sign(
+        &rs256_header(),
+        &claims_with(json!({ "realm_access": { "roles": ["ADMIN"] } })),
+    );
+
+    authenticate_expecting_roles(&token, &policy(), &[AppRole::Admin])
+        .await
+        .expect("a realm role must satisfy a realm role check");
+}
+
 // ── Claim attacks ───────────────────────────────────────────────────────────
 
 #[test]
@@ -326,10 +516,11 @@ async fn rejects_a_token_expired_beyond_the_leeway() {
 
 #[test]
 fn expired_token_does_not_look_like_key_rotation() {
-    // The refresh trigger in `decode_and_validate` keys off the *kind* of decode error. Routine
-    // expiry must surface as `ExpiredSignature`, never as `InvalidSignature`, or every stale
-    // session would re-run OIDC discovery and ordinary token expiry — the single most common
-    // auth failure there is — would become load on Keycloak.
+    // Ordinary expiry is the single most common auth failure there is, so it must never reach for
+    // Keycloak. It cannot: an expired token still names the `kid` it was signed with, we still
+    // hold that key, and a known `kid` makes the failure terminal. Note this holds regardless of
+    // the `ErrorKind` — the trigger no longer consults it, which is the point. The kind is
+    // asserted only to document that expiry is what actually tripped.
     let token = sign(
         &rs256_header(),
         &claims_with(json!({ "exp": now() - 3600 })),
@@ -343,6 +534,10 @@ fn expired_token_does_not_look_like_key_rotation() {
         matches!(source.kind(), ErrorKind::ExpiredSignature),
         "expected ExpiredSignature, got {:?}",
         source.kind()
+    );
+    assert!(
+        keys_for_kid(&cached_keys(), KID).is_some(),
+        "the expired token names a kid we hold, so it must not trigger rediscovery"
     );
 }
 

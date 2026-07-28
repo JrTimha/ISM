@@ -4,7 +4,7 @@ Every route under `/api/v1` is protected by a Keycloak JWT. This document covers
 middleware is wired, what handlers get, and the extension points that exist but are not currently
 used.
 
-The code lives in `src/auth/`. Submodules are private; everything a caller needs is re-exported
+The code lives in `../src/auth`. Submodules are private; everything a caller needs is re-exported
 from `crate::auth` directly.
 
 ## How a request is authenticated
@@ -21,7 +21,7 @@ router::init_router
 | Step | File | What happens |
 |---|---|---|
 | 1 | `extract.rs` | The raw JWT is pulled out of the `Authorization: Bearer …` header. |
-| 2 | `instance.rs` | The realm's signing keys, fetched once at startup via OIDC discovery, are looked up by the token's `kid`. |
+| 2 | `instance.rs` | The realm's signing keys, fetched at startup via OIDC discovery and refreshed only on demand, are looked up by the token's `kid`. A `kid` outside the cached set is the one case that re-runs discovery — see [Key rotation](#key-rotation). |
 | 3 | `decode.rs` | Signature, algorithm, issuer, audience, expiry, `nbf`, token type and authorized party are checked against the `ValidationPolicy`. |
 | 4 | `service.rs` | On success the `KeycloakToken` is inserted into the request extensions; on failure the request is answered with an error and never reaches the handler. |
 
@@ -45,13 +45,49 @@ Beyond that window, correct expiry depends on both hosts having a synchronised c
 `chrono` nor any other date library affects this: every expiry check ultimately reads the host's
 `CLOCK_REALTIME`, so NTP on both machines is the actual control.
 
+### Startup
+
+`KeycloakAuthInstance::new` runs the first OIDC discovery to completion and returns an error if it
+does not succeed; `router::init_auth` turns that into a panic. Without discovered keys not one
+token can be verified, and nothing re-runs discovery on a timer, so a process that started anyway
+would answer every authenticated request with a 503 for as long as it stayed up — a crash an
+orchestrator can restart is the more useful outcome.
+
+`KeycloakConfig::startup_retry` (default 18 attempts, 5s apart ≈ 90s) is deliberately patient: in a
+compose stack Keycloak is routinely slower to become ready than ISM is. It only delays the abort — a
+wrong realm or an unreachable host still brings the process down.
+
 ### Key rotation
 
-There is no refresh timer and no background task. When a token fails to verify in a way that
-looks like a signing-key rotation, `decode_and_validate` re-runs OIDC discovery once and retries
-within the same request. Rotation therefore costs added latency on exactly one request and is
-never visible to a client. `KeycloakConfig::min_refresh_interval` (default 30s) rate-limits this,
-so a flood of unverifiable tokens cannot turn into a request storm against Keycloak.
+There is no refresh timer and no background task. Discovery re-runs on exactly one condition: the
+token's header names a `kid` that the cached key set does not contain. `decode_and_validate` then
+refreshes once and retries within the same request, so rotation costs added latency on a single
+request and is never visible to a client.
+
+**Why `kid` and not the signature result.** The trigger used to key off `jsonwebtoken`'s
+`ErrorKind`, which cannot answer the question. `InvalidSignature` has a single construction site in
+the crate and means only "the verify operation returned false" — a payload-tampered token and a
+token signed by a rotated key produce a byte-identical error. That is inherent to what a signature
+is, not a gap in the crate. The result was that *every* invalid token reached for Keycloak, expired
+sessions included. The `kid` decides it before any crypto runs, because Keycloak stamps a per-key
+thumbprint and does not reuse it across rotations:
+
+| Token | Outcome |
+|---|---|
+| No `kid` in the header | 401. Nothing to match a key against, and not something Keycloak issues. |
+| `kid` is cached | Verified against exactly those keys. Any failure is terminal — we hold the key it names, so rediscovery cannot change the answer. |
+| `kid` is unknown | One refresh, then retry. Still unknown afterwards → 401, without a single public-key operation spent on it. |
+
+Three bounds keep the trigger safe even though a caller controls it:
+
+- `min_refresh_interval` (default 30s) rate-limits discovery, so a flood of fabricated `kid`s
+  cannot become a request storm against Keycloak.
+- `refresh_timeout` (default 2s) caps how long a request is held while a refresh runs, and
+  `refresh_retry` (default one attempt) keeps a slow Keycloak from being waited on. Previously the
+  in-request refresh inherited the full startup retry budget and could stall a request ~40s.
+- A refresh that fails leaves the previously discovered keys in place (`action.rs`). Overwriting
+  them with the failure took authentication down until the next successful discovery — which, with
+  no timer, could be indefinitely.
 
 ## What handlers get
 
@@ -227,10 +263,15 @@ becomes necessary, prefer a short-lived single-use ticket over the access token 
 
 ## Tests
 
-`src/auth/security_tests.rs` runs the validation path against deliberately malformed and
+`../src/auth/security_tests.rs` runs the validation path against deliberately malformed and
 malicious tokens — `alg=none`, RS256→HS256 confusion, tampered payloads, foreign issuers and
 audiences, expired and not-yet-valid tokens, ID and refresh tokens replayed as access tokens,
 non-UUID subjects. It signs with an in-file test key and touches no network.
+
+It also pins the rediscovery trigger, which is reachable by anyone who can send a request: a
+missing `kid`, a forgery reusing a known `kid`, and an expired token must all be terminal, and only
+an unknown `kid` may cost a discovery. Those tests exercise the lookup directly, so they stay
+network-free too.
 
 **When you add a validation rule, add the attack it defeats.** A rule with no test that failed
 before it existed is a rule nobody can prove still works.

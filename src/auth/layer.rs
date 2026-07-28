@@ -154,11 +154,12 @@ mod test {
 
     #[tokio::test]
     async fn build_basic_layer() {
-        let instance = KeycloakAuthInstance::new(
+        // `without_discovery`, because `new` now insists on reaching Keycloak and this test is
+        // about the builder wiring, not about discovery.
+        let instance = KeycloakAuthInstance::without_discovery(
             KeycloakConfig::builder()
                 .server(Url::parse("https://localhost:8443/").expect("invalid url"))
                 .realm(String::from("MyRealm"))
-                .retry((10, 2))
                 .build(),
         );
 
@@ -212,11 +213,10 @@ mod test {
 
     #[tokio::test]
     async fn build_full_layer() {
-        let instance = KeycloakAuthInstance::new(
+        let instance = KeycloakAuthInstance::without_discovery(
             KeycloakConfig::builder()
                 .server(Url::parse("https://localhost:8443/").expect("invalid url"))
                 .realm(String::from("MyRealm"))
-                .retry((10, 2))
                 .build(),
         );
 

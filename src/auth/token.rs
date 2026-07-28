@@ -177,6 +177,23 @@ where
         })
     }
 
+    /// Whether the **realm** granted this role.
+    ///
+    /// The check every access decision should use. Client roles are deliberately not consulted:
+    /// Keycloak ships the roles of every client the user holds roles on in `resource_access`, so
+    /// accepting those would let an unrelated service in the realm grant access to ISM simply by
+    /// naming one of its own roles `ADMIN`.
+    pub fn has_realm_role(&self, role: &R) -> bool {
+        self.roles.iter().any(|it| it.realm_role() == Some(role))
+    }
+
+    /// Whether `client` granted this role, for the rare case where a client-scoped role is meant.
+    pub fn has_client_role(&self, client: &str, role: &R) -> bool {
+        self.roles
+            .iter()
+            .any(|it| it.client_role(client) == Some(role))
+    }
+
     /// Whether the token is past its `exp`, allowing `leeway` of clock drift.
     ///
     /// `leeway` must match what `ValidationPolicy` hands to `jsonwebtoken` — see
@@ -205,10 +222,11 @@ where
 {
     type Rejection = AuthError;
 
+    /// Realm roles only — a client role of the same name does not grant access. See the trait docs.
     fn expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection> {
         for expected in roles {
             let expected: R = expected.clone().into();
-            if !self.roles.iter().any(|role| role.role() == &expected) {
+            if !self.has_realm_role(&expected) {
                 return Err(AuthError::MissingExpectedRole {
                     role: expected.to_string(),
                 });
@@ -217,10 +235,11 @@ where
         Ok(())
     }
 
+    /// Every role source — a denial must hold regardless of who granted the role. See the trait docs.
     fn not_expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection> {
         for expected in roles {
             let expected: R = expected.clone().into();
-            if let Some(_role) = self.roles.iter().find(|role| role.role() == &expected) {
+            if self.roles.iter().any(|role| role.role() == &expected) {
                 return Err(AuthError::UnexpectedRole);
             }
         }

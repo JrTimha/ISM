@@ -3,7 +3,15 @@
 //! Used for exactly one thing: holding the OIDC discovery result inside a
 //! `KeycloakAuthInstance` (see `instance.rs`), so that requests keep reading the cached keys
 //! while a refresh is in flight and concurrent callers coalesce onto one run.
+//!
+//! The action reports failure as `None` rather than storing it, so an unsuccessful run leaves the
+//! last good value in place. For the one caller that matters this is the difference between a
+//! failed JWKS refresh costing nothing and it taking authentication down until the next successful
+//! discovery — there is no timer, so "the next one" may be a long way off.
 
+use educe::Educe;
+use futures::Future;
+use std::sync::atomic::Ordering;
 use std::{
     fmt::Debug,
     option::Option,
@@ -13,9 +21,6 @@ use std::{
         atomic::{AtomicBool, AtomicUsize},
     },
 };
-
-use educe::Educe;
-use futures::Future;
 use tokio::{
     sync::Notify,
     sync::{RwLock, futures::Notified},
@@ -35,20 +40,24 @@ pub struct Action<I: ActionInput, O: ActionOutput> {
     /// `Some` while we are waiting for it to resolve, `None` if it has resolved.
     input: Arc<RwLock<Option<I>>>,
 
+    /// Yields `None` when the run failed, which `dispatch` treats as "keep what we have".
     #[educe(Debug(ignore))]
     #[allow(clippy::complexity)]
-    action_fn: Arc<dyn Fn(&I) -> Pin<Box<dyn Future<Output = O> + Send + Sync>> + Send + Sync>,
+    action_fn:
+        Arc<dyn Fn(&I) -> Pin<Box<dyn Future<Output = Option<O>> + Send + Sync>> + Send + Sync>,
 
     /// Might be Some if there still is an ongoing operation.
     pending: Arc<AtomicBool>,
 
     notify: Arc<Notify>,
 
-    /// The most recent return value of the `async` function.
+    /// The most recent *successful* return value of the `async` function.
+    ///
+    /// A run that yields `None` leaves this untouched — see `dispatch`.
     value: Arc<RwLock<Option<O>>>,
 
-    /// How many times the action has successfully resolved.
-    /// Version 0 indicates that no value was received yet.
+    /// How many times the action has resolved, successfully or not.
+    /// Version 0 indicates that no run has completed yet.
     version: Arc<AtomicUsize>,
 }
 
@@ -56,11 +65,11 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
     pub fn new<F, Fu>(action_fn: F) -> Self
     where
         F: Fn(&I) -> Fu + Send + Sync + 'static,
-        Fu: Future<Output = O> + Send + Sync + 'static,
+        Fu: Future<Output = Option<O>> + Send + Sync + 'static,
     {
         let action_fn = Arc::new(move |input: &I| {
             let fut = action_fn(input);
-            Box::pin(fut) as Pin<Box<dyn Future<Output = O> + Send + Sync>>
+            Box::pin(fut) as Pin<Box<dyn Future<Output = Option<O>> + Send + Sync>>
         });
 
         Self {
@@ -80,7 +89,7 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
     }
 
     pub fn is_pending(&self) -> bool {
-        self.pending.load(std::sync::atomic::Ordering::Acquire)
+        self.pending.load(Ordering::Acquire)
     }
 
     pub async fn input(&self) -> tokio::sync::RwLockReadGuard<'_, Option<I>> {
@@ -92,7 +101,16 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
     }
 
     pub fn version(&self) -> usize {
-        self.version.load(std::sync::atomic::Ordering::Acquire)
+        self.version.load(Ordering::Acquire)
+    }
+
+    /// Installs a value without running the action, as the result of a run performed by the caller.
+    ///
+    /// Exists so the initial OIDC discovery can be awaited directly — and its failure turned into a
+    /// startup abort — rather than being dispatched into a task whose outcome nobody can observe.
+    pub async fn seed(&self, value: O) {
+        *self.value.write().await = Some(value);
+        self.version.fetch_add(1, Ordering::Release);
     }
 
     pub fn dispatch(&self, action_input: I) -> JoinHandle<()> {
@@ -106,15 +124,19 @@ impl<I: ActionInput, O: ActionOutput> Action<I, O> {
         // Mark pending *before* spawning. Setting it inside the task leaves a window in which the
         // action is dispatched but not yet observably pending, so concurrent callers checking
         // `is_pending()` would each dispatch their own duplicate run.
-        pending.store(true, std::sync::atomic::Ordering::Release);
+        pending.store(true, Ordering::Release);
 
         tokio::spawn(async move {
             *input.write().await = Some(action_input.clone());
-            let new_value: O = fut.await;
-            *value.write().await = Some(new_value);
-            version.fetch_add(1, std::sync::atomic::Ordering::Release);
+            // A failed run must not evict the value a successful one left behind: the stored value
+            // is what every request reads, and replacing it with nothing turns one unlucky refresh
+            // into a total outage. The run is still counted below so waiters wake either way.
+            if let Some(new_value) = fut.await {
+                *value.write().await = Some(new_value);
+            }
+            version.fetch_add(1, Ordering::Release);
             *input.write().await = None;
-            pending.store(false, std::sync::atomic::Ordering::Release);
+            pending.store(false, Ordering::Release);
             notify.notify_waiters();
         })
     }

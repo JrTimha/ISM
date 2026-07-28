@@ -8,11 +8,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::auth::error::AuthError;
-use crate::auth::instance::KeycloakAuthInstance;
+use crate::auth::instance::{KeycloakAuthInstance, keys_for_kid};
 use crate::auth::role::{ExpectRoles, Role};
 use crate::auth::token::{KeycloakToken, StandardClaims};
 use chrono::TimeDelta;
-use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, AlgorithmFamily, DecodingKey, Header, Validation, decode};
 use serde::de::DeserializeOwned;
 use std::str::FromStr;
@@ -20,8 +19,7 @@ use tracing::debug;
 
 pub type RawClaims = HashMap<String, serde_json::Value>;
 
-type DecodedTokenResult =
-    Result<jsonwebtoken::TokenData<HashMap<String, serde_json::Value>>, AuthError>;
+type DecodedTokenResult = Result<jsonwebtoken::TokenData<HashMap<String, serde_json::Value>>, AuthError>;
 
 /// Token type Keycloak stamps onto access tokens. ID and refresh tokens carry a different `typ`
 /// but are signed by the same realm key, so this claim is what separates them.
@@ -35,7 +33,14 @@ const ACCESS_TOKEN_TYP: &str = "Bearer";
 /// of the two decides, so they must agree — this constant is what makes them agree. It deliberately
 /// replaces `jsonwebtoken`'s 60-second default, which was previously dead anyway because the
 /// explicit check ran with no leeway at all.
-pub(crate) const EXPIRY_LEEWAY_SECS: i64 = 5;
+pub const EXPIRY_LEEWAY_SECS: i64 = 5;
+
+/// Longest `kid` accepted from a token header.
+///
+/// Keycloak publishes a base64url thumbprint of around 43 characters. The limit is generous next to
+/// that and exists only to bound what an unauthenticated caller can push into a log line — `kid` is
+/// read before any signature is verified, so its content is entirely attacker-chosen.
+const MAX_KID_LEN: usize = 256;
 
 /// The rules incoming tokens are validated against, fixed at startup from configuration.
 ///
@@ -84,10 +89,7 @@ impl ValidationPolicy {
 
         // `jsonwebtoken` rejects verification outright when the allow-list spans more than one
         // family, so catch that here where we can explain it.
-        if let Some(mismatch) = allowed_algorithms
-            .iter()
-            .find(|alg| alg.family() != first.family())
-        {
+        if let Some(mismatch) = allowed_algorithms.iter().find(|alg| alg.family() != first.family()) {
             return Err(format!(
                 "allowed_algorithms must all belong to the same family, but {first:?} and \
                  {mismatch:?} do not"
@@ -102,10 +104,12 @@ impl ValidationPolicy {
         // from the header lets the caller choose the family their token is verified under, which
         // is the setup for RS256 -> HS256 key-confusion forgery.
         let mut validation = Validation::new_for_family(first.family());
-        validation.algorithms = allowed_algorithms.clone();
-        validation.set_audience(&expected_audiences);
+        validation.validate_exp = true;
         validation.validate_nbf = true;
         validation.leeway = EXPIRY_LEEWAY_SECS as u64;
+        validation.algorithms = allowed_algorithms.clone();
+        validation.set_audience(&expected_audiences);
+
         // `iss` is required here even though it is compared by hand below, so a token that omits
         // it is rejected before the comparison ever runs.
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
@@ -182,7 +186,22 @@ impl RawToken<'_> {
 }
 
 /// Validates a token against the currently discovered keys, re-running discovery once if the
-/// failure looks like a signing-key rotation.
+/// token names a signing key we do not know.
+///
+/// The refresh is gated on the header's `kid`, never on the outcome of the signature check. That
+/// check cannot answer the question: `ErrorKind::InvalidSignature` has a single construction site
+/// in `jsonwebtoken` and means only "the verify operation returned false", so a payload-tampered
+/// token and a token signed by a rotated key produce the identical error. Keying off it therefore
+/// let any invalid token — every expired session, every replayed token — reach for Keycloak.
+///
+/// The `kid` does answer it. Keycloak stamps a per-key thumbprint on every access token and does
+/// not reuse it across rotations, so:
+///
+/// - **known `kid`** — we hold the exact key the token names. Whatever fails now is a property of
+///   the token, not of our key set; rediscovery cannot change the outcome. Terminal.
+/// - **unknown `kid`** — the only shape a rotation can take. Worth one refresh.
+/// - **no `kid`** — nothing to match a key against, and not something Keycloak issues. Rejected
+///   before any signature verification runs.
 pub async fn decode_and_validate(
     kc_instance: &KeycloakAuthInstance,
     raw_token: RawToken<'_>,
@@ -190,9 +209,28 @@ pub async fn decode_and_validate(
 ) -> Result<RawClaims, AuthError> {
     let header = raw_token.decode_header()?;
 
+    let Some(kid) = header.kid.as_deref() else {
+        return Err(AuthError::InvalidToken {
+            reason: "token header names no signing key (kid)".to_owned(),
+        });
+    };
+
+    // `kid` reaches this point unauthenticated — it is read before any signature is verified — and
+    // from here it flows into log fields and into `UnknownSigningKey`. Unchecked, a `kid` carrying
+    // newlines or control characters can forge log lines, and an arbitrarily long one turns every
+    // rejected request into as much log volume as the sender cares to send. Keycloak's own `kid` is
+    // a base64url thumbprint, so printable ASCII with a length bound loses nothing.
+    //
+    // The rejection deliberately does not echo the `kid` back into its own message.
+    if kid.len() > MAX_KID_LEN || !kid.bytes().all(|b| b.is_ascii_graphic()) {
+        return Err(AuthError::InvalidToken {
+            reason: "token header names a malformed signing key (kid)".to_owned(),
+        });
+    }
+
     async fn try_decode(
         kc_instance: &KeycloakAuthInstance,
-        header: &Header,
+        kid: &str,
         raw_token: &RawToken<'_>,
         policy: &ValidationPolicy,
     ) -> Result<RawClaims, AuthError> {
@@ -201,50 +239,35 @@ pub async fn decode_and_validate(
         // not one rebuilt from `iss_host`/`iss_realm` — a configured frontend URL makes those
         // two differ.
         let issuer = discovered.issuer().ok_or(AuthError::NoOidcDiscovery)?;
-        let keys = discovered.candidate_keys(header.kid.as_deref());
+        let Some(keys) = keys_for_kid(discovered.decoding_keys(), kid) else {
+            return Err(AuthError::UnknownSigningKey {
+                kid: kid.to_owned(),
+            });
+        };
         raw_token.decode_and_validate(policy, issuer, &keys)
     }
 
-    // First decode. This may fail if known decoding keys are out of date (for example if the Keycloak server changed).
-    let mut raw_claims = try_decode(kc_instance, &header, &raw_token, policy).await;
+    // First decode. A separate function so the read guard it holds is released here on return:
+    // installing a refreshed key set below needs a write guard on that same lock, and Tokio's
+    // `RwLock` is write-preferring, so holding the read guard across it would deadlock.
+    let raw_claims = try_decode(kc_instance, kid, &raw_token, policy).await;
 
-    if raw_claims.is_err() {
-        // If it makes sense to do so, refresh the decoding keys through a new discovery process
-        // and try to decode again.
-        // This may delay handling of the request in flight by a non-marginal amount of time
-        // but may allow us to acknowledge it in the end without rejecting the call immediately,
-        // which would then (probably) require a retry from our caller anyway!
-        //
-        // `perform_oidc_discovery` is rate-limited, so a flood of unverifiable tokens cannot turn
-        // this branch into a request storm against Keycloak.
-        let retry = match raw_claims.as_ref() {
-            // Discovery has not produced anything usable yet.
-            Err(AuthError::NoOidcDiscovery) | Err(AuthError::NoDecodingKeys) => true,
-            Err(AuthError::Decode { source }) => matches!(
-                source.kind(),
-                // The signature did not verify under any key we hold. This is exactly what a
-                // Keycloak signing-key rotation looks like, and it is the only error kind that
-                // rotation produces — `InvalidSignature` has a single construction site in
-                // `jsonwebtoken`, in `verify_signature_body`. Note this branch previously listed
-                // `RsaFailedSigning` for this case, which is a signing-side kind that the crate
-                // never constructs at all; rotation therefore never triggered a refresh and the
-                // service stayed hard-down on auth until it was restarted.
-                ErrorKind::InvalidSignature
-                    // Unusable key material in the cached JWKS; a re-fetch may yield a good key.
-                    | ErrorKind::InvalidRsaKey(_)
-                    | ErrorKind::InvalidEcdsaKey
-            ),
-            _ => false,
-        };
-
-        // Second decode
-        if retry {
-            kc_instance.perform_oidc_discovery().await;
-            raw_claims = try_decode(kc_instance, &header, &raw_token, policy).await;
-        }
+    // Only an unknown `kid` is worth re-running discovery for. Every other failure came from a key
+    // we hold, which makes it a property of the token rather than of our key set — rediscovery
+    // cannot change the verdict, and reaching for Keycloak on each one meant every expired session
+    // did so too.
+    if !matches!(raw_claims, Err(AuthError::UnknownSigningKey { .. })) {
+        return raw_claims;
     }
 
-    raw_claims
+    // Second decode, against a freshly discovered key set. Either Keycloak rotated its signing key
+    // or someone made a `kid` up; both look the same from here, so the refresh is rate-limited and
+    // time-boxed rather than trusted — see `KeycloakAuthInstance::refresh_for_request`. If the
+    // `kid` is still unknown afterwards, this returns `UnknownSigningKey` again without spending a
+    // single public-key operation on it.
+    debug!(kid,"Token names an unknown signing key. Re-running discovery.");
+    kc_instance.refresh_for_request().await;
+    try_decode(kc_instance, kid, &raw_token, policy).await
 }
 
 /// Turns a validated claim map into a `KeycloakToken`, applying the checks that need the parsed

@@ -131,7 +131,7 @@ impl IntoResponse for AppError {
             | AppError::Serialization(_)
             | AppError::S3(_)
             | AppError::Processing(_) => {
-                tracing::error!(error.kind = self.kind(), error = %self, "Internal error")
+                tracing::error!(error.kind = self.kind(), error = ?self, "Internal error")
             }
             _ => {}
         }

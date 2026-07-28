@@ -154,7 +154,7 @@ user: CurrentUser          // = KeycloakToken<AppRole>
 
 **Roles**: `AppRole` (`auth/app_role.rs`) is the realm's role set — `Admin`, `User`, `LocalGuide`, and `Unknown(String)` for everything Keycloak hands out that ISM has no rule for. It is the concrete `Role` the whole app is generic over, so `<String>` appears nowhere. No route enforces a role yet; assert one in a handler with `expect_role!(&user, AppRole::Admin)` or layer-wide via `required_roles`.
 
-See `docs/auth.md` for the full request path, roles, passthrough modes and custom token extractors.
+See `.docs/auth.md` for the full request path, roles, passthrough modes and custom token extractors.
 
 ### Cursor Pagination (`core/cursor.rs`)
 

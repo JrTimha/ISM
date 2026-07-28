@@ -1,3 +1,11 @@
+//! The tower `Layer` carrying the auth configuration.
+//!
+//! Built once in `router::init_auth`. `KeycloakAuthService` holds it behind an `Arc`, so nothing
+//! in here is copied per request — keep it that way when adding fields.
+//!
+//! `instance` stays an `Arc` in its own right: a `KeycloakAuthInstance` is meant to be shared
+//! across several layers so they do not each run their own OIDC discovery.
+
 use nonempty::NonEmpty;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -6,21 +14,17 @@ use std::{fmt::Debug, sync::Arc};
 use tower::Layer;
 use typed_builder::TypedBuilder;
 
-use crate::auth::decode::{
-    KeycloakToken, ProfileAndEmail, RawToken, ValidationPolicy, decode_and_validate,
-    parse_raw_claims,
-};
+use crate::auth::decode::{RawToken, ValidationPolicy, decode_and_validate, parse_raw_claims};
 use crate::auth::error::AuthError;
 use crate::auth::extract::TokenExtractor;
+use crate::auth::token::{KeycloakToken, ProfileAndEmail};
 use crate::auth::{instance::KeycloakAuthInstance, role::Role, service::KeycloakAuthService};
 
 use super::PassthroughMode;
 
-extern crate alloc;
-
 /// Add this layer to a router to protect the contained route handlers.
 /// Authentication happens by looking for the `Authorization` header on requests and parsing the contained JWT bearer token.
-/// See the crate level documentation for how this layer can be created and used.
+/// See the module level documentation and `docs/auth.md` for how this layer can be created and used.
 #[derive(Clone, TypedBuilder)]
 pub struct KeycloakAuthLayer<R, Extra = ProfileAndEmail>
 where
@@ -41,11 +45,8 @@ where
 
     /// Rules incoming tokens are validated against: accepted audiences, authorized parties and
     /// signature algorithms. See `ValidationPolicy`.
-    ///
-    /// Behind an `Arc` because `KeycloakAuthService::call` clones the whole layer per request;
-    /// without it every request would deep-copy the policy including its prebuilt `Validation`.
     #[builder(setter(into))]
-    pub validation_policy: Arc<ValidationPolicy>,
+    pub validation_policy: ValidationPolicy,
 
     /// These roles are always required.
     /// Should a route protected by this layer be accessed by a user not having this role, an error is generated.
@@ -134,7 +135,7 @@ mod test {
     use url::Url;
 
     use crate::auth::{
-        PassthroughMode,
+        AppRole, PassthroughMode,
         decode::ValidationPolicy,
         extract::{AuthHeaderTokenExtractor, QueryParamTokenExtractor, TokenExtractor},
         instance::{KeycloakAuthInstance, KeycloakConfig},
@@ -160,7 +161,7 @@ mod test {
                 .build(),
         );
 
-        let _layer = KeycloakAuthLayer::<String>::builder()
+        let _layer = KeycloakAuthLayer::<AppRole>::builder()
             .instance(instance)
             .passthrough_mode(PassthroughMode::Block)
             .validation_policy(test_policy())
@@ -218,12 +219,12 @@ mod test {
                 .build(),
         );
 
-        let _layer = KeycloakAuthLayer::<String>::builder()
+        let _layer = KeycloakAuthLayer::<AppRole>::builder()
             .instance(instance)
             .passthrough_mode(PassthroughMode::Block)
             .persist_raw_claims(false)
             .validation_policy(test_policy())
-            .required_roles(vec![String::from("administrator")])
+            .required_roles(vec![AppRole::Admin])
             .token_extractors(NonEmpty::<Arc<dyn TokenExtractor>> {
                 head: Arc::new(AuthHeaderTokenExtractor::default()),
                 tail: vec![

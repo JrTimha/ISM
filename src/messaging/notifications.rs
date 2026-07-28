@@ -1,13 +1,13 @@
-use crate::auth::decode::KeycloakToken;
+use crate::auth::CurrentUser;
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::cache::redis_cache::ReplayResult;
 use crate::core::AppState;
 use crate::core::errors::AppResponse;
+use axum::Json;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::response::sse::Event;
 use axum::response::{IntoResponse, Sse};
-use axum::{Extension, Json};
 use bytes::Bytes;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -98,12 +98,13 @@ async fn resolve_handshake(
 }
 
 pub async fn stream_server_events(
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<StreamHandshakeParams>,
 ) -> Sse<impl Stream<Item = Result<Event, BroadcastStreamRecvError>>> {
     use futures::StreamExt;
 
-    let user_id = token.subject;
+    // Bound out of the token: the live stream below outlives this scope and only needs the id.
+    let user_id = user.subject;
     let bc = BroadcastChannel::get();
 
     // Subscribe before reading the replay so live events produced during the handshake are
@@ -150,12 +151,14 @@ pub async fn stream_server_events(
 
 pub async fn websocket_server_events(
     websocket: WebSocketUpgrade,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<StreamHandshakeParams>,
 ) -> impl IntoResponse {
+    // Bound out of the token so the upgrade closure captures a `Copy` id, not the whole token.
+    let user_id = user.subject;
     websocket
         .on_failed_upgrade(|error| warn!("Error upgrading websocket: {}", error))
-        .on_upgrade(move |socket| handle_socket(socket, token.subject, params.last_seq))
+        .on_upgrade(move |socket| handle_socket(socket, user_id, params.last_seq))
 }
 
 async fn handle_socket(mut socket: WebSocket, user_id: Uuid, last_seq: Option<u64>) {
@@ -265,11 +268,11 @@ pub struct NotificationCursor {
 
 pub async fn get_notification_cursor(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
 ) -> AppResponse<Json<NotificationCursor>> {
     let seq = state
         .cache
-        .current_sequence(&token.subject)
+        .current_sequence(&user.subject)
         .await?
         .unwrap_or(0);
     Ok(Json(NotificationCursor { seq }))
@@ -277,12 +280,12 @@ pub async fn get_notification_cursor(
 
 pub async fn get_latest_notification_events(
     State(state): State<Arc<AppState>>,
-    Extension(token): Extension<KeycloakToken<String>>,
+    user: CurrentUser,
     Query(params): Query<NotificationQueryParam>,
 ) -> AppResponse<Json<Vec<Notification>>> {
     let notifications = match state
         .cache
-        .get_notifications_since_seq(&token.subject, params.last_seq)
+        .get_notifications_since_seq(&user.subject, params.last_seq)
         .await?
     {
         ReplayResult::Events(events) => events,

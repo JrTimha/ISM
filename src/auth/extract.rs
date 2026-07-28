@@ -1,3 +1,8 @@
+//! Strategies for locating the raw JWT in an incoming request.
+//!
+//! The layer holds a non-empty list of these and uses the first one that yields a token. ISM
+//! keeps the default (`Authorization: Bearer …`) only.
+
 use std::{borrow::Cow, sync::Arc};
 
 use axum::extract::Request;
@@ -45,12 +50,19 @@ impl TokenExtractor for AuthHeaderTokenExtractor {
 ///
 /// SECURITY: This extractor should be used with caution!
 /// Only use it if you are informed about the security implication of providing tokens through query parameters.
+///
+/// Not wired up in ISM — the layer uses the header extractor only. Kept because a browser
+/// `WebSocket` cannot set request headers, so authenticating `/api/wss` will need this or an
+/// equivalent. See `docs/auth.md`.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct QueryParamTokenExtractor {
+    /// Name of the query parameter carrying the token.
     pub key: String,
 }
 
 impl QueryParamTokenExtractor {
+    /// Builds an extractor reading the token from the query parameter named `key`.
     pub fn extracting_key(key: impl Into<String>) -> Self {
         Self { key: key.into() }
     }
@@ -87,7 +99,8 @@ impl TokenExtractor for QueryParamTokenExtractor {
     }
 }
 
-pub(crate) fn extract_jwt<'a>(
+/// Returns the token from the first extractor that succeeds, or `None` if all of them fail.
+pub fn extract_jwt<'a>(
     request: &'a Request<axum::body::Body>,
     extractors: &NonEmpty<Arc<dyn TokenExtractor>>,
 ) -> Option<ExtractedToken<'a>> {

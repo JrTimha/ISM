@@ -1,3 +1,9 @@
+//! Realm and client roles, and the macros that assert them inside a handler.
+//!
+//! ISM does not check roles yet — every handler is reachable by any authenticated user — but the
+//! `Role` trait is what the `<R>` generic on `KeycloakToken` and `KeycloakAuthLayer` binds, and
+//! `String` is the default role type. See `docs/auth.md` for using a custom enum instead.
+
 use std::fmt::{Debug, Display};
 
 use axum::response::IntoResponse;
@@ -29,6 +35,7 @@ pub enum KeycloakRole<R: Role> {
 }
 
 impl<R: Role> KeycloakRole<R> {
+    /// The role name, whether it came from the realm or from a client.
     pub fn role(&self) -> &R {
         match self {
             KeycloakRole::Realm { role } => role,
@@ -37,6 +44,7 @@ impl<R: Role> KeycloakRole<R> {
     }
 }
 
+/// How many roles a claim section carries, so `ExtractRoles` can size its target vec once.
 pub trait NumRoles {
     fn num_roles(&self) -> usize;
 }
@@ -47,6 +55,7 @@ impl<T: NumRoles> NumRoles for Option<T> {
     }
 }
 
+/// Flattens a claim section (`realm_access`, `resource_access`) into a single role list.
 pub trait ExtractRoles<R: Role> {
     fn extract_roles(self, target: &mut Vec<KeycloakRole<R>>);
 }
@@ -75,6 +84,7 @@ where
     }
 }
 
+/// Asserts the presence (or absence) of roles on something that carries them.
 pub trait ExpectRoles<R: Role> {
     type Rejection: IntoResponse;
 
@@ -82,37 +92,45 @@ pub trait ExpectRoles<R: Role> {
     fn not_expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection>;
 }
 
+// The four macros below are `#[macro_export]`ed, so they land at the crate root
+// (`crate::expect_role!`) regardless of this module being private. They must therefore reach
+// `ExpectRoles` through the `auth` facade rather than through `auth::role`.
+
+/// Returns from the handler with an error response unless the token carries all `$roles`.
 #[macro_export]
 macro_rules! expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = $crate::auth::role::ExpectRoles::expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response unless the token carries `$role`.
 #[macro_export]
 macro_rules! expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = $crate::auth::role::ExpectRoles::expect_roles($token, &[$role]) {
+        if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response if the token carries any of `$roles`.
 #[macro_export]
 macro_rules! not_expect_roles {
     ($token: expr, $roles: expr) => {
-        if let Err(err) = $crate::auth::role::ExpectRoles::not_expect_roles($token, $roles) {
+        if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, $roles) {
             return axum::response::IntoResponse::into_response(err);
         }
     };
 }
 
+/// Returns from the handler with an error response if the token carries `$role`.
 #[macro_export]
 macro_rules! not_expect_role {
     ($token: expr, $role: expr) => {
-        if let Err(err) = $crate::auth::role::ExpectRoles::not_expect_roles($token, &[$role]) {
+        if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, &[$role]) {
             return axum::response::IntoResponse::into_response(err);
         }
     };

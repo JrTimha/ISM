@@ -1,3 +1,7 @@
+//! The HTTP calls that fetch Keycloak's discovery document and JWK set.
+//!
+//! The documents themselves are modelled in `oidc.rs`; this module only does the fetching.
+
 use std::sync::Arc;
 
 use crate::auth::oidc::OidcConfig;
@@ -5,7 +9,9 @@ use reqwest::IntoUrl;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 
+/// A discovery request that never produced a usable document.
 #[derive(Debug, Clone, Snafu)]
+#[snafu(visibility(pub))]
 pub enum RequestError {
     #[snafu(display("RequestError: Could not send request"))]
     Send { source: Arc<reqwest::Error> },
@@ -14,7 +20,8 @@ pub enum RequestError {
     Decode { source: Arc<reqwest::Error> },
 }
 
-pub(crate) async fn retrieve_oidc_config(
+/// Fetches the realm's `.well-known/openid-configuration` document.
+pub async fn retrieve_oidc_config(
     discovery_endpoint: impl IntoUrl,
 ) -> Result<OidcConfig, RequestError> {
     reqwest::Client::new()
@@ -29,7 +36,9 @@ pub(crate) async fn retrieve_oidc_config(
         .context(DecodeSnafu {})
 }
 
-pub(crate) async fn retrieve_jwk_set(
+/// Fetches the JWK set, parsing each key on its own so one unusable entry does not discard the
+/// whole set.
+pub async fn retrieve_jwk_set(
     jwk_set_endpoint: impl IntoUrl,
 ) -> Result<jsonwebtoken::jwk::JwkSet, RequestError> {
     #[derive(Deserialize)]

@@ -1,7 +1,7 @@
-use crate::auth::PassthroughMode;
-use crate::auth::decode::ValidationPolicy;
-use crate::auth::instance::{KeycloakAuthInstance, KeycloakConfig};
-use crate::auth::layer::KeycloakAuthLayer;
+use crate::auth::{
+    AppRole, KeycloakAuthInstance, KeycloakAuthLayer, KeycloakConfig, PassthroughMode,
+    ValidationPolicy,
+};
 use crate::core::{AppState, TokenIssuer};
 use crate::messaging::routes::create_messaging_routes;
 use crate::rooms::routes::create_room_routes;
@@ -135,7 +135,7 @@ async fn inject_request_path(
     Response::from_parts(parts, axum::body::Body::from(bytes))
 }
 
-fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<String> {
+fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<AppRole> {
     let server = Url::parse(&config.iss_host).expect("Invalid Keycloak Host");
 
     if server.scheme() != "https" {
@@ -171,7 +171,7 @@ fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<String> {
             .build(),
     );
 
-    KeycloakAuthLayer::<String>::builder()
+    KeycloakAuthLayer::<AppRole>::builder()
         .instance(keycloak_auth_instance)
         // Nothing reads the raw claim map; persisting it clones the whole map per request.
         .persist_raw_claims(false)

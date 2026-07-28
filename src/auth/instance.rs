@@ -1,3 +1,9 @@
+//! OIDC discovery and the cached verification keys every request is validated against.
+//!
+//! A `KeycloakAuthInstance` starts discovery when it is built and afterwards refreshes purely on
+//! demand — a token that fails to verify triggers one re-discovery, rate-limited by
+//! `KeycloakConfig::min_refresh_interval`.
+
 use educe::Educe;
 use snafu::ResultExt;
 use std::ops::Deref;
@@ -14,11 +20,12 @@ use crate::auth::{
     oidc::OidcConfig,
     oidc_discovery,
 };
+/// The realm's `.well-known/openid-configuration` URL.
 #[derive(Debug, Clone)]
-pub(crate) struct OidcDiscoveryEndpoint(pub(crate) Url);
+pub struct OidcDiscoveryEndpoint(pub Url);
 
 impl OidcDiscoveryEndpoint {
-    pub(crate) fn from_server_and_realm(server: Url, realm: &str) -> Self {
+    pub fn from_server_and_realm(server: Url, realm: &str) -> Self {
         let mut url = server;
         url.path_segments_mut()
             .expect("URL not to be a 'cannot-be-a-base' URL. We have to append segments.")
@@ -58,9 +65,9 @@ pub struct KeycloakConfig {
 
 /// A verification key together with the `kid` it was published under, so incoming tokens can be
 /// matched to a single key instead of being tried against every key in the set.
-pub(crate) struct JwkDecodingKey {
-    pub(crate) kid: Option<String>,
-    pub(crate) key: jsonwebtoken::DecodingKey,
+pub struct JwkDecodingKey {
+    pub kid: Option<String>,
+    pub key: jsonwebtoken::DecodingKey,
 }
 
 fn debug_decoding_keys(
@@ -70,14 +77,15 @@ fn debug_decoding_keys(
     f.write_fmt(format_args!("len: {}", decoding_keys.len()))
 }
 
-#[derive(TypedBuilder, Educe)]
+/// One successful discovery: the raw documents plus the keys parsed out of them.
+#[derive(Educe)]
 #[educe(Debug)]
-pub(crate) struct DiscoveredData {
-    pub(crate) oidc_config: OidcConfig,
+pub struct DiscoveredData {
+    pub oidc_config: OidcConfig,
     #[allow(dead_code)]
-    pub(crate) jwk_set: jsonwebtoken::jwk::JwkSet,
+    pub jwk_set: jsonwebtoken::jwk::JwkSet,
     #[educe(Debug(method(debug_decoding_keys)))]
-    pub(crate) decoding_keys: Vec<JwkDecodingKey>,
+    pub decoding_keys: Vec<JwkDecodingKey>,
 }
 
 /// The KeycloakAuthInstance is responsible for performing OIDC discovery
@@ -89,10 +97,10 @@ pub(crate) struct DiscoveredData {
 #[derive(Debug)]
 pub struct KeycloakAuthInstance {
     #[allow(dead_code)]
-    pub(crate) id: uuid::Uuid,
-    pub(crate) config: KeycloakConfig,
-    pub(crate) oidc_discovery_endpoint: OidcDiscoveryEndpoint,
-    pub(crate) discovery: Action<OidcDiscoveryEndpoint, Result<DiscoveredData, AuthError>>,
+    pub id: uuid::Uuid,
+    pub config: KeycloakConfig,
+    pub oidc_discovery_endpoint: OidcDiscoveryEndpoint,
+    pub discovery: Action<OidcDiscoveryEndpoint, Result<DiscoveredData, AuthError>>,
     /// Monotonic base for `last_refresh_ms`.
     started_at: Instant,
     /// Millis since `started_at` at which the last discovery was started. Drives both the staleness
@@ -107,9 +115,8 @@ pub struct KeycloakAuthInstance {
 }
 
 impl KeycloakAuthInstance {
-    /// Creates a new KeycloakAuthInstance. This immediately starts an initial OIDC discovery process.
-    /// The `is_operational` method will tell you if discovery has taken place.
-    /// This may be useful in determining service health.
+    /// Creates a new KeycloakAuthInstance. This immediately starts an initial OIDC discovery
+    /// process; until it completes, `KeycloakAuthService::poll_ready` holds requests back.
     ///
     /// Afterwards the key set is refreshed purely on demand: when a token cannot be verified
     /// against the cached keys, `decode_and_validate` re-runs discovery and retries the decode
@@ -157,7 +164,7 @@ impl KeycloakAuthInstance {
     /// Refreshes the OIDC configuration and JWKS, subject to the configured cooldown.
     ///
     /// Callers may invoke this per failing request; the cooldown is what keeps that safe.
-    pub(crate) async fn perform_oidc_discovery(&self) {
+    pub async fn perform_oidc_discovery(&self) {
         // Wait for an ongoing discovery rather than starting a competing one.
         if self.discovery.is_pending() {
             self.discovery.notified().await;
@@ -193,16 +200,8 @@ impl KeycloakAuthInstance {
         }
     }
 
-    /// Returns true after a successful OIDC discovery.
-    pub async fn is_operational(&self) -> bool {
-        self.discovery
-            .value()
-            .await
-            .as_ref()
-            .is_some_and(|it| it.is_ok())
-    }
-
-    pub(crate) async fn discovered(&self) -> Discovered<'_> {
+    /// A read guard over the most recent discovery result.
+    pub async fn discovered(&self) -> Discovered<'_> {
         Discovered {
             // Note: Tokio's RwLock implementation prioritizes write access to prevent starvation. This is fine and will not block writes.
             lock: self.discovery.value().await,
@@ -210,7 +209,8 @@ impl KeycloakAuthInstance {
     }
 }
 
-pub(crate) struct Discovered<'a> {
+/// Borrowed view onto the cached discovery result, held for the duration of one validation.
+pub struct Discovered<'a> {
     lock: RwLockReadGuard<'a, Option<Result<DiscoveredData, AuthError>>>,
 }
 
@@ -220,7 +220,7 @@ impl Discovered<'_> {
     }
 
     /// The issuer Keycloak advertises in its discovery document. `None` until discovery succeeds.
-    pub(crate) fn issuer(&self) -> Option<&str> {
+    pub fn issuer(&self) -> Option<&str> {
         self.data()
             .map(|d| d.oidc_config.standard_claims.issuer.as_str())
     }
@@ -231,7 +231,7 @@ impl Discovered<'_> {
     /// key in the set instead turns each unauthenticated request into N public-key operations.
     /// Falls back to the full set when the token names no `kid`, or names one we do not know —
     /// the latter is what a just-rotated key looks like, and the caller re-discovers on failure.
-    pub(crate) fn candidate_keys(&self, kid: Option<&str>) -> Vec<&jsonwebtoken::DecodingKey> {
+    pub fn candidate_keys(&self, kid: Option<&str>) -> Vec<&jsonwebtoken::DecodingKey> {
         let Some(keys) = self.data().map(|d| d.decoding_keys.as_slice()) else {
             return Vec::new();
         };

@@ -17,10 +17,10 @@ use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header};
 use serde_json::{Value, json};
 
-use crate::auth::decode::{
-    ProfileAndEmail, RawClaims, RawToken, ValidationPolicy, parse_raw_claims,
-};
+use crate::auth::app_role::AppRole;
+use crate::auth::decode::{RawClaims, RawToken, ValidationPolicy, parse_raw_claims};
 use crate::auth::error::AuthError;
+use crate::auth::token::ProfileAndEmail;
 
 /// Test-only RSA-2048 keypair. Not a secret and never used outside this file.
 const TEST_PRIVATE_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
@@ -155,7 +155,7 @@ fn verify(token: &str) -> Result<RawClaims, AuthError> {
 /// Full pipeline including the claim-level checks that run after signature verification.
 async fn authenticate(token: &str, policy: &ValidationPolicy) -> Result<(), AuthError> {
     let raw_claims = verify_with(token, policy)?;
-    parse_raw_claims::<String, ProfileAndEmail>(raw_claims, false, &[], policy)
+    parse_raw_claims::<AppRole, ProfileAndEmail>(raw_claims, false, &[], policy)
         .await
         .map(|_| ())
 }

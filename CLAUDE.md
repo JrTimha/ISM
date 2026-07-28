@@ -62,7 +62,7 @@ Set `DATABASE_URL` in `.env` for the sqlx CLI. The `.sqlx/` directory holds pre-
 
 ```
 Routes (router.rs)
-  ↓ Keycloak JWT middleware → injects KeycloakClaims into request extensions
+  ↓ Keycloak JWT middleware → injects KeycloakToken into request extensions
 Handlers (rooms/handler.rs, messaging/handler.rs, users/handler.rs)
   ↓
 Services (room_service.rs, timeline_service.rs, message_service.rs, user_service.rs)
@@ -120,7 +120,7 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 - `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in a per-user Redis Stream (`user_notifications:{id}`, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N` — no background cleanup), and fall back to Kafka push notifications for offline users.
 - **Ephemeral** events (`NotificationEvent::is_ephemeral()`) get no `seq` and are never cached — live-only (e.g. `Resync`, future typing indicators).
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
-- Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/sse` and `/api/wss`; the server replays missing durable events or emits a `Resync` when the gap was trimmed out of the retained window. See `docs/streaming-sequencing.md`.
+- Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/v1/sse` and `/api/v1/wss`; the server replays missing durable events or emits a `Resync` when the gap was trimmed out of the retained window. See `docs/streaming-sequencing.md`.
 
 **`NotificationEvent` variants** (defined in `broadcast/notification.rs`):
 
@@ -142,12 +142,19 @@ All data lives in PostgreSQL. SQLx macros provide compile-time query type-checki
 
 For function signatures involving transactions or shared executors, follow `docs/sqlx-executor-pattern.md` — this documents when to use `impl Executor<'_, Database = Postgres>` vs `&PgPool` vs `&mut PgTransaction`.
 
-### Authentication
+### Authentication (`auth/`)
 
-Keycloak middleware validates the JWT on every protected request (JWKS endpoint cached). Valid tokens inject `KeycloakClaims` into request extensions. Handlers extract the caller's UUID via:
+Keycloak middleware validates the JWT on every protected request (JWKS cached, refreshed on demand when a token fails to verify). Valid tokens inject a `KeycloakToken<AppRole>` into request extensions.
+
+Submodules of `auth` are private; everything a caller needs is re-exported from `crate::auth` directly. Handlers take the caller as:
 ```rust
-Extension(claims): Extension<KeycloakClaims>
+user: CurrentUser          // = KeycloakToken<AppRole>
 ```
+`CurrentUser` is the whole validated token: `user.subject` (the caller's `Uuid`), `user.roles`, `user.extra.profile.preferred_username`, `user.extra.email`, plus `expires_at` / `issued_at` / `issuer` / `audience` / `authorized_party` / `jwt_id`.
+
+**Roles**: `AppRole` (`auth/app_role.rs`) is the realm's role set — `Admin`, `User`, `LocalGuide`, and `Unknown(String)` for everything Keycloak hands out that ISM has no rule for. It is the concrete `Role` the whole app is generic over, so `<String>` appears nowhere. No route enforces a role yet; assert one in a handler with `expect_role!(&user, AppRole::Admin)` or layer-wide via `required_roles`.
+
+See `docs/auth.md` for the full request path, roles, passthrough modes and custom token extractors.
 
 ### Cursor Pagination (`core/cursor.rs`)
 
@@ -185,52 +192,55 @@ Existing cursor types:
 
 **Read Receipts**:
 - `last_message_read_at` per (user, room) on `chat_room_participant`
-- Updated via `POST /api/rooms/{id}/mark-read`; broadcast as `UserReadChat` so all user devices sync
+- Updated via `POST /api/v1/rooms/{room_id}/mark-read`; broadcast as `UserReadChat` so all user devices sync
 
 ### Routing
 
 ```
 GET    /health
-POST   /api/rooms/create-room
-GET    /api/rooms
-GET    /api/rooms/search
-GET    /api/rooms/{id}
-GET    /api/rooms/{id}/detailed
-GET    /api/rooms/{id}/users
-GET    /api/rooms/{id}/timeline
-POST   /api/rooms/{id}/leave
-POST   /api/rooms/{id}/invite/{user_id}
-POST   /api/rooms/{id}/upload-img
-POST   /api/rooms/{id}/mark-read
-GET    /api/rooms/{id}/read-states
+POST   /api/v1/rooms/create-room
+GET    /api/v1/rooms
+GET    /api/v1/rooms/search
+GET    /api/v1/rooms/share-targets
+GET    /api/v1/rooms/{room_id}
+GET    /api/v1/rooms/{room_id}/detailed
+GET    /api/v1/rooms/{room_id}/users
+GET    /api/v1/rooms/{room_id}/timeline
+POST   /api/v1/rooms/{room_id}/leave
+POST   /api/v1/rooms/{room_id}/invite/{user_id}
+POST   /api/v1/rooms/{room_id}/upload-img
+POST   /api/v1/rooms/{room_id}/mark-read
+GET    /api/v1/rooms/{room_id}/read-states
 
-POST   /api/send-msg
-GET    /api/notifications
-GET    /api/notifications/cursor
-GET    /api/sse
-ANY    /api/wss
+POST   /api/v1/send-msg
+GET    /api/v1/notifications
+GET    /api/v1/notifications/cursor
+GET    /api/v1/sse
+ANY    /api/v1/wss
 
-GET    /api/users/{user_id}
-GET    /api/users/search
-GET    /api/users/friends
-GET    /api/users/friends/requests
-POST   /api/users/friends/add/{user_id}
-POST   /api/users/friends/accept-request/{sender_id}
-DELETE /api/users/friends/reject-request/{sender_id}
-DELETE /api/users/friends/{friend_id}
-POST   /api/users/ignore/{user_id}
-DELETE /api/users/ignore/{user_id}
+GET    /api/v1/users/{user_id}
+GET    /api/v1/users/search
+GET    /api/v1/users/friends
+GET    /api/v1/users/friends/requests
+POST   /api/v1/users/friends/add/{user_id}
+POST   /api/v1/users/friends/accept-request/{sender_id}
+DELETE /api/v1/users/friends/reject-request/{sender_id}
+DELETE /api/v1/users/friends/{friend_id}
+POST   /api/v1/users/ignore/{user_id}
+DELETE /api/v1/users/ignore/{user_id}
 ```
 
 Middleware stack (protected routes): `TraceLayer` → `CorsLayer` → `KeycloakAuthLayer` → `DefaultBodyLimit` (5 MB) → `inject_request_path`
 
 ### Error Handling
 
-All handlers return `Result<Json<T>, HttpError>`. `HttpError` serializes to:
+All handlers return `AppResponse<Json<T>>` (= `Result<Json<T>, AppError>`, `core/errors.rs`). `AppError` serializes to:
 ```json
-{ "status": 404, "errorCode": "NOT_FOUND", "message": "...", "timestamp": "...", "path": "/api/..." }
+{ "timestamp": "...", "status": 404, "error": "Not Found", "message": "...", "path": "/api/v1/...", "errorCode": "CONTENT_NOT_FOUND" }
 ```
 `path` is injected by `inject_request_path` middleware on error responses.
+
+`AppError` variants split into **client-facing** (`Validation`, `NotFound`, `Forbidden` — message passed through) and **internal** (`Database`, `Cache`, `Serialization`, `S3`, `Processing` — logged in full, generic message returned). The auth middleware has its own `AuthError`, sanitised the same way.
 
 ## Development Patterns
 

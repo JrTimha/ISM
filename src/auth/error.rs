@@ -1,3 +1,9 @@
+//! The one error type the auth middleware produces, and how it reaches the client.
+//!
+//! Every variant is logged in full server-side and then sanitised by `classify` into the small
+//! set of (status, `ErrorCode`, message) triples a caller is allowed to see — the reason a
+//! token failed must not tell an attacker which check tripped.
+
 use std::sync::Arc;
 
 use axum::{
@@ -10,8 +16,9 @@ use snafu::Snafu;
 use crate::auth::oidc_discovery;
 use crate::core::errors::{ErrorCode, ErrorResponse};
 
+/// Everything that can go wrong while authenticating a request.
 #[derive(Debug, Clone, Snafu)]
-#[snafu(visibility(pub(crate)))]
+#[snafu(visibility(pub))]
 pub enum AuthError {
     /// OIDC discovery never happened.
     #[snafu(display("Never discovered a OIDC configuration."))]

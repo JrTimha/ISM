@@ -23,16 +23,15 @@ minio = { version = "0.3.0", features = ["default"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "ico", "tiff"] }
 bytes = "1.12.0"
 base64 = "0.22.1"
-validator = { version = "0.20.0", features = ["derive"] }
+validator = { version = "0.21.0", features = ["derive"] }
 redis = { version = "1.2.4", features = ["tokio-comp", "connection-manager"] }
 thiserror = "2.0.18"
 async-trait = "0.1.89"
 
 #KEYCLOAK:
-atomic-time = "0.2.1"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
 http = "1.4.2"
-jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
 nonempty = { version = "0.12.0", features = ["std"] }
 reqwest = { version = "0.13.4", features = ["json"] }
 serde-querystring = "0.3.0"

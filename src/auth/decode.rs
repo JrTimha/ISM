@@ -1,25 +1,29 @@
+//! Signature and claim validation.
+//!
+//! `ValidationPolicy` fixes the rules at startup from configuration; `decode_and_validate` runs
+//! them against the keys cached in the `KeycloakAuthInstance` and hands back a `KeycloakToken`
+//! (defined in `token.rs`). Every rule in here has a matching attack in `security_tests.rs`.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::{error::AuthError, role::ExtractRoles, role::Role};
+use crate::auth::error::AuthError;
 use crate::auth::error::DecodeHeaderSnafu;
 use crate::auth::error::DecodeSnafu;
 use crate::auth::instance::KeycloakAuthInstance;
-use crate::auth::role::{ExpectRoles, KeycloakRole, NumRoles};
+use crate::auth::role::{ExpectRoles, Role};
+use crate::auth::token::{KeycloakToken, StandardClaims};
 use jsonwebtoken::errors::ErrorKind;
-use jsonwebtoken::{decode, Algorithm, AlgorithmFamily, Header, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, AlgorithmFamily, DecodingKey, Header, Validation, decode};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use serde_with::{OneOrMany, serde_as};
 use snafu::ResultExt;
 use std::str::FromStr;
 use tracing::debug;
-use uuid::Uuid;
 
 pub type RawClaims = HashMap<String, serde_json::Value>;
 
-type DecodedTokenResult = Result<jsonwebtoken::TokenData<HashMap<String, serde_json::Value>>, AuthError>;
-
+type DecodedTokenResult =
+    Result<jsonwebtoken::TokenData<HashMap<String, serde_json::Value>>, AuthError>;
 
 /// Token type Keycloak stamps onto access tokens. ID and refresh tokens carry a different `typ`
 /// but are signed by the same realm key, so this claim is what separates them.
@@ -116,26 +120,28 @@ impl ValidationPolicy {
     }
 }
 
-pub(crate) struct RawToken<'a>(pub(crate) &'a str);
+/// A bearer token as it came off the wire, before any validation.
+pub struct RawToken<'a>(pub &'a str);
 
 impl RawToken<'_> {
-    pub(crate) fn decode_header(&self) -> Result<Header, AuthError> {
+    pub fn decode_header(&self) -> Result<Header, AuthError> {
         let jwt_header = jsonwebtoken::decode_header(self.0).context(DecodeHeaderSnafu {})?;
         debug!(?jwt_header, "Decoded JWT header");
         Ok(jwt_header)
     }
 
-    pub(crate) fn decode_and_validate(
+    /// Verifies the signature against `decoding_keys` and every claim rule in `policy`.
+    pub fn decode_and_validate(
         &self,
         policy: &ValidationPolicy,
         issuer: &str,
         decoding_keys: &[&DecodingKey],
     ) -> Result<RawClaims, AuthError> {
-
         let mut token_data: DecodedTokenResult = Err(AuthError::NoDecodingKeys);
 
         for key in decoding_keys {
-            token_data = decode::<RawClaims>(self.0, key, &policy.validation).context(DecodeSnafu {});
+            token_data =
+                decode::<RawClaims>(self.0, key, &policy.validation).context(DecodeSnafu {});
             if token_data.is_ok() {
                 break;
             }
@@ -165,7 +171,9 @@ impl RawToken<'_> {
     }
 }
 
-pub(crate) async fn decode_and_validate(
+/// Validates a token against the currently discovered keys, re-running discovery once if the
+/// failure looks like a signing-key rotation.
+pub async fn decode_and_validate(
     kc_instance: &KeycloakAuthInstance,
     raw_token: RawToken<'_>,
     policy: &ValidationPolicy,
@@ -229,12 +237,20 @@ pub(crate) async fn decode_and_validate(
     raw_claims
 }
 
-pub(crate) async fn parse_raw_claims<R, Extra>(
+/// Turns a validated claim map into a `KeycloakToken`, applying the checks that need the parsed
+/// claims: token type, expiry, authorized party and the layer's required roles.
+pub async fn parse_raw_claims<R, Extra>(
     raw_claims: RawClaims,
     persist_raw_claims: bool,
     required_roles: &[R],
     policy: &ValidationPolicy,
-) -> Result<(Option<HashMap<String, serde_json::Value>>, KeycloakToken<R, Extra>), AuthError>
+) -> Result<
+    (
+        Option<HashMap<String, serde_json::Value>>,
+        KeycloakToken<R, Extra>,
+    ),
+    AuthError,
+>
 where
     R: Role,
     Extra: DeserializeOwned + Clone,
@@ -264,251 +280,4 @@ where
     policy.assert_authorized_party(&keycloak_token.authorized_party)?;
     keycloak_token.expect_roles(required_roles)?;
     Ok((raw_claims_clone, keycloak_token))
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StandardClaims<Extra> {
-    /// Expiration time (unix timestamp).
-    pub exp: i64,
-    /// Issued at time (unix timestamp).
-    pub iat: i64,
-    /// JWT ID (unique identifier for this token).
-    pub jti: String,
-    /// Issuer (who created and signed this token).
-    pub iss: String,
-    /// Audience (who or what the token is intended for).
-    #[serde_as(deserialize_as = "OneOrMany<_>")]
-    #[serde(default)]
-    pub aud: Vec<String>,
-    /// Subject (whom the token refers to).
-    pub sub: String,
-    /// Type of token.
-    pub typ: String,
-    /// Authorized party (the party to which this token was issued).
-    pub azp: String,
-
-    /// Keycloak: Optional realm roles from Keycloak.
-    pub realm_access: Option<RealmAccess>,
-    /// Keycloak: Optional client roles from Keycloak.
-    pub resource_access: Option<ResourceAccess>,
-
-    #[serde(flatten)]
-    pub extra: Extra,
-}
-
-/// Access details.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Access {
-    /// A list of role names.
-    pub roles: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RealmAccess(pub Access);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceAccess(pub HashMap<String, Access>);
-
-impl NumRoles for RealmAccess {
-    fn num_roles(&self) -> usize {
-        self.0.roles.len()
-    }
-}
-
-impl NumRoles for ResourceAccess {
-    fn num_roles(&self) -> usize {
-        self.0.values().map(|access| access.roles.len()).sum()
-    }
-}
-
-impl<R: Role> ExtractRoles<R> for RealmAccess {
-    fn extract_roles(self, target: &mut Vec<KeycloakRole<R>>) {
-        for role in self.0.roles {
-            target.push(KeycloakRole::Realm { role: role.into() });
-        }
-    }
-}
-
-impl<R: Role> ExtractRoles<R> for ResourceAccess {
-    fn extract_roles(self, target: &mut Vec<KeycloakRole<R>>) {
-        for (res_name, access) in &self.0 {
-            for role in &access.roles {
-                target.push(KeycloakRole::Client {
-                    client: res_name.to_owned(),
-                    role: role.to_owned().into(),
-                });
-            }
-        }
-    }
-}
-
-/// Token data parsed from the request and added as an `axum::Extension` through our middleware.
-///
-/// This only exists if the `KeycloakAuthLayer` is configured to use `PassthroughMode::Block`.
-///
-/// If you want to manually check whether a request was authenticated, configure
-/// `PassthroughMode::Pass` (potentially on a separate `axum::Router`) and inject
-/// `KeycloakAuthState` instead of `KeycloakToken`!
-///
-/// Can be extracted like this:
-/// ```
-/// use axum::{Extension, Json};
-/// use axum::response::{IntoResponse, Response};
-/// use http::StatusCode;
-/// use serde::Serialize;///
-/// use ism::auth::decode::KeycloakToken;
-///
-///
-/// pub async fn who_am_i(Extension(token): Extension<KeycloakToken<String>>) -> Response {
-///     #[derive(Debug, Serialize)]
-///     struct Response {
-///         name: String,
-///         keycloak_uuid: uuid::Uuid,
-///         token_valid_for_whole_seconds: i64,
-///     }
-///
-///     (
-///         StatusCode::OK,
-///         Json(Response {
-///             name: token.extra.profile.preferred_username,
-///             keycloak_uuid: token.subject,
-///             token_valid_for_whole_seconds: (token.expires_at - time::OffsetDateTime::now_utc())
-///                 .whole_seconds(),
-///         }),
-///     ).into_response()
-/// }
-/// ```
-#[derive(Debug, PartialEq, Clone)]
-pub struct KeycloakToken<R, Extra = ProfileAndEmail>
-where
-    R: Role,
-    Extra: DeserializeOwned + Clone,
-{
-    /// Expiration time (UTC).
-    pub expires_at: time::OffsetDateTime,
-    /// Issued at time (UTC).
-    pub issued_at: time::OffsetDateTime,
-    /// JWT ID (unique identifier for this token).
-    pub jwt_id: String,
-    /// Issuer (who created and signed this token).
-    pub issuer: String,
-    /// Audience (who or what the token is intended for).
-    pub audience: Vec<String>,
-    /// Subject (whom the token refers to). This is the UUID which uniquely identifies this user inside Keycloak.
-    pub subject: Uuid,
-    /// Authorized party (the party to which this token was issued).
-    pub authorized_party: String,
-
-    // Keycloak: Roles of the user.
-    pub roles: Vec<KeycloakRole<R>>,
-
-    pub extra: Extra,
-}
-
-impl<R, Extra> KeycloakToken<R, Extra>
-where
-    R: Role,
-    Extra: DeserializeOwned + Clone,
-{
-    pub(crate) fn parse(raw: StandardClaims<Extra>) -> Result<Self, AuthError> {
-        Ok(Self {
-            expires_at: time::OffsetDateTime::from_unix_timestamp(raw.exp).map_err(|err| {
-                AuthError::InvalidToken {
-                    reason: format!(
-                        "Could not parse 'exp' (expires_at) field as unix timestamp: {err}"
-                    ),
-                }
-            })?,
-            issued_at: time::OffsetDateTime::from_unix_timestamp(raw.iat).map_err(|err| {
-                AuthError::InvalidToken {
-                    reason: format!(
-                        "Could not parse 'iat' (issued_at) field as unix timestamp: {err}"
-                    ),
-                }
-            })?,
-            jwt_id: raw.jti,
-            issuer: raw.iss,
-            audience: raw.aud,
-            subject: Uuid::try_parse(&raw.sub).map_err(|err| AuthError::InvalidToken {
-                reason: format!("Could not parse 'sub' (subject) field as uuid: {err}"),
-            })?,
-            authorized_party: raw.azp,
-            roles: {
-                let mut roles = Vec::new();
-                (raw.realm_access, raw.resource_access).extract_roles(&mut roles);
-                roles
-            },
-            extra: raw.extra,
-        })
-    }
-
-    pub fn is_expired(&self) -> bool {
-        time::OffsetDateTime::now_utc() > self.expires_at
-    }
-
-    pub fn assert_not_expired(&self) -> Result<(), AuthError> {
-        match self.is_expired() {
-            true => Err(AuthError::TokenExpired),
-            false => Ok(()),
-        }
-    }
-}
-
-impl<R, Extra> ExpectRoles<R> for KeycloakToken<R, Extra>
-where
-    R: Role,
-    Extra: DeserializeOwned + Clone,
-{
-    type Rejection = AuthError;
-
-    fn expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection> {
-        for expected in roles {
-            let expected: R = expected.clone().into();
-            if !self.roles.iter().any(|role| role.role() == &expected) {
-                return Err(AuthError::MissingExpectedRole {
-                    role: expected.to_string(),
-                });
-            }
-        }
-        Ok(())
-    }
-
-    fn not_expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection> {
-        for expected in roles {
-            let expected: R = expected.clone().into();
-            if let Some(_role) = self.roles.iter().find(|role| role.role() == &expected) {
-                return Err(AuthError::UnexpectedRole);
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(serde::Deserialize, Debug, Clone)]
-pub struct Profile {
-    /// Keycloak: First name.
-    pub given_name: Option<String>,
-    /// Keycloak: Combined name. Assume this to equal `format!("{given_name} {family name}")`.
-    pub full_name: Option<String>,
-    /// Keycloak: Last name.
-    pub family_name: Option<String>,
-    /// Keycloak: Username of the user.
-    pub preferred_username: String,
-}
-
-#[derive(serde::Deserialize, Debug, Clone)]
-pub struct Email {
-    /// Keycloak: Email address of the user.
-    pub email: Option<String>,
-    /// Keycloak: Whether the users email is verified.
-    pub email_verified: bool,
-}
-
-#[derive(serde::Deserialize, Debug, Clone)]
-pub struct ProfileAndEmail {
-    #[serde(flatten)]
-    pub profile: Profile,
-    #[serde(flatten)]
-    pub email: Email,
 }

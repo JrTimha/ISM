@@ -1,6 +1,6 @@
 [package]
 name = "ism"
-version = "0.8.3"
+version = "0.8.4"
 description = "Social backend services for user relationships and chatting"
 edition = "2024"
 

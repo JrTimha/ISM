@@ -101,7 +101,7 @@ impl ValidationPolicy {
         validation.validate_exp = true;
         validation.validate_nbf = true;
         validation.validate_aud = true;
-        validation.leeway = EXPIRY_LEEWAY_SECS as u64;
+        validation.leeway = EXPIRY_LEEWAY_SECS as u64; //stricter than the default
         validation.algorithms = allowed_algorithms.clone();
         validation.set_audience(&expected_audiences);
         validation.set_issuer(&[&expected_issuer]);

@@ -1,8 +1,8 @@
 # Authentication
 
 Every route under `/api/v1` is protected by a Keycloak JWT. This document covers how the
-middleware is wired, what handlers get, and the extension points that exist but are not currently
-used.
+middleware is wired, what handlers get, and the one extension point that exists but is not
+currently used.
 
 The code lives in `../src/auth`. Submodules are private; everything a caller needs is re-exported
 from `crate::auth` directly.
@@ -25,9 +25,28 @@ router::init_router
 | 3 | `decode.rs` | Signature, algorithm, issuer, audience, expiry, `nbf`, token type and authorized party are checked against the `ValidationPolicy`. |
 | 4 | `service.rs` | On success the `KeycloakToken` is inserted into the request extensions; on failure the request is answered with an error and never reaches the handler. |
 
-The `ValidationPolicy` is built once at startup from the `[token_issuer]` config section, and a
-misconfiguration (unknown algorithm, symmetric algorithm, empty audience list) panics at startup
-rather than turning into a blanket 401 at runtime.
+The `ValidationPolicy` (`../src/auth/policy.rs`) is built once at startup and never rebuilt per
+request. A misconfiguration (unknown algorithm, symmetric algorithm, empty audience list) aborts
+startup rather than turning into a blanket 401 at runtime.
+
+**It belongs to the `KeycloakAuthInstance`, not to the layer.** Most of it comes from the
+`[token_issuer]` config section, but the expected `iss` does not: it is read from the realm's
+discovery document, because a Keycloak with a configured frontend URL advertises an issuer that
+`iss_host`/`iss_realm` cannot be used to reconstruct. `KeycloakAuthInstance::new` is therefore the
+only thing that builds a policy — it runs the first discovery, then constructs the policy from the
+issuer that discovery reported, and a failure here surfaces as
+`AuthError::InvalidValidationPolicy`.
+
+Two things follow from that placement. The issuer is a required constructor argument, so a policy
+that does not check the issuer cannot be built. And because an instance is deliberately shared
+across layers, two layers over one realm cannot end up disagreeing about what a valid token looks
+like — the layer holds no validation config of its own at all, only `required_roles` and
+`token_extractors`.
+
+One consequence: the issuer is fixed for the life of the process. If the realm's advertised issuer
+ever changes, ISM must be restarted; a JWKS refresh alone will not pick it up. That is deliberate —
+the issuer is a trust anchor, and silently following a change to it is not a decision the middleware
+should make on its own.
 
 ### Expiry and clock drift
 
@@ -59,10 +78,15 @@ wrong realm or an unreachable host still brings the process down.
 
 ### Key rotation
 
-There is no refresh timer and no background task. Discovery re-runs on exactly one condition: the
+There is no refresh timer and no polling loop. Discovery re-runs on exactly one condition: the
 token's header names a `kid` that the cached key set does not contain. `decode_and_validate` then
 refreshes once and retries within the same request, so rotation costs added latency on a single
 request and is never visible to a client.
+
+The cached key set lives in a `tokio::sync::watch` channel (`instance.rs`). A request reads it with
+`KeycloakAuthInstance::discovered()`, which is synchronous and hands back an `Arc` — no lock is held
+across the signature check, so installing a refreshed key set cannot stall a validation already in
+flight. The same channel is what releases a caller waiting on someone else's refresh.
 
 **Why `kid` and not the signature result.** The trigger used to key off `jsonwebtoken`'s
 `ErrorKind`, which cannot answer the question. `InvalidSignature` has a single construction site in
@@ -85,9 +109,18 @@ Three bounds keep the trigger safe even though a caller controls it:
 - `refresh_timeout` (default 2s) caps how long a request is held while a refresh runs, and
   `refresh_retry` (default one attempt) keeps a slow Keycloak from being waited on. Previously the
   in-request refresh inherited the full startup retry budget and could stall a request ~40s.
-- A refresh that fails leaves the previously discovered keys in place (`action.rs`). Overwriting
-  them with the failure took authentication down until the next successful discovery — which, with
-  no timer, could be indefinitely.
+- Only one discovery runs at a time, no matter how many requests trigger it at once. The marker is
+  an `Arc<Mutex<Instant>>` whose guard is held for the duration of a refresh and whose payload is
+  the timestamp the cooldown is measured from — one primitive for both, since they are the same
+  decision. A `try_lock_owned` that fails means "a discovery is already in flight"; that caller
+  waits for its result instead of starting a second one.
+- A refresh that fails leaves the previously discovered keys in place. Overwriting them with the
+  failure took authentication down until the next successful discovery — which, with no timer,
+  could be indefinitely.
+- The refresh runs in a spawned task holding that guard, so a client disconnecting mid-request
+  cannot cancel it, and a discovery that outlasts `refresh_timeout` still installs its result. Being
+  a guard rather than a flag also means a panicking discovery costs one refresh, not every future
+  one: the lock is released by unwinding, where a manually cleared flag would stay set forever.
 
 ## What handlers get
 
@@ -179,15 +212,18 @@ same spelling — so `AppRole::from(role.to_string())` round-trips for every var
 change that:
 
 **Per handler**, with the macros from `role.rs`. They are `#[macro_export]`ed and therefore live
-at the crate root, but resolve `ExpectRoles` through the `auth` facade:
+at the crate root, but resolve `ExpectRoles` and `FromRoleRejection` through the `auth` facade:
 
 ```rust
 use crate::auth::{AppRole, CurrentUser};
 use crate::expect_role;
 
-pub async fn admin_only(user: CurrentUser) -> Response {
+pub async fn handle_admin_thing(
+    State(state): State<Arc<AppState>>,
+    user: CurrentUser,
+) -> AppResponse<Json<Something>> {
     expect_role!(&user, AppRole::Admin);   // returns 403 early if absent
-    StatusCode::OK.into_response()
+    Ok(Json(AdminService::do_it(state).await?))
 }
 ```
 
@@ -195,6 +231,24 @@ Available: `expect_role!`, `expect_roles!`, `not_expect_role!`, `not_expect_role
 early from the handler with an error response when the assertion fails — 403 with
 `errorCode: "INSUFFICIENT_PERMISSIONS"`. The role that was missing is logged server-side but never
 returned to the caller.
+
+They expand to a bare `return`, so what they produce has to be the handler's own return type. Both
+shapes ISM uses are covered, and the macro picks between them from the return type alone — a
+handler never says which it is:
+
+| Handler returns | Macro returns | via |
+|---|---|---|
+| `AppResponse<T>` (everything under `/api/v1`) | `Err(AppError::Forbidden(…))` | `FromRoleRejection for Result<T, AppError>` |
+| `Response` | `AuthError::into_response()` | `FromRoleRejection for Response` |
+
+Both render byte-identically, so which one a handler used is invisible to the caller. A handler
+returning `impl IntoResponse` is the one shape not covered — the return type is opaque, so no impl
+can be selected; give it an explicit `-> Response`.
+
+Adding a third handler shape means adding a `FromRoleRejection` impl for it. `src/auth/current_user.rs`
+covers each existing one with a test, and those tests are there to *compile*: the macros previously
+only ever produced a `Response`, which made them a type error in every `AppResponse` handler — the
+whole application — while the sole test happened to use the one shape where they built.
 
 **Layer-wide**, when every route behind the layer needs the same role:
 
@@ -216,20 +270,7 @@ Add the variant, its realm spelling in `as_str`, and the `From<String>` arm — 
 
 ## Extension points
 
-The two sections below describe capabilities the middleware has but ISM does not currently use.
-
-### Passthrough modes
-
-`KeycloakAuthLayer::passthrough_mode` decides what happens to a request that fails validation:
-
-- `PassthroughMode::Block` — answer immediately with an error response. This is the default and
-  what ISM uses. On success the handler finds a `KeycloakToken` in the request extensions.
-- `PassthroughMode::Pass` — always call the handler, and store a `KeycloakAuthStatus`
-  (`Success(token)` or `Failure(error)`) in the extensions instead. Use this when a route needs
-  fine-grained handling of the failure, or when a deeper layer might still authenticate the user.
-
-Note that `CurrentUser` assumes `Block`: under `Pass` there is no `KeycloakToken` extension to
-read, and the extractor rejects with 401.
+The section below describes a capability the middleware has but ISM does not currently use.
 
 ### Custom token extractors
 
@@ -246,7 +287,6 @@ Two implementations ship in `extract.rs`:
 ```rust
 KeycloakAuthLayer::<AppRole>::builder()
     .instance(instance)
-    .validation_policy(policy)
     .token_extractors(vec![
         Arc::new(AuthHeaderTokenExtractor::default()) as Arc<dyn TokenExtractor>,
         Arc::new(QueryParamTokenExtractor::default()),

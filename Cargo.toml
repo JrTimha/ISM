@@ -40,8 +40,6 @@ url = "2.5.8"
 
 
 [dev-dependencies]
-assertr = "0.6.0"
-
 # Used by tests/auth_attacks.rs, the black-box attack suite. Same versions as the runtime
 # dependencies above, so they add nothing to the build graph — integration tests are separate
 # crates and do not inherit `[dependencies]`.

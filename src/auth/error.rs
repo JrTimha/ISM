@@ -4,7 +4,6 @@
 //! set of (status, `ErrorCode`, message) triples a caller is allowed to see — the reason a
 //! token failed must not tell an attacker which check tripped.
 
-use std::sync::Arc;
 
 use axum::{
     Json,
@@ -14,24 +13,16 @@ use axum::{
 use thiserror::Error;
 
 use crate::auth::oidc_discovery;
-use crate::core::errors::{ErrorCode, ErrorResponse};
+use crate::core::errors::{AppError, ErrorCode, ErrorResponse};
 
 /// Everything that can go wrong while authenticating a request.
 #[derive(Debug, Clone, Error)]
 pub enum AuthError {
-    /// OIDC discovery never happened.
-    #[error("Never discovered a OIDC configuration.")]
-    NoOidcDiscovery,
-
     /// OIDC discovery failed.
     #[error("Could not discover OIDC configuration.")]
     OidcDiscovery {
         source: oidc_discovery::RequestError,
     },
-
-    /// JWK set discovery never happened.
-    #[error("Never discovered a JWK set.")]
-    NoJwkSetDiscovery,
 
     /// JWK endpoint was not a valid URL.
     #[error("Could not parse the JWK endpoint.")]
@@ -76,6 +67,13 @@ pub enum AuthError {
     #[error("No JWT could be extracted from the request.")]
     MissingToken,
 
+    /// The `[token_issuer]` configuration does not describe a usable `ValidationPolicy`.
+    ///
+    /// A startup failure, not a request one: `KeycloakAuthInstance::new` is the only thing that
+    /// builds a policy, and `init_auth` turns this into a panic before the server binds.
+    #[error("The validation policy could not be built from the configuration: {reason}")]
+    InvalidValidationPolicy { reason: String },
+
     /// The DecodingKey, required for decoding tokens, could not be created.
     #[error(
         "The DecodingKey, required for decoding tokens, could not be created. Source: {source}"
@@ -88,8 +86,8 @@ pub enum AuthError {
 
     /// No decoding keys were available to verify against.
     ///
-    /// Unreachable via `Discovered::keys_for_kid`, which never yields an empty set. Kept as the
-    /// guard for a direct caller of `RawToken::decode_and_validate` handing over an empty slice.
+    /// Unreachable via `keys_for_kid`, which never yields an empty set. Kept as the guard for a
+    /// direct caller of `RawToken::decode_and_validate` handing over an empty slice.
     #[error("There were no decoding keys available.")]
     NoDecodingKeys,
 
@@ -106,10 +104,6 @@ pub enum AuthError {
     /// The JWT could not be decoded.
     #[error("The JWT could not be decoded. Source: {source}")]
     Decode { source: jsonwebtoken::errors::Error },
-
-    /// Parts of the JWT could not be parsed.
-    #[error("Parts of the JWT could not be parsed. Source: {source}")]
-    JsonParse { source: Arc<serde_json::Error> },
 
     /// The tokens lifetime is expired.
     #[error("The tokens lifetime is expired.")]
@@ -133,7 +127,7 @@ pub enum AuthError {
 /// Several variants above deliberately keep their own `Display` free of the source (so the
 /// sanitised client message and the log line can differ), which means a plain `{err}` would drop
 /// the actual cause. Used for the discovery failures logged in `instance.rs`.
-pub(crate) fn error_chain(err: &dyn std::error::Error) -> String {
+pub fn error_chain(err: &dyn std::error::Error) -> String {
     let mut chain = err.to_string();
     let mut source = err.source();
     while let Some(cause) = source {
@@ -148,9 +142,7 @@ impl AuthError {
     /// Stable, low-cardinality discriminant used as a structured log field.
     fn kind(&self) -> &'static str {
         match self {
-            AuthError::NoOidcDiscovery => "no_oidc_discovery",
             AuthError::OidcDiscovery { .. } => "oidc_discovery",
-            AuthError::NoJwkSetDiscovery => "no_jwk_set_discovery",
             AuthError::JwkEndpoint { .. } => "jwk_endpoint",
             AuthError::JwkSetDiscovery { .. } => "jwk_set_discovery",
             AuthError::MissingAuthorizationHeader => "missing_authorization_header",
@@ -160,12 +152,12 @@ impl AuthError {
             AuthError::MissingTokenQueryParam => "missing_token_query_param",
             AuthError::EmptyTokenQueryParam => "empty_token_query_param",
             AuthError::MissingToken => "missing_token",
+            AuthError::InvalidValidationPolicy { .. } => "invalid_validation_policy",
             AuthError::CreateDecodingKey { .. } => "create_decoding_key",
             AuthError::DecodeHeader { .. } => "decode_header",
             AuthError::NoDecodingKeys => "no_decoding_keys",
             AuthError::UnknownSigningKey { .. } => "unknown_signing_key",
             AuthError::Decode { .. } => "decode",
-            AuthError::JsonParse { .. } => "json_parse",
             AuthError::TokenExpired => "token_expired",
             AuthError::InvalidToken { .. } => "invalid_token",
             AuthError::MissingExpectedRole { .. } => "missing_expected_role",
@@ -186,12 +178,11 @@ impl AuthError {
         match self {
             // The identity provider is unreachable or misconfigured — this is our fault, not the
             // caller's, and 503 matches how `AppError::Database`/`Cache` signal upstream trouble.
-            AuthError::NoOidcDiscovery
-            | AuthError::OidcDiscovery { .. }
-            | AuthError::NoJwkSetDiscovery
+            AuthError::OidcDiscovery { .. }
             | AuthError::JwkEndpoint { .. }
             | AuthError::JwkSetDiscovery { .. }
             | AuthError::CreateDecodingKey { .. }
+            | AuthError::InvalidValidationPolicy { .. }
             | AuthError::NoDecodingKeys => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 ErrorCode::AuthUnavailable,
@@ -228,12 +219,30 @@ impl AuthError {
                 ErrorCode::InsufficientPermissions,
                 "Insufficient permissions.",
             ),
+        }
+    }
 
-            AuthError::JsonParse { .. } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorCode::UnexpectedError,
-                "An unexpected error occurred.",
-            ),
+    /// The `AppError` equivalent, so the `expect_role!` family works in a handler returning
+    /// `AppResponse<T>` and not only in one returning `Response`.
+    ///
+    /// Both paths render identically — `AppError::Forbidden` produces the same 403 /
+    /// `INSUFFICIENT_PERMISSIONS` / `"Insufficient permissions."` triple `classify` assigns the two
+    /// role rejections — so which handler shape asserted the role is invisible to the caller. The
+    /// `debug!` below is what keeps the missing role in the server-side log, exactly as
+    /// `into_response` does for the same variants.
+    ///
+    /// Only those two variants can reach this: they are all `ExpectRoles` produces, and every other
+    /// variant is answered by the middleware before a handler ever runs. The rest would be a 401 or
+    /// a 503, neither of which `AppError` can express — reporting them as a 403 would state the
+    /// wrong status, so they become an internal error instead. Unreachable, and deliberately left
+    /// honest rather than assumed away.
+    pub(crate) fn into_app_error(self) -> AppError {
+        let (status, _, message) = self.classify();
+        tracing::debug!(error.kind = self.kind(), error = %self, "Rejected request");
+
+        match status {
+            StatusCode::FORBIDDEN => AppError::Forbidden(message.to_owned()),
+            _ => AppError::Processing(format!("unexpected auth rejection inside a handler: {self}")),
         }
     }
 }

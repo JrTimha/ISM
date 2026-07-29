@@ -1,23 +1,27 @@
 //! The per-request tower `Service` the auth layer produces.
 //!
-//! `poll_ready` holds requests back until the first OIDC discovery has succeeded, so no request
-//! is ever rejected merely because the key set had not arrived yet. `call` then extracts and
-//! validates the token and, in `PassthroughMode::Block`, either inserts the `KeycloakToken` into
-//! the request extensions or answers the error itself.
+//! `call` is the whole of it, in three steps:
+//!
+//! 1. Extract the JWT from the request — nothing to extract is an error.
+//! 2. Validate it against the realm's signing keys, which may cost one on-demand JWKS refresh.
+//! 3. Insert the resulting `KeycloakToken` into the request extensions and call the inner service.
+//!
+//! A failure in step 1 or 2 is answered here, from `AuthError::into_response`; the request never
+//! reaches a handler.
 
 use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-
 use crate::auth::error::AuthError;
 use crate::auth::layer::KeycloakAuthLayer;
 use crate::auth::role::Role;
-use crate::auth::{KeycloakAuthStatus, PassthroughMode, extract};
 use axum::{body::Body, response::IntoResponse};
 use futures::future::BoxFuture;
 use http::Request;
 use serde::de::DeserializeOwned;
+use tracing::debug;
+use crate::auth::extract::extract_jwt;
 
 /// Wraps the inner service with token validation. Created by `KeycloakAuthLayer::layer`.
 #[derive(Clone)]
@@ -66,47 +70,29 @@ where
     }
 
     fn call(&mut self, mut request: Request<Body>) -> Self::Future {
-        tracing::debug!("Validating request...");
 
+        debug!("Validating incoming request.");
         let clone = self.inner.clone();
         let layer = Arc::clone(&self.layer);
-
         // Take the service that was ready!
         let mut inner = std::mem::replace(&mut self.inner, clone);
 
         Box::pin(async move {
-            // Process the request.
-            let result = match extract::extract_jwt(&request, &layer.token_extractors) {
+            //1. extract jwt
+            //2. validate token
+            //3. add to extensions and call next middleware
+            let result = match extract_jwt(&request, &layer.token_extractors) {
                 Some(token) => layer.validate_raw_token(&token).await,
                 None => Err(AuthError::MissingToken),
             };
 
             match result {
-                Ok((raw_claims, keycloak_token)) => {
-                    if let Some(raw_claims) = raw_claims {
-                        request.extensions_mut().insert(raw_claims);
-                    }
-                    match layer.passthrough_mode {
-                        PassthroughMode::Block => {
-                            request.extensions_mut().insert(keycloak_token);
-                        }
-                        PassthroughMode::Pass => {
-                            request
-                                .extensions_mut()
-                                .insert(KeycloakAuthStatus::<R, Extra>::Success(keycloak_token));
-                        }
-                    };
+                Ok(keycloak_token) => {
+                    // What every handler behind this layer reads back as `CurrentUser`.
+                    request.extensions_mut().insert(keycloak_token);
                     inner.call(request).await
                 }
-                Err(err) => match layer.passthrough_mode {
-                    PassthroughMode::Block => Ok(err.into_response()),
-                    PassthroughMode::Pass => {
-                        request
-                            .extensions_mut()
-                            .insert(KeycloakAuthStatus::<R, Extra>::Failure(Arc::new(err)));
-                        inner.call(request).await
-                    }
-                },
+                Err(err) => Ok(err.into_response()),
             }
         })
     }

@@ -94,11 +94,8 @@ impl<R: Role> ExtractRoles<R> for ResourceAccess {
 
 /// Token data parsed from the request and added as an `axum::Extension` through our middleware.
 ///
-/// This only exists if the `KeycloakAuthLayer` is configured to use `PassthroughMode::Block`.
-///
-/// If you want to manually check whether a request was authenticated, configure
-/// `PassthroughMode::Pass` (potentially on a separate `axum::Router`) and inject
-/// `KeycloakAuthStatus` instead of `KeycloakToken`!
+/// Its presence in the extensions *is* the proof of authentication: the middleware inserts it only
+/// after validation succeeded, and answers the request itself otherwise.
 ///
 /// Handlers do not name this type directly — they take `CurrentUser`, which pins `R` to
 /// `AppRole`:

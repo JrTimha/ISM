@@ -1,4 +1,4 @@
-use crate::auth::CurrentUser;
+use crate::auth::{CurrentUser};
 use crate::core::AppState;
 use crate::core::errors::AppError;
 use crate::messaging::message_service::MessageService;

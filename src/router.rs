@@ -1,6 +1,5 @@
 use crate::auth::{
-    AppRole, KeycloakAuthInstance, KeycloakAuthLayer, KeycloakConfig, PassthroughMode,
-    ValidationPolicy, error_chain,
+    AppRole, KeycloakAuthInstance, KeycloakAuthLayer, KeycloakConfig, error_chain,
 };
 use crate::core::{AppState, TokenIssuer};
 use crate::messaging::routes::create_messaging_routes;
@@ -143,48 +142,22 @@ async fn inject_request_path(
 async fn init_auth(config: TokenIssuer) -> KeycloakAuthLayer<AppRole> {
     let server = Url::parse(&config.iss_host).expect("Invalid Keycloak Host");
 
-    if server.scheme() != "https" {
-        tracing::warn!(
-            keycloak_host = %server,
-            "Keycloak is configured over plaintext HTTP. Tokens and the JWKS are exchanged in the \
-             clear — use HTTPS outside of local development."
-        );
-    }
-
-    let policy = ValidationPolicy::new(
-        config.expected_audiences,
-        config.expected_azp,
-        &config.allowed_algorithms,
-    )
-    .unwrap_or_else(|err| panic!("Invalid [token_issuer] configuration: {err}"));
-
-    if policy.expected_audiences.iter().any(|it| it == "account") && policy.expected_azp.is_empty()
-    {
-        tracing::warn!(
-            "Accepting the 'account' audience with no 'expected_azp' restriction: Keycloak adds \
-             this audience to every access token of every client in the realm, so any client in \
-             the realm is accepted. Configure an audience mapper and set expected_audiences / \
-             expected_azp."
-        );
-    }
-
+    // Runs the initial discovery and, from the issuer it reports, builds the `ValidationPolicy`
+    // the instance then carries. A bad `[token_issuer]` section fails here too, as
+    // `AuthError::InvalidValidationPolicy`.
     let keycloak_auth_instance = KeycloakAuthInstance::new(
         KeycloakConfig::builder()
             .server(server)
             .realm(config.iss_realm)
+            .expected_audiences(config.expected_audiences)
+            .expected_azp(config.expected_azp)
+            .allowed_algorithms(config.allowed_algorithms)
             .min_refresh_interval(Duration::from_secs(config.jwks_min_refresh_interval_secs))
             .build(),
     )
     .await
     .unwrap_or_else(|err| {
-        panic!("Initial OIDC discovery failed, refusing to start: {}", error_chain(&err))
+        panic!("Auth setup failed, refusing to start: {}", error_chain(&err))
     });
-
-    KeycloakAuthLayer::<AppRole>::builder()
-        .instance(keycloak_auth_instance)
-        // Nothing reads the raw claim map; persisting it clones the whole map per request.
-        .persist_raw_claims(false)
-        .passthrough_mode(PassthroughMode::Block)
-        .validation_policy(policy)
-        .build()
+    KeycloakAuthLayer::<AppRole>::builder().instance(keycloak_auth_instance).build()
 }

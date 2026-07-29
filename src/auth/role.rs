@@ -6,8 +6,11 @@
 
 use std::fmt::{Debug, Display};
 
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
+
+use crate::auth::error::AuthError;
+use crate::core::errors::AppError;
 
 /// Describes any type that can act as a role.
 pub trait Role: Debug + Display + Clone + PartialEq + Eq + Send + Sync + From<String> {}
@@ -128,16 +131,46 @@ pub trait ExpectRoles<R: Role> {
     fn not_expect_roles<I: Into<R> + Clone>(&self, roles: &[I]) -> Result<(), Self::Rejection>;
 }
 
+/// What a failed role assertion returns from the handler that asserted it.
+///
+/// The `expect_role!` family expands to a bare `return`, so the value it produces has to *be* the
+/// handler's own return type. ISM has two handler shapes — `-> Response` for the raw ones and
+/// `-> AppResponse<Json<T>>` for everything under `/api/v1` — and this trait is what lets a single
+/// macro serve both: the impl is selected from the return type at the call site, so no handler ever
+/// has to say which shape it is.
+///
+/// Hard-coding `IntoResponse::into_response` here instead, as the macros used to, only ever
+/// produced a `Response`. That made every `expect_role!` in an `AppResponse` handler — which is
+/// every handler ISM actually has — a type error, and the only test covering the macros happened to
+/// use the one shape where it compiled.
+pub trait FromRoleRejection {
+    fn from_role_rejection(rejection: AuthError) -> Self;
+}
+
+impl FromRoleRejection for Response {
+    fn from_role_rejection(rejection: AuthError) -> Self {
+        rejection.into_response()
+    }
+}
+
+/// Covers `AppResponse<T>`, which is this alias. The conversion is lossless: both role rejections
+/// classify to the same 403 that `AppError::Forbidden` renders — see `AuthError::into_app_error`.
+impl<T> FromRoleRejection for Result<T, AppError> {
+    fn from_role_rejection(rejection: AuthError) -> Self {
+        Err(rejection.into_app_error())
+    }
+}
+
 // The four macros below are `#[macro_export]`ed, so they land at the crate root
 // (`crate::expect_role!`) regardless of this module being private. They must therefore reach
-// `ExpectRoles` through the `auth` facade rather than through `auth::role`.
+// `ExpectRoles` and `FromRoleRejection` through the `auth` facade rather than through `auth::role`.
 
 /// Returns from the handler with an error response unless the token carries all `$roles`.
 #[macro_export]
 macro_rules! expect_roles {
     ($token: expr, $roles: expr) => {
         if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, $roles) {
-            return axum::response::IntoResponse::into_response(err);
+            return $crate::auth::FromRoleRejection::from_role_rejection(err);
         }
     };
 }
@@ -147,7 +180,7 @@ macro_rules! expect_roles {
 macro_rules! expect_role {
     ($token: expr, $role: expr) => {
         if let Err(err) = $crate::auth::ExpectRoles::expect_roles($token, &[$role]) {
-            return axum::response::IntoResponse::into_response(err);
+            return $crate::auth::FromRoleRejection::from_role_rejection(err);
         }
     };
 }
@@ -157,7 +190,7 @@ macro_rules! expect_role {
 macro_rules! not_expect_roles {
     ($token: expr, $roles: expr) => {
         if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, $roles) {
-            return axum::response::IntoResponse::into_response(err);
+            return $crate::auth::FromRoleRejection::from_role_rejection(err);
         }
     };
 }
@@ -167,7 +200,7 @@ macro_rules! not_expect_roles {
 macro_rules! not_expect_role {
     ($token: expr, $role: expr) => {
         if let Err(err) = $crate::auth::ExpectRoles::not_expect_roles($token, &[$role]) {
-            return axum::response::IntoResponse::into_response(err);
+            return $crate::auth::FromRoleRejection::from_role_rejection(err);
         }
     };
 }

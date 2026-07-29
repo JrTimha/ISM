@@ -6,7 +6,7 @@ ism_port= 5403
 #   sqlx=warn        - sqlx logs every executed statement at INFO
 #   hyper=info,h2=info - wire-level noise at DEBUG (already covered by a global `info`)
 #   tower_http=info  - HTTP request spans
-log_level = "info,ism=info,sqlx=warn"
+log_level = "info,ism=debug,sqlx=warn"
 cors_origin = "http://localhost:4200"
 use_kafka = true
 

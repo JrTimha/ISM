@@ -32,9 +32,9 @@ pub type CurrentUser = KeycloakToken<AppRole>;
 
 /// Hands the handler the token the middleware already validated and stashed.
 ///
-/// The `KeycloakAuthLayer` runs in `PassthroughMode::Block`, so a handler behind it is only
-/// reached once that token exists. Under `PassthroughMode::Pass` there is no token extension to
-/// read and this rejects with 401 — extract `KeycloakAuthStatus` there instead.
+/// A handler behind the `KeycloakAuthLayer` is only reached once that token exists, so the
+/// `MissingToken` rejection below is unreachable there. It is what a handler mounted *outside* the
+/// layer gets — a routing mistake, answered as 401 rather than a panic.
 impl<S> FromRequestParts<S> for KeycloakToken<AppRole>
 where
     S: Send + Sync,
@@ -62,7 +62,9 @@ mod tests {
     use crate::auth::app_role::AppRole;
     use crate::auth::role::KeycloakRole;
     use crate::auth::token::{Email, Profile, ProfileAndEmail};
-    use crate::expect_role;
+    use crate::core::errors::AppResponse;
+    use crate::{expect_role, not_expect_role};
+    use axum::Json;
 
     fn token_with(roles: Vec<AppRole>) -> CurrentUser {
         CurrentUser {
@@ -112,5 +114,53 @@ mod tests {
     fn expect_role_macro_rejects_a_caller_without_the_role() {
         let response = admin_only(&token_with(vec![AppRole::User, AppRole::LocalGuide]));
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// The shape every handler under `/api/v1` actually has. Kept alongside the `-> Response` one
+    /// above because the macros have to compile in both, and a single `return` expression can only
+    /// produce one type — see `FromRoleRejection`.
+    fn admin_only_api(user: &CurrentUser) -> AppResponse<Json<&'static str>> {
+        expect_role!(user, AppRole::Admin);
+        Ok(Json("ok"))
+    }
+
+    /// The denying direction, in the same shape. `not_expect_roles` consults every role source
+    /// rather than realm roles only, so it needs its own coverage.
+    fn no_guides_api(user: &CurrentUser) -> AppResponse<Json<&'static str>> {
+        not_expect_role!(user, AppRole::LocalGuide);
+        Ok(Json("ok"))
+    }
+
+    /// The regression guard for the macros' return type. They used to expand to
+    /// `IntoResponse::into_response(err)`, which is a `Response` and therefore a type error in a
+    /// handler returning `AppResponse` — i.e. in every handler ISM has. It went unnoticed because
+    /// the only coverage was the `-> Response` case above, where it happened to compile.
+    ///
+    /// This test failing to *compile* is the point; the assertions merely pin the outcome.
+    #[test]
+    fn expect_role_macro_works_in_an_app_response_handler() {
+        assert!(admin_only_api(&token_with(vec![AppRole::Admin])).is_ok());
+
+        let rejection = admin_only_api(&token_with(vec![AppRole::User]))
+            .expect_err("a caller without the role must be rejected");
+
+        // Identical to what the `-> Response` path produces: the handler shape must not be
+        // visible to the caller.
+        assert_eq!(
+            rejection.into_response().status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[test]
+    fn not_expect_role_macro_works_in_an_app_response_handler() {
+        assert!(no_guides_api(&token_with(vec![AppRole::User])).is_ok());
+
+        let rejection = no_guides_api(&token_with(vec![AppRole::LocalGuide]))
+            .expect_err("a caller holding the denied role must be rejected");
+        assert_eq!(
+            rejection.into_response().status(),
+            StatusCode::FORBIDDEN
+        );
     }
 }

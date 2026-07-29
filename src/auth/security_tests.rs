@@ -6,11 +6,13 @@
 //!
 //! The entry points under test are `RawToken::decode_header` /
 //! `RawToken::decode_and_validate` (signature, algorithm, issuer, audience, expiry, required
-//! claims) and `parse_raw_claims` (token type, authorized party, subject shape).
+//! claims) and `parse_claims` (token type, authorized party, subject shape).
 //!
 //! When adding a validation rule, add the attack it defeats here — a rule with no failing test
 //! before it existed is a rule nobody can prove still works.
 
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use jsonwebtoken::errors::ErrorKind;
@@ -20,12 +22,11 @@ use serde_json::{Value, json};
 use url::Url;
 
 use crate::auth::app_role::AppRole;
-use crate::auth::decode::{
-    RawClaims, RawToken, ValidationPolicy, decode_and_validate, parse_raw_claims,
-};
+use crate::auth::decode::{RawToken, decode_and_validate, parse_claims};
 use crate::auth::error::AuthError;
 use crate::auth::instance::{JwkDecodingKey, KeycloakAuthInstance, KeycloakConfig, keys_for_kid};
-use crate::auth::token::ProfileAndEmail;
+use crate::auth::policy::ValidationPolicy;
+use crate::auth::token::{ProfileAndEmail, StandardClaims};
 
 /// Test-only RSA-2048 keypair. Not a secret and never used outside this file.
 const TEST_PRIVATE_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
@@ -77,13 +78,19 @@ const SUBJECT: &str = "0193f3a0-1c2d-7e4f-8a9b-0c1d2e3f4a5b";
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 fn policy() -> ValidationPolicy {
-    ValidationPolicy::new(vec![AUDIENCE.to_owned()], vec![], &[String::from("RS256")])
-        .expect("valid policy")
+    ValidationPolicy::new(
+        ISSUER.to_owned(),
+        vec![AUDIENCE.to_owned()],
+        vec![],
+        &[String::from("RS256")],
+    )
+    .expect("valid policy")
 }
 
 /// Policy that additionally pins the authorized party, i.e. the tightened production setup.
 fn policy_pinning_azp() -> ValidationPolicy {
     ValidationPolicy::new(
+        ISSUER.to_owned(),
         vec![AUDIENCE.to_owned()],
         vec![CLIENT_ID.to_owned()],
         &[String::from("RS256")],
@@ -146,14 +153,17 @@ fn sign(header: &Header, claims: &Value) -> String {
 }
 
 /// Runs a token through exactly what the middleware runs: header decode, then verification.
-fn verify_with(token: &str, policy: &ValidationPolicy) -> Result<RawClaims, AuthError> {
-    let raw_token = RawToken(token);
+fn verify_with(
+    token: &str,
+    policy: &ValidationPolicy,
+) -> Result<StandardClaims<ProfileAndEmail>, AuthError> {
+    let raw_token = RawToken { token };
     raw_token.decode_header()?;
     let key = verification_key();
-    raw_token.decode_and_validate(policy, ISSUER, &[&key])
+    raw_token.decode_and_validate(policy, &[&key])
 }
 
-fn verify(token: &str) -> Result<RawClaims, AuthError> {
+fn verify(token: &str) -> Result<StandardClaims<ProfileAndEmail>, AuthError> {
     verify_with(token, &policy())
 }
 
@@ -168,10 +178,8 @@ async fn authenticate_expecting_roles(
     policy: &ValidationPolicy,
     required_roles: &[AppRole],
 ) -> Result<(), AuthError> {
-    let raw_claims = verify_with(token, policy)?;
-    parse_raw_claims::<AppRole, ProfileAndEmail>(raw_claims, false, required_roles, policy)
-        .await
-        .map(|_| ())
+    let claims = verify_with(token, policy)?;
+    parse_claims::<AppRole, ProfileAndEmail>(claims, required_roles, policy).map(|_| ())
 }
 
 // ── Control: the baseline must actually pass ────────────────────────────────
@@ -233,17 +241,26 @@ fn config_refuses_symmetric_and_mixed_algorithm_families() {
     // The forgery above only stays impossible while the allow-list holds no symmetric algorithm,
     // so the policy refuses to be built that way at all.
     assert!(
-        ValidationPolicy::new(vec![AUDIENCE.to_owned()], vec![], &[String::from("HS256")]).is_err()
+        ValidationPolicy::new(
+            ISSUER.to_owned(),
+            vec![AUDIENCE.to_owned()],
+            vec![],
+            &[String::from("HS256")]
+        )
+        .is_err()
     );
     assert!(
         ValidationPolicy::new(
+            ISSUER.to_owned(),
             vec![AUDIENCE.to_owned()],
             vec![],
             &[String::from("RS256"), String::from("ES256")]
         )
         .is_err()
     );
-    assert!(ValidationPolicy::new(vec![AUDIENCE.to_owned()], vec![], &[]).is_err());
+    assert!(
+        ValidationPolicy::new(ISSUER.to_owned(), vec![AUDIENCE.to_owned()], vec![], &[]).is_err()
+    );
 }
 
 // ── Signature attacks ───────────────────────────────────────────────────────
@@ -308,7 +325,13 @@ fn test_instance() -> KeycloakAuthInstance {
         KeycloakConfig::builder()
             .server(Url::parse("https://localhost:8443/").expect("valid url"))
             .realm(String::from("meventure"))
+            .expected_audiences(vec![AUDIENCE.to_owned()])
+            .expected_azp(vec![])
+            .allowed_algorithms(vec![String::from("RS256")])
             .build(),
+        // Handed over rather than discovered: `without_discovery` never contacts Keycloak, so
+        // there is no advertised issuer to derive one from.
+        policy(),
     )
 }
 
@@ -321,7 +344,7 @@ async fn rejects_token_without_kid_before_touching_the_key_set() {
     header.kid = None;
     let token = sign(&header, &base_claims());
 
-    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+    let err = decode_and_validate::<ProfileAndEmail>(&test_instance(), RawToken { token: token.as_str() })
         .await
         .expect_err("a token without a kid must be rejected");
     assert!(
@@ -393,7 +416,7 @@ async fn rejects_a_kid_carrying_control_characters() {
     header.kid = Some(String::from("real-key\nlevel=INFO msg=\"forged log line\""));
     let token = sign(&header, &base_claims());
 
-    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+    let err = decode_and_validate::<ProfileAndEmail>(&test_instance(), RawToken { token: token.as_str() })
         .await
         .expect_err("a kid with control characters must be rejected");
     let AuthError::InvalidToken { reason } = &err else {
@@ -413,7 +436,7 @@ async fn rejects_an_overlong_kid() {
     header.kid = Some("A".repeat(4096));
     let token = sign(&header, &base_claims());
 
-    let err = decode_and_validate(&test_instance(), RawToken(&token), &policy())
+    let err = decode_and_validate::<ProfileAndEmail>(&test_instance(), RawToken { token: token.as_str() })
         .await
         .expect_err("an overlong kid must be rejected");
     assert!(
@@ -470,7 +493,14 @@ fn rejects_foreign_issuer() {
         &rs256_header(),
         &claims_with(json!({ "iss": OTHER_ISSUER })),
     );
-    verify(&token).expect_err("a foreign issuer must be rejected");
+    let err = verify(&token).expect_err("a foreign issuer must be rejected");
+
+    // Pinned to the exact kind: the issuer is enforced by the `Validation` the policy carries, and
+    // a policy built without `set_issuer` would let this token through with nothing else noticing.
+    assert!(
+        matches!(&err, AuthError::Decode { source } if matches!(source.kind(), ErrorKind::InvalidIssuer)),
+        "expected the policy's issuer check to reject this, got {err:?}"
+    );
 }
 
 #[test]
@@ -552,14 +582,32 @@ fn rejects_token_not_yet_valid() {
 
 #[test]
 fn rejects_missing_required_claims() {
-    // Dropping a claim must not be a way to skip the check that reads it.
-    for claim in ["exp", "iss", "aud", "sub"] {
+    // Dropping a claim must not be a way to skip the check that reads it. `exp`/`iss`/`aud`/`sub`
+    // are the spec claims `Validation` requires; the rest are ones `StandardClaims` makes
+    // non-optional, and since the claim set is deserialised into it before `jsonwebtoken`
+    // validates, dropping either kind is caught.
+    for claim in ["exp", "iss", "aud", "sub", "iat", "jti", "typ", "azp"] {
         let token = sign(&rs256_header(), &claims_with(json!({ claim: null })));
         assert!(
             verify(&token).is_err(),
             "a token missing '{claim}' must be rejected"
         );
     }
+}
+
+#[test]
+fn a_claim_set_we_cannot_parse_is_a_401_not_a_500() {
+    // Deserialising into `StandardClaims` moved this failure ahead of `jsonwebtoken`'s own claim
+    // validation. It must stay a rejected credential: answering 5xx would both leak that the
+    // token got past signature verification and turn a realm format change into an error-rate
+    // page rather than an auth failure.
+    let token = sign(&rs256_header(), &claims_with(json!({ "jti": null })));
+    let status = verify(&token)
+        .expect_err("an unparsable claim set must be rejected")
+        .into_response()
+        .status();
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

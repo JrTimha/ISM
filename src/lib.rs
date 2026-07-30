@@ -4,6 +4,7 @@ pub mod cache;
 pub mod core;
 pub mod kafka;
 pub mod messaging;
+pub mod middleware;
 pub mod object_storage;
 pub mod rooms;
 pub mod router;

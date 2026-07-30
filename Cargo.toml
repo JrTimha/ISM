@@ -13,14 +13,14 @@ serde = "1.0.229"
 futures = "0.3.33"
 uuid = { version = "1.24.0", features = ["v4", "serde", "v7"] }
 chrono = { version = "0.4.45", features = ["serde"] }
-tower-http = { version = "0.7.0", features = ["cors", "trace"] }
+tower-http = { version = "0.7.0", features = ["catch-panic", "cors", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 sqlx = {version = "0.9.0", features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros", "json"]}
 serde_json = "1.0.151"
 tokio-stream = { version = "0.1.19", features = ["sync"] }
 rdkafka = { version = "0.39.0", features = ["cmake-build", "tokio"] }
-minio = { version = "0.3.0", features = ["default"] }
+minio = { version = "0.4.0", default-features = false, features = ["rustls-tls", "default-crypto", "http2"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "ico", "tiff"] }
 bytes = "1.12.1"
 base64 = "0.23.0"
@@ -32,7 +32,7 @@ async-trait = "0.1.91"
 #used by the auth-domain:
 educe = { version = "0.7.4", default-features = false, features = ["Debug"] }
 http = "1.4.2"
-jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "11.0.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.13.4", features = ["json"] }
 serde_with = "3.21.0"
 typed-builder = "0.23.2"
@@ -44,7 +44,10 @@ url = "2.5.8"
 # dependencies above, so they add nothing to the build graph — integration tests are separate
 # crates and do not inherit `[dependencies]`.
 base64 = "0.23.0"
-jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+# The crypto backend must match the runtime dependency: dev- and normal features unify in the test
+# build, and with both `aws_lc_rs` and `rust_crypto` enabled `jsonwebtoken` cannot pick a
+# `CryptoProvider` from its features and panics on the first sign/verify.
+jsonwebtoken = { version = "11.0.0", features = ["aws_lc_rs"] }
 # `form` is what the Keycloak direct access grant is posted with; it affects the test build only.
 reqwest = { version = "0.13.4", features = ["json", "form"] }
 serde_json = "1.0.151"

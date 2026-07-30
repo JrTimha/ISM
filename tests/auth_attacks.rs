@@ -463,7 +463,7 @@ fn attacker_key() -> EncodingKey {
 /// the header does not match the signature, and would prove nothing.
 fn attacker_public_components() -> (Vec<u8>, Vec<u8>) {
     let key = attacker_key();
-    (jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER
+    (jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER
         .key_utils
         .rsa_pub_components_from_private_key)(key.as_bytes())
     .expect("the attacker's public components are derivable")

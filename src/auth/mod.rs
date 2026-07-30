@@ -1,6 +1,6 @@
 //! Keycloak JWT authentication for the protected axum routes.
 //!
-//! The layer is built once in `router::init_auth` and wrapped around the protected router. A
+//! The layer is built once in `middleware::auth` and wrapped around the protected router. A
 //! request only reaches a handler once its bearer token has been validated against the realm's
 //! published signing keys; anything else is answered with an error and never gets that far.
 //!

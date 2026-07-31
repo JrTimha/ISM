@@ -44,28 +44,50 @@ pub enum StartupError {
 /// Shorthand used by constructors that participate in startup.
 pub type StartupResult<T> = Result<T, StartupError>;
 
-/// A started application: the wired services, plus everything shutdown needs to unwind them.
+/// A started application, split into the half that serves requests and the half that unwinds it.
+///
+/// The two are separate fields rather than one bundle because their lifetimes genuinely diverge:
+/// [`Self::state`] is *moved* into the router and lives inside the server until it stops, while
+/// [`Self::shutdown`] has to stay in the caller's hands to be usable afterwards. Bundling them
+/// would force the caller to clone the state just to keep a handle on the teardown half.
+///
+/// ```ignore
+/// let Bootstrap { state, shutdown } = AppStateBuilder::new(config).build().await?;
+/// let app = init_router(state).await;   // moved, not cloned
+/// // ... serve ...
+/// shutdown.run().await;
+/// ```
 pub struct Bootstrap {
+    /// The wired services, ready to be handed to the router.
     pub state: AppState,
-    /// Handles of the long-running tasks the builder spawned.
-    ///
-    /// Kept rather than detached so the process can join or abort them on shutdown. A global bus
-    /// could never offer this — nobody owned the task it spawned.
-    pub tasks: Vec<JoinHandle<()>>,
-    /// The database handle, so shutdown can close the pool.
-    ///
-    /// Lives here rather than on [`AppState`] because it is a *lifecycle* concern, not something a
-    /// request handler should be able to reach. Services hold their own clones for querying; this
-    /// one exists only so `main` can call [`Database::close`] — see [`Bootstrap::shutdown`].
-    pub database: Database,
+    /// Everything that needs explicit teardown.
+    pub shutdown: Shutdown,
 }
 
-impl Bootstrap {
+/// The resources startup created that cannot simply be dropped.
+///
+/// Deliberately holds no [`AppState`]: teardown has nothing to do with serving requests, and
+/// keeping the two apart is what lets the state be moved away while this stays behind. Fields are
+/// private — only [`AppStateBuilder`] constructs one.
+pub struct Shutdown {
+    /// Handles of the long-running tasks the builder spawned.
+    ///
+    /// Kept rather than detached so the process can abort them. A global bus could never offer
+    /// this — nobody owned the task it spawned.
+    tasks: Vec<JoinHandle<()>>,
+    /// The database handle, so the pool can be closed.
+    ///
+    /// Lives here rather than on [`AppState`] because it is a *lifecycle* concern, not something a
+    /// request handler should be able to reach. Services hold their own clones for querying.
+    database: Database,
+}
+
+impl Shutdown {
     /// Stops the background tasks and closes the database pool.
     ///
     /// Order matters: the tasks are aborted first so nothing can check out a connection while the
     /// pool is closing.
-    pub async fn shutdown(self) {
+    pub async fn run(self) {
         for task in self.tasks {
             task.abort();
         }
@@ -117,9 +139,9 @@ impl AppStateBuilder {
 
     /// Uses an already-open database instead of connecting from config.
     ///
-    /// Note that [`Bootstrap::shutdown`] closes whatever pool it ends up with, including one
-    /// supplied here — so a test that injects a `#[sqlx::test]` pool should let the harness own the
-    /// teardown and simply not call `shutdown()`.
+    /// Note that [`Shutdown::run`] closes whatever pool it ends up with, including one supplied
+    /// here — so a test that injects a `#[sqlx::test]` pool should let the harness own the
+    /// teardown and simply drop the [`Shutdown`] instead of running it.
     pub fn with_database(mut self, database: Database) -> Self {
         self.database = Some(database);
         self
@@ -231,8 +253,7 @@ impl AppStateBuilder {
                 notification_service,
                 user_service,
             },
-            tasks,
-            database,
+            shutdown: Shutdown { tasks, database },
         })
     }
 }

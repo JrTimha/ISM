@@ -1,4 +1,4 @@
-use ism::core::{AppStateBuilder, ISMConfig};
+use ism::core::{AppStateBuilder, Bootstrap, ISMConfig};
 use ism::router::init_router;
 use ism::welcome::welcome;
 use std::process::ExitCode;
@@ -50,9 +50,11 @@ async fn run(config: ISMConfig) -> Result<(), Box<dyn std::error::Error>> {
 
     // Wires the database, cache, object storage, event bus and every service — see
     // `ism::core::AppStateBuilder`.
-    let bootstrap = AppStateBuilder::new(config).build().await?;
+    let Bootstrap { state, shutdown } = AppStateBuilder::new(config).build().await?;
 
-    let app = init_router(bootstrap.state.clone()).await;
+    // `state` is moved into the router and stays there until the server stops; `shutdown` is the
+    // disjoint half that has to outlive it.
+    let app = init_router(state).await;
     let listener = TcpListener::bind(&url).await?;
 
     info!("ISM-Server up and is listening on: {url}");
@@ -62,8 +64,7 @@ async fn run(config: ISMConfig) -> Result<(), Box<dyn std::error::Error>> {
 
     // Runs whether the server stopped cleanly or failed: a serve error would otherwise skip
     // closing the pool and leave PostgreSQL holding the backends until its keepalive reaps them.
-    bootstrap.shutdown().await;
-
+    shutdown.run().await;
     served?;
     Ok(())
 }

@@ -117,11 +117,12 @@ leak): `Database` → `Cache` → `PushNotificationProducer` → `Arc<BroadcastC
 Redis subscriber → `ObjectStorage` → repositories → `RoomNotifier` → tier-1 services →
 `UserService`.
 
-`Bootstrap` also carries what shutdown needs: the spawned `JoinHandle`s and the `Database`.
-`Bootstrap::shutdown()` aborts the tasks, then closes the pool — **always call it, including on the
-error path**. Without `Database::close()` the pool's `Drop` only closes the client side and
-PostgreSQL holds the backends until its TCP keepalive expires, which a restart loop turns into a
-`max_connections` outage.
+`build()` returns `Bootstrap { state, shutdown }`. The `state` is *moved* into the router; the
+`Shutdown` half — the spawned `JoinHandle`s and the `Database` — stays with the caller, which is
+why neither has to be cloned. `Shutdown::run()` aborts the tasks, then closes the pool — **always
+call it, including on the error path**. Without `Database::close()` the pool's `Drop` only closes
+the client side and PostgreSQL holds the backends until its TCP keepalive expires, which a restart
+loop turns into a `max_connections` outage.
 
 The single PostgreSQL pool (max 20 connections) lives in `core::Database` and is shared by cloning;
 `Database::begin()` is the only way to a transaction, and only services call it.

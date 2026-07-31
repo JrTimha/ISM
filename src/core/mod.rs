@@ -13,7 +13,7 @@ pub mod errors;
 mod traits;
 
 pub use app_state::*;
-pub use builder::{AppStateBuilder, Bootstrap, StartupError, StartupResult};
+pub use builder::{AppStateBuilder, Bootstrap, Shutdown, StartupError, StartupResult};
 pub use config::{ISMConfig, KafkaConfig, ObjectStorageConfig, RoomDbConfig, TokenIssuer};
 pub use database::{Database, PgTransaction};
 pub use traits::{Repository, Service};

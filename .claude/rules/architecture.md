@@ -163,13 +163,25 @@ application without config files or a live Redis.
 
 ## Shutdown
 
-**Always call `Bootstrap::shutdown()`**, on the failure path as well as the clean one.
+**Always call `Shutdown::run()`**, on the failure path as well as the clean one.
 
-`Bootstrap` carries the things startup created that shutdown has to unwind — the spawned
-`JoinHandle`s and the `Database`. They live there rather than on `AppState` because they are
-lifecycle concerns; a request handler has no business reaching either.
+`build()` returns `Bootstrap { state, shutdown }` — two fields, because their lifetimes diverge:
 
-`shutdown()` aborts the background tasks first, then closes the pool, bounded by a timeout:
+```rust
+let Bootstrap { state, shutdown } = AppStateBuilder::new(config).build().await?;
+let app = init_router(state).await;   // moved into the server for its whole life
+// ... serve ...
+shutdown.run().await;                 // the disjoint half that outlives it
+```
+
+`Shutdown` holds the spawned `JoinHandle`s and the `Database` — lifecycle concerns a request
+handler has no business reaching — and deliberately holds **no** `AppState`. That separation is
+what lets the state be *moved* into the router instead of cloned: Rust has no way to say "ownership
+comes back later", so if teardown and serving share one struct, the caller is forced to clone. Two
+disjoint owners need no clone at all. Prefer this over a cheap-clone workaround whenever two halves
+of a value have genuinely different lifetimes.
+
+`run()` aborts the background tasks first, then closes the pool, bounded by a timeout:
 
 - **Closing the pool is not optional.** Rust has no async `Drop`, so dropping the last `Pool` handle
   tears down only the client side of each connection. PostgreSQL keeps the backend open until its
@@ -180,5 +192,5 @@ lifecycle concerns; a request handler has no business reaching either.
 - **Bounded**, because `close()` waits for checked-out connections to come back; a shutdown that
   hangs forever is worse than one that gives up and lets the server reap the remainder.
 
-Anything added to `Bootstrap` later follows the same rule: if a resource needs an explicit
-async teardown, it belongs in `Bootstrap` and in `shutdown()`, not in `AppState`.
+Anything added later follows the same rule: if a resource needs an explicit async teardown, it
+belongs in `Shutdown` and in `run()`, not in `AppState`.

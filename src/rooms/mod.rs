@@ -1,9 +1,12 @@
 mod handler;
 mod model;
+mod notifier;
+pub mod repository;
 pub mod room;
 pub mod room_member;
-pub mod room_repository;
-pub mod room_service;
 pub mod routes;
-pub mod share_service;
-mod timeline_service;
+pub mod service;
+
+pub use notifier::RoomNotifier;
+pub use repository::RoomRepository;
+pub use service::{RoomService, ShareService, TimelineService};

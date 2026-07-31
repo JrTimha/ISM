@@ -60,9 +60,9 @@ The decision comes down to **semantic intent**, not just flexibility.
 
 The function is called **both inside and outside of transactions** in the codebase. The extra flexibility is genuinely needed.
 
-**Example: `insert_message`**
-- Called with `&pool` in `save_room_change_message_and_broadcast` (no transaction needed)
-- Called with `&mut *tx` in `send_message` (must be atomic with room state update)
+**Example: `update_user_read_status`**
+- Called with `self.db.pool()` in `RoomService::mark_room_as_read` (a single write, no transaction needed)
+- Available to a transactional caller as `&mut *tx` without a second signature
 
 ### Use `&mut PgConnection` when:
 
@@ -85,8 +85,27 @@ A future developer who tries to call `apply_message_to_room` with just `&pool` g
 
 More options at the call site is not always better. Use the type system to enforce the invariants that matter.
 
+## Who Opens the Transaction
+
+The **service**, never the repository:
+
+```rust
+let mut tx = self.db.begin().await?;                       // core::Database
+self.chats.insert_message(&mut *tx, &entity).await?;       // Variant 1
+self.rooms.apply_message_to_room(&mut tx, ...).await?;     // Variant 2
+tx.commit().await?;
+```
+
+A transaction that spans `ChatRepository` and `RoomRepository` is a statement about the use case —
+these two writes must land together — so it belongs to the layer that knows the use case.
+Repositories therefore expose neither `start_transaction()` nor `get_connection()`: the pool has
+exactly one owner, `Database`, and a repository that needs to run outside a transaction uses
+`self.db.pool()` internally.
+
 ## Practical Notes
 
-- `Transaction<'_, Postgres>` implements `Deref<Target = PgConnection>`, so `&mut *tx` satisfies `&mut PgConnection`.
+- `Transaction<'_, Postgres>` implements `Deref<Target = PgConnection>`, so both `&mut tx` and
+  `&mut *tx` satisfy `&mut PgConnection`.
 - `&Pool<Postgres>` implements `Executor<'_, Database = Postgres>`, so it works with Variant 1 but not Variant 2.
-- When a repository function needs to expose its pool for external callers (e.g. `save_room_change_message_and_broadcast`), add a `get_connection() -> &Pool<Postgres>` method rather than making the pool field public.
+- `Database::pool()` returns the `&Pool<Postgres>` to pass to a Variant 1 function outside a
+  transaction. It is on `Database` — the pool's owner — and not on any repository.

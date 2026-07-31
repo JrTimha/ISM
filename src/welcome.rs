@@ -1,9 +1,11 @@
-use std::env;
 use tracing::info;
 
-pub fn welcome() {
+/// Prints the startup banner.
+///
+/// Takes the mode rather than reading `ISM_MODE` itself, so the banner cannot disagree with the
+/// configuration that was actually loaded — it used to keep its own copy of the default.
+pub fn welcome(run_mode: &str) {
     let version = env!("CARGO_PKG_VERSION");
-    let run_mode = env::var("ISM_MODE").unwrap_or_else(|_| "development".into());
 
     let title = [
         r"  ___ ____  __  __  ",

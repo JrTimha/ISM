@@ -1,22 +1,22 @@
+use crate::core::{Database, Repository};
 use crate::messaging::model::{MessageBody, MessageEntity, MsgType};
 use chrono::{DateTime, Utc};
-use sqlx::{Error, Pool, Postgres};
+use sqlx::{Error, Postgres};
 use uuid::Uuid;
 
+/// Chat message persistence.
 #[derive(Clone)]
 pub struct ChatRepository {
-    pool: Pool<Postgres>,
+    db: Database,
+}
+
+impl Repository for ChatRepository {
+    fn new(db: &Database) -> Self {
+        Self { db: db.clone() }
+    }
 }
 
 impl ChatRepository {
-    pub fn new(pool: Pool<Postgres>) -> Self {
-        ChatRepository { pool }
-    }
-
-    pub fn get_connection(&self) -> &Pool<Postgres> {
-        &self.pool
-    }
-
     pub async fn insert_message<'e, E>(&self, exec: E, message: &MessageEntity) -> Result<(), Error>
     where
         E: sqlx::Executor<'e, Database = Postgres>,
@@ -32,15 +32,13 @@ impl ChatRepository {
             message.msg_body.clone() as sqlx::types::Json<MessageBody>,
             message.msg_type.clone() as MsgType,
             message.created_at
-        ).execute(exec).await?;
+        )
+        .execute(exec)
+        .await?;
         Ok(())
     }
 
-    pub async fn fetch_messages(
-        &self,
-        room_id: Uuid,
-        before: DateTime<Utc>,
-    ) -> Result<Vec<MessageEntity>, Error> {
+    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<MessageEntity>, Error> {
         let messages = sqlx::query_as!(
             MessageEntity,
             r#"
@@ -59,16 +57,12 @@ impl ChatRepository {
             room_id,
             before
         )
-        .fetch_all(&self.pool)
+        .fetch_all(self.db.pool())
         .await?;
         Ok(messages)
     }
 
-    pub async fn fetch_message_by_id(
-        &self,
-        message_id: &Uuid,
-        room_id: &Uuid,
-    ) -> Result<MessageEntity, Error> {
+    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<MessageEntity, Error> {
         let message = sqlx::query_as!(
             MessageEntity,
             r#"
@@ -85,7 +79,7 @@ impl ChatRepository {
             message_id,
             room_id
         )
-        .fetch_one(&self.pool)
+        .fetch_one(self.db.pool())
         .await?;
         Ok(message)
     }
@@ -94,9 +88,7 @@ impl ChatRepository {
     where
         E: sqlx::Executor<'e, Database = Postgres>,
     {
-        sqlx::query!("DELETE FROM chat_message WHERE chat_room_id = $1", room_id)
-            .execute(exec)
-            .await?;
+        sqlx::query!("DELETE FROM chat_message WHERE chat_room_id = $1", room_id).execute(exec).await?;
         Ok(())
     }
 }

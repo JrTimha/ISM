@@ -1,30 +1,22 @@
-use crate::users::model::{
-    RelationshipState, User, UserPaginationCursor, UserRelationshipEntity,
-    UserWithRelationshipEntity,
-};
-use sqlx::{Error, PgConnection, Pool, Postgres, Transaction, query_as};
+use crate::core::{Database, Repository};
+use crate::users::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
+use sqlx::{Error, PgConnection, query_as};
 use uuid::Uuid;
 
+/// User profiles and the symmetric `user_relationship` table.
 #[derive(Clone)]
 pub struct UserRepository {
-    pool: Pool<Postgres>,
+    db: Database,
+}
+
+impl Repository for UserRepository {
+    fn new(db: &Database) -> Self {
+        Self { db: db.clone() }
+    }
 }
 
 impl UserRepository {
-    pub fn new(pool: Pool<Postgres>) -> Self {
-        UserRepository { pool }
-    }
-
-    pub async fn start_transaction(&self) -> Result<Transaction<'_, Postgres>, Error> {
-        let tx = self.pool.begin().await?;
-        Ok(tx)
-    }
-
-    pub async fn find_user_by_id_with_relationship_type(
-        &self,
-        client_id: &Uuid,
-        searched_user_id: &Uuid,
-    ) -> Result<Option<UserWithRelationshipEntity>, Error> {
+    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationshipEntity>, Error> {
         let user = query_as::<_, UserWithRelationshipEntity>(
             r#"SELECT
                 r_user.id,
@@ -44,11 +36,12 @@ impl UserRepository {
                     (user_relationship.user_a_id = r_user.id AND user_relationship.user_b_id = $2) OR
                     (user_relationship.user_b_id = r_user.id AND user_relationship.user_a_id = $2)
                 WHERE r_user.id = $1 AND r_user.id <> $2
-            "#
+            "#,
         )
-            .bind(searched_user_id)
-            .bind(client_id)
-            .fetch_optional(&self.pool).await?;
+        .bind(searched_user_id)
+        .bind(client_id)
+        .fetch_optional(self.db.pool())
+        .await?;
         Ok(user)
     }
 
@@ -69,7 +62,7 @@ impl UserRepository {
                 "#,
             user_id
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(self.db.pool())
         .await?;
         Ok(user)
     }
@@ -105,14 +98,15 @@ impl UserRepository {
                     AND ($3 IS NULL OR (r_user.display_name, r_user.id) > ($3, $4))
                 ORDER BY r_user.display_name ASC, r_user.id ASC
                 LIMIT $5
-            "#
+            "#,
         )
-            .bind(username)
-            .bind(client_id)
-            .bind(cursor.last_seen_name)
-            .bind(cursor.last_seen_id)
-            .bind(page_size)
-            .fetch_all(&self.pool).await?;
+        .bind(username)
+        .bind(client_id)
+        .bind(cursor.last_seen_name)
+        .bind(cursor.last_seen_id)
+        .bind(page_size)
+        .fetch_all(self.db.pool())
+        .await?;
         Ok(user)
     }
 
@@ -152,7 +146,7 @@ impl UserRepository {
         .bind(cursor.last_seen_name)
         .bind(cursor.last_seen_id)
         .bind(limit)
-        .fetch_all(&self.pool)
+        .fetch_all(self.db.pool())
         .await?;
         Ok(requests)
     }
@@ -203,17 +197,12 @@ impl UserRepository {
         .bind(cursor.last_seen_name)
         .bind(cursor.last_seen_id)
         .bind(limit)
-        .fetch_all(&self.pool)
+        .fetch_all(self.db.pool())
         .await?;
         Ok(users)
     }
 
-    pub async fn search_for_relationship(
-        &self,
-        conn: &mut PgConnection,
-        client_id: &Uuid,
-        other_id: &Uuid,
-    ) -> Result<Option<UserRelationshipEntity>, Error> {
+    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationshipEntity>, Error> {
         let relationship = sqlx::query_as!(
             UserRelationshipEntity,
             r#"
@@ -228,25 +217,25 @@ impl UserRepository {
             "#,
             client_id,
             other_id
-        ).fetch_optional(&mut *conn).await?;
+        )
+        .fetch_optional(&mut *conn)
+        .await?;
         Ok(relationship)
     }
 
-    pub async fn insert_relationship(
-        &self,
-        conn: &mut PgConnection,
-        user_relationship: &UserRelationshipEntity,
-    ) -> Result<(), Error> {
+    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipEntity) -> Result<(), Error> {
         sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
                 VALUES ($1, $2, $3, $4)
             "#,
-                user_relationship.user_a_id,
-                user_relationship.user_b_id,
-                user_relationship.state.to_string(),
-                user_relationship.relationship_change_timestamp
-            ).execute(&mut *conn).await?;
+            user_relationship.user_a_id,
+            user_relationship.user_b_id,
+            user_relationship.state.to_string(),
+            user_relationship.relationship_change_timestamp
+        )
+        .execute(&mut *conn)
+        .await?;
         Ok(())
     }
 
@@ -278,11 +267,7 @@ impl UserRepository {
         Ok(entity)
     }
 
-    pub async fn delete_relationship_state(
-        &self,
-        conn: &mut PgConnection,
-        user_relationship: UserRelationshipEntity,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn delete_relationship_state(&self, conn: &mut PgConnection, user_relationship: UserRelationshipEntity) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"
                 DELETE FROM user_relationship
@@ -296,11 +281,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn increment_friends_count(
-        &self,
-        tx: &mut PgConnection,
-        user_id: &Uuid,
-    ) -> Result<(), Error> {
+    pub async fn increment_friends_count(&self, tx: &mut PgConnection, user_id: &Uuid) -> Result<(), Error> {
         sqlx::query!(
             r#"
                 UPDATE app_user
@@ -314,11 +295,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn decrement_friends_count(
-        &self,
-        tx: &mut PgConnection,
-        user_id: &Uuid,
-    ) -> Result<(), Error> {
+    pub async fn decrement_friends_count(&self, tx: &mut PgConnection, user_id: &Uuid) -> Result<(), Error> {
         sqlx::query!(
             r#"
                 UPDATE app_user
@@ -332,11 +309,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn find_blocked_relationships(
-        &self,
-        client_id: &Uuid,
-        users_to_validate: &Vec<Uuid>,
-    ) -> Result<Vec<Uuid>, Error> {
+    pub async fn find_blocked_relationships(&self, client_id: &Uuid, users_to_validate: &Vec<Uuid>) -> Result<Vec<Uuid>, Error> {
         let blocked_states_str: [&str; 3] = ["A_BLOCKED", "B_BLOCKED", "ALL_BLOCKED"];
         let blocked_states_string_vec: Vec<String> = blocked_states_str.map(String::from).to_vec();
 
@@ -352,7 +325,7 @@ impl UserRepository {
             users_to_validate,
             &blocked_states_string_vec
         )
-        .fetch_all(&self.pool)
+        .fetch_all(self.db.pool())
         .await?;
         let blocked_users: Vec<Uuid> = blocked_users_optional.into_iter().flatten().collect();
         Ok(blocked_users)

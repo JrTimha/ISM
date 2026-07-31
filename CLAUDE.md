@@ -60,36 +60,90 @@ Set `DATABASE_URL` in `.env` for the sqlx CLI. The `.sqlx/` directory holds pre-
 
 ### Layers
 
+**The layer contract is `.claude/rules/architecture.md` — read it before adding a domain, a
+service, or a repository.** Summary:
+
 ```
 Routes (router.rs)
   ↓ Keycloak JWT middleware → injects KeycloakToken into request extensions
-Handlers (rooms/handler.rs, messaging/handler.rs, users/handler.rs)
+Handlers (<domain>/handler.rs)          State<XService> via FromRef; syntax validation only
   ↓
-Services (room_service.rs, timeline_service.rs, message_service.rs, user_service.rs)
+Services (<domain>/service.rs | service/)  Clone structs, constructor-injected dependencies
   ↓
-Repositories (room_repository.rs, chat_repository.rs, user_repository.rs) ─── PostgreSQL (SQLx)
-BroadcastChannel ──────────── SSE / WebSocket senders (in-memory HashMap, OnceCell singleton)
+Repositories (<domain>/repository.rs)    hold core::Database, nothing else ─── PostgreSQL (SQLx)
+
+Arc<BroadcastChannel> ── injected into services and background tasks (no global)
 ```
+
+Per-domain file layout is fixed: `mod.rs`, `routes.rs`, `handler.rs`, `repository.rs`, `model.rs`,
+and `service.rs` (single service) or `service/` (several).
+
+Two convention traits in `core/traits.rs` — `Repository` and `Service` — pin the construction shape
+project-wide. They are static: no `dyn`, no `async_trait`. There are deliberately **no**
+`trait UserService` / `trait UserRepository` abstractions; repositories are tested with
+`#[sqlx::test]` against a real database, and services are constructible in tests because every
+dependency arrives through `new(...)`.
 
 ### AppState (`core/app_state.rs`)
 
-Singleton initialized at startup, shared as `Arc<AppState>` across all handlers. Fields:
+Holds **services only**, built once by `AppStateBuilder` and shared as `Arc<AppState>`.
 
-| Field | Type | Purpose |
-|---|---|---|
-| `env` | `ISMConfig` | Full config snapshot |
-| `room_repository` | `RoomRepository` | Rooms, participants, read states |
-| `user_repository` | `UserRepository` | Users, relationships |
-| `chat_repository` | `ChatRepository` | Chat messages |
-| `cache` | `Arc<dyn Cache>` | Redis or `NoOpCache` fallback |
-| `s3_bucket` | `ObjectStorage` | MinIO/S3 media uploads |
+| Field | Type |
+|---|---|
+| `env` | `ISMConfig` |
+| `room_service` | `RoomService` |
+| `share_service` | `ShareService` |
+| `timeline_service` | `TimelineService` |
+| `message_service` | `MessageService` |
+| `notification_service` | `NotificationService` |
+| `user_service` | `UserService` |
 
-PostgreSQL pool (max 20 connections) is shared across all three repositories.
+Handlers never receive `AppState`. Each service has a `FromRef<Arc<AppState>>` impl, so a handler
+takes `State<RoomService>` and its signature states exactly what it can reach.
+
+### Composition root (`core/builder.rs`)
+
+`AppStateBuilder` is the only place that constructs anything:
+
+```rust
+let Bootstrap { state, tasks } = AppStateBuilder::new(config)
+    .with_cache(cache)        // optional overrides, for tests
+    .build()
+    .await?;                  // Result<_, StartupError> — no boot panics
+```
+
+Build order is the proof that the service graph is a DAG (Rust has no GC, so an `Arc` cycle would
+leak): `Database` → `Cache` → `PushNotificationProducer` → `Arc<BroadcastChannel>` → spawn the
+Redis subscriber → `ObjectStorage` → repositories → `RoomNotifier` → tier-1 services →
+`UserService`.
+
+`Bootstrap` also carries what shutdown needs: the spawned `JoinHandle`s and the `Database`.
+`Bootstrap::shutdown()` aborts the tasks, then closes the pool — **always call it, including on the
+error path**. Without `Database::close()` the pool's `Drop` only closes the client side and
+PostgreSQL holds the backends until its TCP keepalive expires, which a restart loop turns into a
+`max_connections` outage.
+
+The single PostgreSQL pool (max 20 connections) lives in `core::Database` and is shared by cloning;
+`Database::begin()` is the only way to a transaction, and only services call it.
 
 ### Configuration (`core/config.rs`)
 
-Layered TOML loading: `default.config.toml` → `{mode}.config.toml` → environment variables.
-Mode via `ISM_MODE` env var (default: `development`).
+`ISMConfig::new()` takes no arguments — it reads `ISM_MODE` itself (default: `development`),
+because choosing the mode *is* part of loading the configuration. Layered TOML loading:
+`default.config.toml` → `{mode}.config.toml` → `ISM_*` environment variables. The resolved mode is
+kept on the config as `run_mode`, so nothing else re-reads `ISM_MODE` with its own copy of the
+default.
+
+**`config.rs` is the only module that reads the environment.** Every field is reachable through the
+env layer, flat ones included — `ISM_LOG_LEVEL` sets `log_level`, `ISM_CORS_ORIGIN` sets
+`cors_origin` — so no other module should ever call `env::var("ISM_…")`. An env var that is set but
+empty is treated as unset (`ignore_empty`), since container tooling forwards undeclared variables as
+empty strings. The mapping is covered by tests in `core/config.rs`.
+
+Tracing is deliberately **not** initialised by `ISMConfig::new()`: installing a subscriber is a
+process-global side effect that panics on a second call, and a constructor that mutates global
+state is the pattern this architecture removed from `AppState::new` and `RedisCache::new`. `main`
+calls `init_tracing(&config.log_level)` after loading the config.
 
 Config sections:
 - `room_db_config` — PostgreSQL connection (host, port, user, password, db_name)
@@ -100,23 +154,35 @@ Config sections:
 - `use_kafka` — bool, enables Kafka push notification producer
 - `cors_origin` — allowed CORS origin
 
-Env var override format: `ISM_ROOM_DB_CONFIG__DB_HOST=...`
+Env var override format: `ISM_ROOM_DB_CONFIG__DB_HOST=...` — `__` descends into a section, a
+single `_` stays part of the field name.
 
 ### Real-time Broadcasting (`broadcast/`)
 
-`BroadcastChannel` is a global singleton (`OnceCell<Arc<BroadcastChannel>>`). It holds a `RwLock<HashMap<Uuid, Sender<Notification>>>` — one Tokio broadcast channel per connected user.
+`BroadcastChannel` holds a `RwLock<HashMap<Uuid, Sender<Notification>>>` — one Tokio broadcast
+channel per connected user. It is **not a global**: `AppStateBuilder` builds one and injects
+`Arc<BroadcastChannel>` into the services and tasks that need it. See `.claude/rules/broadcast.md`.
 
-**API**:
+**API** — prefer the `notify*` methods, which take the event and build the envelope internally:
 ```rust
-BroadcastChannel::get().send_event(notification, &user_id).await;
-BroadcastChannel::get().send_event_to_all(user_ids, notification).await;
-BroadcastChannel::get().subscribe_to_user_events(user_id).await; // → Receiver
-BroadcastChannel::get().unsubscribe(user_id).await;
+bus.notify(&user_id, FriendRequestReceived { from_user }).await;
+bus.notify_all(user_ids, event).await;
+bus.subscribe_to_user_events(user_id).await; // → Receiver
+bus.unsubscribe(user_id).await;
+
+// rooms/notifier.rs — resolves membership (cache-first), then fans out
+notifier.notify_room(&room_id, event).await?;
+notifier.notify_users(explicit_ids, event).await;
+notifier.invalidate(&room_id).await?;   // after any membership change
 ```
+
+`notify!` / `notify_user!` / `notify_room!` wrap these for fire-and-forget calls; they capture the
+caller's `module_path!()`/`line!()` for the failure log, which a function cannot do.
 
 **Rules**:
 - Always broadcast **after** a successful DB write, never before.
-- Build notifications with `Notification::new(body)`; `seq` is assigned per-user during delivery, not at construction.
+- Invalidate the cached room context **before** broadcasting a membership change.
+- Never construct `Notification` directly; `seq` is assigned per-user during delivery.
 - `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in a per-user Redis Stream (`user_notifications:{id}`, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N` — no background cleanup), and fall back to Kafka push notifications for offline users.
 - **Ephemeral** events (`NotificationEvent::is_ephemeral()`) get no `seq` and are never cached — live-only (e.g. `Resync`, future typing indicators).
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
@@ -140,7 +206,7 @@ BroadcastChannel::get().unsubscribe(user_id).await;
 
 All data lives in PostgreSQL. SQLx macros provide compile-time query type-checking against `.sqlx/` metadata.
 
-For function signatures involving transactions or shared executors, follow `docs/sqlx-executor-pattern.md` — this documents when to use `impl Executor<'_, Database = Postgres>` vs `&PgPool` vs `&mut PgTransaction`.
+For function signatures involving transactions or shared executors, follow `.docs/sqlx-executor-pattern.md` — this documents when to use `impl Executor<'_, Database = Postgres>` vs `&mut PgConnection`, and why the **service** opens the transaction (`Database::begin()`) rather than the repository.
 
 ### Authentication (`auth/`)
 
@@ -244,24 +310,28 @@ All handlers return `AppResponse<Json<T>>` (= `Result<Json<T>, AppError>`, `core
 
 ## Development Patterns
 
-**New endpoint**: handler in `handler.rs` → service logic → repository query → register in `routes.rs`. No business logic in handlers.
+**New endpoint**: handler in `handler.rs` (taking `State<XService>`) → service logic → repository query → register in `routes.rs`. No business logic in handlers.
+
+**New service**: `Clone` struct in `<domain>/service.rs` or `<domain>/service/<name>.rs`, `impl Service`, dependencies through `new(...)`, wire it in `AppStateBuilder::build()` **after** everything it depends on, add the field to `AppState` and its `FromRef` entry.
+
+**New repository**: `<domain>/repository.rs`, `impl Repository`, holds only `Database`, constructed in the builder with `XRepository::new(&database)`.
 
 **New SQL query**: write query with `sqlx::query!` / `sqlx::query_as!`, run `cargo sqlx prepare`, commit `.sqlx/`.
 
-**SQLx executor signatures**: read `docs/sqlx-executor-pattern.md` before writing any repository function that needs to participate in a transaction.
+**SQLx executor signatures**: read `.docs/sqlx-executor-pattern.md` before writing any repository function that needs to participate in a transaction.
 
-**New message type**: add to `MsgType` and `MessageBody` enums in `messaging/model.rs`, handle in `message_service.rs`, update `LastMessagePreviewText` if needed for room previews.
+**New message type**: add to `MsgType` and `MessageBody` enums in `messaging/model.rs`, handle in `messaging/service/message.rs`, update `LastMessagePreviewText` if needed for room previews.
 
-**New broadcast event**: add variant to `NotificationEvent` in `broadcast/notification.rs`, broadcast via `BroadcastChannel::get().send_event(...)` after the DB write, update all `match` arms.
+**New broadcast event**: add variant to `NotificationEvent` in `broadcast/notification.rs`, broadcast through the injected bus or `RoomNotifier` after the DB write, update all `match` arms.
 
 **New cursor type**: implement `Serialize + Deserialize + Default` on a struct, use `encode_cursor` / `decode_cursor` from `core/cursor.rs`, return `CursorResults<T>` from the endpoint.
 
 **Broadcasting after writes**:
 ```rust
-let bc = BroadcastChannel::get();
-bc.send_event_to_all(member_ids, Notification::new(
+self.notifier.notify_users(
+    member_ids,
     NotificationEvent::ChatMessage { message, room_preview_text, sender },
-)).await;
+).await;
 ```
 
 ## Production Deployment
@@ -270,3 +340,7 @@ bc.send_event_to_all(member_ids, Notification::new(
 2. Mount `production.config.toml` with real credentials; set `ISM_MODE=production`
 3. Run `sqlx migrate run` before starting ISM
 4. Health check: `GET /health` → 200
+
+A failed startup exits non-zero with a `StartupError` message (unreachable database, missing S3
+bucket, bad Redis URL) instead of a panic backtrace — the startup log lists each wired service by
+`Service::NAME`, so a short log tells you how far boot got.

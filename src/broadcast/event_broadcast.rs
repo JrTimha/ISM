@@ -3,12 +3,10 @@ use crate::cache::redis_cache::{Cache, ReplayResult};
 use crate::kafka::{EventProducer, PushNotificationProducer};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tokio::sync::broadcast::{Receiver, Sender, channel};
-use tokio::sync::{OnceCell, RwLock};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
-
-static BROADCAST_INSTANCE: OnceCell<Arc<BroadcastChannel>> = OnceCell::const_new();
 
 /// A `BroadcastChannel` struct is responsible for managing a collection of channels that are used
 /// for broadcasting notifications to subscribers. Each channel is uniquely identified by a `Uuid`,
@@ -38,26 +36,13 @@ pub struct BroadcastChannel {
 type UserConnectionMap = RwLock<HashMap<Uuid, Sender<Notification>>>;
 
 impl BroadcastChannel {
-    pub async fn init(cache: Arc<dyn Cache>, producer: PushNotificationProducer) {
-        BROADCAST_INSTANCE
-            .get_or_init(|| async {
-                let channel = Arc::new(BroadcastChannel::new(cache, producer));
-                info!("BroadcastChannel initialized.");
-                channel
-            })
-            .await;
-    }
-
-    pub fn get() -> &'static Arc<BroadcastChannel> {
-        match BROADCAST_INSTANCE.get() {
-            None => {
-                panic!("BroadcastChannel is not initialized! Call init()!");
-            }
-            Some(instance) => instance,
-        }
-    }
-
-    fn new(cache: Arc<dyn Cache>, producer: PushNotificationProducer) -> Self {
+    /// Builds the bus.
+    ///
+    /// Called once, by [`AppStateBuilder`](crate::core::AppStateBuilder), which then hands an
+    /// `Arc<BroadcastChannel>` to every service and background task that needs it. There is no
+    /// global: a task gets its own `Arc` clone moved in at the `tokio::spawn` site, which keeps
+    /// the dependency visible and lets a test build a bus of its own.
+    pub fn new(cache: Arc<dyn Cache>, producer: PushNotificationProducer) -> Self {
         BroadcastChannel {
             channel: RwLock::new(HashMap::new()),
             push_notification_producer: producer,
@@ -67,28 +52,39 @@ impl BroadcastChannel {
 
     pub async fn subscribe_to_user_events(&self, user_id: Uuid) -> Receiver<Notification> {
         let mut lock = self.channel.write().await;
-        let sender = lock
-            .entry(user_id)
-            .or_insert_with(|| channel::<Notification>(100).0);
+        let sender = lock.entry(user_id).or_insert_with(|| channel::<Notification>(100).0);
         sender.subscribe()
     }
 
     /// Replay durable notifications for a user with sequence greater than `last_seq`. Used by
     /// the SSE/WebSocket handshake so a reconnecting client can catch up without losing events.
-    pub async fn replay_since(
-        &self,
-        user_id: &Uuid,
-        last_seq: u64,
-    ) -> redis::RedisResult<ReplayResult> {
-        self.cache
-            .get_notifications_since_seq(user_id, last_seq)
-            .await
+    pub async fn replay_since(&self, user_id: &Uuid, last_seq: u64) -> redis::RedisResult<ReplayResult> {
+        self.cache.get_notifications_since_seq(user_id, last_seq).await
     }
 
+    /// Sends one event to one user.
+    ///
+    /// Prefer this over [`Self::send_event`]: taking the [`NotificationEvent`] rather than a
+    /// pre-built [`Notification`] means the envelope is constructed in exactly one place, so the
+    /// version field and the unset `seq` cannot be got wrong at a call site.
+    pub async fn notify(&self, to_user: &Uuid, event: NotificationEvent) {
+        self.deliver_to_user(to_user, Notification::new(event)).await;
+    }
+
+    /// Sends one event to many users. Each recipient gets its own `seq` — see
+    /// [`Self::send_event_to_all`].
+    pub async fn notify_all(&self, user_ids: Vec<Uuid>, event: NotificationEvent) {
+        self.send_event_to_all(user_ids, Notification::new(event)).await;
+    }
+
+    /// Sends an already-built envelope. Used when the envelope did not originate here — the Redis
+    /// subscriber forwards notifications that were serialized by another node and must keep their
+    /// original `createdAt`. Everywhere else, prefer [`Self::notify`].
     pub async fn send_event(&self, notification: Notification, to_user: &Uuid) {
         self.deliver_to_user(to_user, notification).await;
     }
 
+    /// Fan-out counterpart of [`Self::send_event`]. Prefer [`Self::notify_all`].
     pub async fn send_event_to_all(&self, user_ids: Vec<Uuid>, notification: Notification) {
         // A sequence number is per-user, so every recipient gets its own clone with its own
         // seq rather than a single shared notification.
@@ -110,11 +106,7 @@ impl BroadcastChannel {
                 // Sequencing available (Redis): tag the event and cache it for replay.
                 Ok(Some(seq)) => {
                     notification.seq = Some(seq);
-                    if let Err(error) = self
-                        .cache
-                        .add_notification_for_user(user_id, &notification)
-                        .await
-                    {
+                    if let Err(error) = self.cache.add_notification_for_user(user_id, &notification).await {
                         error!(%user_id, error = %error, "Failed to cache notification");
                     }
                 }
@@ -148,31 +140,20 @@ impl BroadcastChannel {
         };
 
         if !delivered && !ephemeral {
-            self.send_undeliverable_notifications(notification, vec![*user_id])
-                .await;
+            self.send_undeliverable_notifications(notification, vec![*user_id]).await;
         }
     }
 
-    async fn send_undeliverable_notifications(
-        &self,
-        notification: Notification,
-        to_user: Vec<Uuid>,
-    ) {
+    async fn send_undeliverable_notifications(&self, notification: Notification, to_user: Vec<Uuid>) {
         let should_send = matches!(
             //Only sends push notifications for these notification types, add more if needed
             notification.body,
-            NotificationEvent::ChatMessage { .. }
-                | NotificationEvent::FriendRequestReceived { .. }
-                | NotificationEvent::NewRoom { .. }
+            NotificationEvent::ChatMessage { .. } | NotificationEvent::FriendRequestReceived { .. } | NotificationEvent::NewRoom { .. }
         );
 
         if should_send {
             let recipients = to_user.len();
-            if let Err(error) = self
-                .push_notification_producer
-                .send_notification(notification, to_user)
-                .await
-            {
+            if let Err(error) = self.push_notification_producer.send_notification(notification, to_user).await {
                 error!(recipients, error = %error, "Failed to send push notification");
             }
         }
@@ -249,11 +230,7 @@ mod tests {
             let seqs = self.sequences.lock().unwrap();
             Ok(Some(seqs.get(user_id).copied().unwrap_or(0)))
         }
-        async fn get_notifications_since_seq(
-            &self,
-            user_id: &Uuid,
-            last_seq: u64,
-        ) -> RedisResult<ReplayResult> {
+        async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult> {
             let cached = self.cached.lock().unwrap();
             let events = cached
                 .iter()
@@ -262,50 +239,34 @@ mod tests {
                 .collect();
             Ok(ReplayResult::Events(events))
         }
-        async fn add_notification_for_user(
-            &self,
-            user_id: &Uuid,
-            notification: &Notification,
-        ) -> RedisResult<()> {
-            self.cached
-                .lock()
-                .unwrap()
-                .push((*user_id, notification.clone()));
+        async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()> {
+            self.cached.lock().unwrap().push((*user_id, notification.clone()));
             Ok(())
         }
         async fn get_room_context(&self, _room_id: &Uuid) -> RedisResult<Option<RoomContext>> {
             Ok(None)
         }
-        async fn set_room_context(
-            &self,
-            _room_id: &Uuid,
-            _context: &RoomContext,
-        ) -> RedisResult<()> {
+        async fn set_room_context(&self, _room_id: &Uuid, _context: &RoomContext) -> RedisResult<()> {
             Ok(())
         }
         async fn invalidate_room_context(&self, _room_id: &Uuid) -> RedisResult<()> {
             Ok(())
         }
-        async fn publish_notification(
-            &self,
-            _notification: Notification,
-            _channel_name: &String,
-        ) -> RedisResult<()> {
+        async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
             Ok(())
         }
     }
 
     #[tokio::test]
     async fn send_event_to_subscribed_user_delivers_notification() {
-        // initialize broadcast channel singleton with NoOpCache and logger producer
+        // A bus of its own, with a NoOpCache and the logging producer. This used to initialise a
+        // process-wide singleton, which meant the two tests in this module shared one instance and
+        // whichever ran first decided its cache.
         let cache: Arc<dyn Cache> = Arc::new(NoOpCache);
-        BroadcastChannel::init(
+        let bc = BroadcastChannel::new(
             cache,
-            PushNotificationProducer::new(false, empty_kafka_cfg()),
-        )
-        .await;
-
-        let bc = BroadcastChannel::get();
+            PushNotificationProducer::connect(false, empty_kafka_cfg()).expect("logging producer never fails"),
+        );
 
         let user_id = uuid::Uuid::new_v4();
         // subscribe
@@ -317,8 +278,7 @@ mod tests {
         });
 
         // send to all (only this user)
-        bc.send_event_to_all(vec![user_id], notification.clone())
-            .await;
+        bc.send_event_to_all(vec![user_id], notification.clone()).await;
 
         // receive
         let received = rx.recv().await.expect("Should receive notification");
@@ -335,7 +295,7 @@ mod tests {
         let cache = Arc::new(MockCache::new());
         let bc = BroadcastChannel::new(
             cache.clone(),
-            PushNotificationProducer::new(false, empty_kafka_cfg()),
+            PushNotificationProducer::connect(false, empty_kafka_cfg()).expect("logging producer never fails"),
         );
 
         let user_a = Uuid::new_v4();
@@ -375,13 +335,8 @@ mod tests {
         assert_eq!(rx_b.recv().await.expect("b1").seq, Some(1));
 
         // Ephemeral event: no sequence number, never cached.
-        bc.send_event(
-            Notification::new(NotificationEvent::Resync {
-                reason: "too old".into(),
-            }),
-            &user_a,
-        )
-        .await;
+        bc.send_event(Notification::new(NotificationEvent::Resync { reason: "too old".into() }), &user_a)
+            .await;
         assert_eq!(rx_a.recv().await.expect("resync").seq, None);
 
         // Only the 3 durable events were cached; the ephemeral one was not.

@@ -71,7 +71,7 @@ distinct `seq` for each recipient — there is no shared sequence across users.
     structure, there is no separate index that can dangle, so this is the only
     resync trigger.
 
-## 6. Connection Handshake (`src/messaging/notifications.rs`)
+## 6. Connection Handshake (`src/messaging/handler.rs` + `src/messaging/service/notification.rs`)
 
 1. **Subscribe first**, then read the replay (so events produced during the
    handshake are buffered, not lost).

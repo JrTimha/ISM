@@ -21,7 +21,7 @@
 //! response an attack produced) and cargo swallows that for passing tests otherwise.
 //!
 //! The target is resolved the same way the server resolves its own listen address — through
-//! `ISMConfig::new(ISM_MODE)`, so it follows `default.config.toml`, the mode file and the `ISM_*`
+//! `ISMConfig::new()`, so it follows `default.config.toml`, the mode file and the `ISM_*`
 //! environment overrides. `ISM_ATTACK_BASE_URL` overrides it outright.
 //!
 //! If ISM or Keycloak is not reachable, every test **skips** rather than fails, so `cargo test`
@@ -126,11 +126,10 @@ async fn target() -> Option<&'static Target> {
 }
 
 async fn discover_target() -> Option<Target> {
-    let mode = std::env::var("ISM_MODE").unwrap_or_else(|_| String::from("development"));
-    let config = match ISMConfig::new(&mode) {
+    let config = match ISMConfig::new() {
         Ok(config) => config,
         Err(err) => {
-            println!("Could not load {mode}.config.toml from the package root: {err}");
+            println!("Could not load the configuration from the package root: {err}");
             return None;
         }
     };

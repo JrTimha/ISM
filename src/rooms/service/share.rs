@@ -1,10 +1,10 @@
-use crate::core::AppState;
+use crate::core::Service;
 use crate::core::cursor::{CursorResults, encode_cursor};
 use crate::core::errors::AppError;
+use crate::rooms::RoomRepository;
 use crate::rooms::room::RoomType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Row of the *active* share-target section: a room the client can already send to —
@@ -57,11 +57,7 @@ pub enum ShareTargetRef {
 
 impl ShareTarget {
     fn from_active(row: ActiveShareRow) -> Self {
-        let room_type = if row.is_group {
-            RoomType::Group
-        } else {
-            RoomType::Single
-        };
+        let room_type = if row.is_group { RoomType::Group } else { RoomType::Single };
         ShareTarget {
             name: row.name,
             image_url: row.image_url,
@@ -76,9 +72,7 @@ impl ShareTarget {
         ShareTarget {
             name: Some(row.name),
             image_url: row.image_url,
-            target: ShareTargetRef::User {
-                user_id: row.user_id,
-            },
+            target: ShareTargetRef::User { user_id: row.user_id },
         }
     }
 }
@@ -108,9 +102,21 @@ pub struct ShareTargetCursor {
     pub last_id: Option<Uuid>,
 }
 
-pub struct ShareService;
+/// Builds the "share to chat" suggestion list.
+#[derive(Clone)]
+pub struct ShareService {
+    rooms: RoomRepository,
+}
+
+impl Service for ShareService {
+    const NAME: &'static str = "ShareService";
+}
 
 impl ShareService {
+    pub fn new(rooms: RoomRepository) -> Self {
+        Self { rooms }
+    }
+
     /// Builds one page of share targets by merging two sources into a single
     /// cursor-paginated list:
     /// 1. **Active** — group rooms + friends with an existing 1-1 room, ordered by
@@ -123,7 +129,7 @@ impl ShareService {
     /// records which one to resume. A boundary page may run both queries to fill up to
     /// `page_size`; all other pages run exactly one.
     pub async fn get_share_targets(
-        state: Arc<AppState>,
+        &self,
         client_id: Uuid,
         name_filter: Option<String>,
         cursor: ShareTargetCursor,
@@ -134,15 +140,9 @@ impl ShareService {
 
         // ── Phase 1: active section (rooms with recent activity) ──────────────
         if cursor.phase == SharePhase::Active {
-            let mut rows = state
-                .room_repository
-                .active_share_targets(
-                    &client_id,
-                    name,
-                    cursor.last_active_at,
-                    cursor.last_id,
-                    (page_size + 1) as i64,
-                )
+            let mut rows = self
+                .rooms
+                .active_share_targets(&client_id, name, cursor.last_active_at, cursor.last_id, (page_size + 1) as i64)
                 .await?;
 
             if rows.len() > page_size {
@@ -182,15 +182,9 @@ impl ShareService {
             (None, None)
         };
 
-        let mut rows = state
-            .room_repository
-            .inactive_share_targets(
-                &client_id,
-                name,
-                cursor_name,
-                cursor_id,
-                (remaining + 1) as i64,
-            )
+        let mut rows = self
+            .rooms
+            .inactive_share_targets(&client_id, name, cursor_name, cursor_id, (remaining + 1) as i64)
             .await?;
 
         let next = if rows.len() > remaining {
@@ -209,15 +203,9 @@ impl ShareService {
         Self::encode(content, next)
     }
 
-    fn encode(
-        content: Vec<ShareTarget>,
-        next: Option<ShareTargetCursor>,
-    ) -> Result<CursorResults<ShareTarget>, AppError> {
+    fn encode(content: Vec<ShareTarget>, next: Option<ShareTargetCursor>) -> Result<CursorResults<ShareTarget>, AppError> {
         let cursor = match next {
-            Some(c) => Some(
-                encode_cursor(&c)
-                    .map_err(|e| AppError::Processing(format!("Cursor encoding failed: {e}")))?,
-            ),
+            Some(c) => Some(encode_cursor(&c).map_err(|e| AppError::Processing(format!("Cursor encoding failed: {e}")))?),
             None => None,
         };
         Ok(CursorResults { cursor, content })

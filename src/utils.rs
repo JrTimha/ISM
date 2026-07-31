@@ -1,35 +1,16 @@
-use crate::core::AppState;
-use crate::core::errors::AppError;
+//! Pure helpers with no dependencies of their own.
+//!
+//! Anything here must be a function of its arguments. `check_user_in_room` used to live in this
+//! module and reached into `AppState`'s room repository — which let handlers query the database
+//! through the back door. Room membership is now checked by the services that own the room, where
+//! it can be enforced for every caller rather than for the handlers that remembered to ask.
+
 use bytes::Bytes;
 use image::{GenericImageView, ImageError};
 use serde::Serializer;
 use std::io::Cursor;
-use std::sync::Arc;
-use uuid::Uuid;
 
-pub async fn check_user_in_room(
-    state: &Arc<AppState>,
-    user_id: &Uuid,
-    room_id: &Uuid,
-) -> Result<(), AppError> {
-    let is_in = state
-        .room_repository
-        .is_user_in_room(user_id, room_id)
-        .await?;
-    if is_in {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden(
-            "Invalid permissions to interact with this room".to_string(),
-        ))
-    }
-}
-
-pub fn crop_image_from_center(
-    data: &Bytes,
-    target_width: u32,
-    target_height: u32,
-) -> Result<Bytes, ImageError> {
+pub fn crop_image_from_center(data: &Bytes, target_width: u32, target_height: u32) -> Result<Bytes, ImageError> {
     let img = match image::load_from_memory(data) {
         Ok(img) => img,
         Err(err) => return Err(err),

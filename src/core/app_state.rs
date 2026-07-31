@@ -1,80 +1,55 @@
-use crate::broadcast::BroadcastChannel;
-use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
-use crate::core::ISMConfig;
-use crate::kafka::PushNotificationProducer;
-use crate::messaging::chat_repository::ChatRepository;
-use crate::object_storage::ObjectStorage;
-use crate::rooms::room_repository::RoomRepository;
-use crate::users::user_repository::UserRepository;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use std::sync::Arc;
-use tracing::info;
+//! The wired application, and how a handler gets a piece of it.
 
+use crate::core::ISMConfig;
+use crate::messaging::{MessageService, NotificationService};
+use crate::rooms::{RoomService, ShareService, TimelineService};
+use crate::users::UserService;
+use axum::extract::FromRef;
+use std::sync::Arc;
+
+/// Every service the API needs, built once by
+/// [`AppStateBuilder`](crate::core::AppStateBuilder) and shared for the process's lifetime.
+///
+/// It holds **services only**. It used to hold repositories, the cache and the S3 client as well,
+/// which made it a directory that any layer could look things up in — every service took an
+/// `Arc<AppState>` and could therefore reach anything. Now infrastructure is injected into the
+/// services that need it and stops there.
+///
+/// Handlers do not receive this type. They ask for the one service they use and axum's
+/// [`FromRef`] hands it over; see the impls below.
 #[derive(Clone)]
 pub struct AppState {
     pub env: ISMConfig,
-    pub room_repository: RoomRepository,
-    pub user_repository: UserRepository,
-    pub chat_repository: ChatRepository,
-    pub cache: Arc<dyn Cache>,
-    pub s3_bucket: ObjectStorage,
+    pub room_service: RoomService,
+    pub share_service: ShareService,
+    pub timeline_service: TimelineService,
+    pub message_service: MessageService,
+    pub notification_service: NotificationService,
+    pub user_service: UserService,
 }
 
-impl AppState {
-    pub async fn new(config: ISMConfig) -> Self {
-        //1: setting up the postgresql connection for all repositories:
-        let options = PgConnectOptions::new()
-            .host(&config.room_db_config.db_host)
-            .port(config.room_db_config.db_port)
-            .database(&config.room_db_config.db_name)
-            .username(&config.room_db_config.db_user)
-            .password(&config.room_db_config.db_password);
-
-        let pool = match PgPoolOptions::new()
-            .max_connections(20)
-            .connect_with(options)
-            .await
-        {
-            Ok(pool) => {
-                info!("Established connection to the PostgreSQL database.");
-                pool
+/// Lets a handler write `State<RoomService>` instead of `State<Arc<AppState>>`.
+///
+/// Each impl is a clone of one field, which is cheap: a service is a handful of `Arc` and pool
+/// handles. The win is in the signatures — a handler now declares the single dependency it has,
+/// so what it can touch is visible without reading its body.
+macro_rules! service_from_state {
+    ($($service:ty => $field:ident),+ $(,)?) => {
+        $(
+            impl FromRef<Arc<AppState>> for $service {
+                fn from_ref(state: &Arc<AppState>) -> Self {
+                    state.$field.clone()
+                }
             }
-            Err(err) => {
-                panic!("Failed to connect to the PostgreSQL database: {:?}", err);
-            }
-        };
+        )+
+    };
+}
 
-        //2: init redis cache, if present:
-        let cache: Arc<dyn Cache> = match config.redis_cache_url.clone() {
-            Some(url) => {
-                let cache = RedisCache::new(url)
-                    .await
-                    .unwrap_or_else(|err| panic!("Unable to init redis cache: {}", err));
-                Arc::new(cache)
-            }
-            None => {
-                info!("Redis is deactivated. Initializing NoOpCache...");
-                Arc::new(NoOpCache)
-            }
-        };
-
-        //3. init broadcaster channel:
-        BroadcastChannel::init(
-            cache.clone(),
-            PushNotificationProducer::new(config.use_kafka, config.kafka_config.clone()),
-        )
-        .await;
-
-        //4. init application state:
-        let state = Self {
-            env: config.clone(),
-            room_repository: RoomRepository::new(pool.clone()),
-            user_repository: UserRepository::new(pool.clone()),
-            chat_repository: ChatRepository::new(pool.clone()),
-            s3_bucket: ObjectStorage::new(&config.object_db_config).await,
-            cache: cache,
-        };
-
-        state
-    }
+service_from_state! {
+    RoomService => room_service,
+    ShareService => share_service,
+    TimelineService => timeline_service,
+    MessageService => message_service,
+    NotificationService => notification_service,
+    UserService => user_service,
 }

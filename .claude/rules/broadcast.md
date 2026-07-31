@@ -5,22 +5,72 @@ paths:
 
 # Broadcast Rules
 
-`BroadcastChannel` is a global singleton (`OnceCell<Arc<BroadcastChannel>>`). It holds a `RwLock<HashMap<Uuid, Sender<Notification>>>` — one Tokio broadcast channel per connected user.
+`BroadcastChannel` holds a `RwLock<HashMap<Uuid, Sender<Notification>>>` — one Tokio broadcast
+channel per connected user.
+
+**It is not a global.** `AppStateBuilder` constructs one and injects `Arc<BroadcastChannel>` into
+the services and background tasks that need it. The old `OnceCell` + `BroadcastChannel::get()` is
+gone: the accessor panicked when startup order was wrong, the dependency was invisible in every
+constructor, and no service could be built in a test without initialising a process-wide singleton.
+
+A background task gets its own `Arc` clone moved in at the spawn site — the ordinary Rust pattern,
+and it also yields a `JoinHandle` the global could never give you:
+
+```rust
+tokio::spawn({
+    let bus = bus.clone();
+    async move { bus.notify(&user_id, SystemMessage { .. }).await; }
+});
+```
 
 ## API
 
+Prefer the `notify*` methods: they take the **event** and build the envelope internally, so the
+version field and the unset `seq` cannot be got wrong at a call site.
+
 ```rust
-BroadcastChannel::get().send_event(notification, &user_id).await;
-BroadcastChannel::get().send_event_to_all(user_ids, notification).await;
-BroadcastChannel::get().subscribe_to_user_events(user_id).await; // → Receiver
-BroadcastChannel::get().unsubscribe(user_id).await;
+// services holding Arc<BroadcastChannel>
+bus.notify(&user_id, FriendRequestReceived { from_user }).await;
+bus.notify_all(user_ids, event).await;
+bus.subscribe_to_user_events(user_id).await;   // → Receiver
+bus.unsubscribe(user_id).await;
+
+// services holding a RoomNotifier (rooms/notifier.rs) — resolves membership, then fans out
+notifier.notify_room(&room_id, UserReadChat { user_id, room_id }).await?;
+notifier.notify_users(explicit_ids, event).await;   // audience is not the room's membership
+notifier.notify_user(&user_id, event).await;
+notifier.room_context(&room_id).await?;             // cache-first participant snapshot
+notifier.invalidate(&room_id).await?;               // after any membership change
 ```
+
+`send_event` / `send_event_to_all` take a pre-built `Notification` and remain for the one case that
+needs it: the Redis subscriber forwards envelopes serialized by another node, which must keep their
+original `createdAt`.
+
+### Macros
+
+`notify!`, `notify_user!` and `notify_room!` wrap the methods above for fire-and-forget calls. They
+exist for the one thing a function cannot do: `module_path!()` and `line!()` expand at the **call
+site**, so a failed broadcast is logged against the service that attempted it rather than against
+`event_broadcast.rs`.
+
+```rust
+notify_room!(self.notifier, &room_id, UserReadChat { user_id, room_id });
+notify!(self.bus, &receiver_id, FriendRequestReceived { from_user });
+```
+
+Use the **method** whenever the caller needs the `Result` — if a failed fan-out should abort the
+request, a macro that swallows it is in the way.
 
 ## Rules
 
 - Always broadcast **after** a successful DB write, never before.
-- Build notifications with `Notification::new(body)` — never construct the struct directly; it sets the envelope version and leaves `seq` unset (assigned per-user during delivery).
-- `send_event` / `send_event_to_all` deliver to a single user via `deliver_to_user`, which assigns a per-user sequence number, caches durable events in Redis, and falls back to Kafka push for offline users.
+- After a membership change, `notifier.invalidate(&room_id)` **before** broadcasting, so a listener
+  that reacts by reading the room cannot race a stale snapshot.
+- Never construct `Notification` directly. `Notification::new(body)` sets the envelope version and
+  leaves `seq` unset (assigned per-user during delivery); the `notify*` methods do it for you.
+- Delivery goes through `deliver_to_user`, which assigns a per-user sequence number, caches durable
+  events in Redis, and falls back to Kafka push for offline users.
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
 
 ## Envelope, Sequencing & Replay
@@ -49,8 +99,11 @@ Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdA
 ## Broadcast Pattern
 
 ```rust
-let bc = BroadcastChannel::get();
-bc.send_event_to_all(member_ids, Notification::new(
-    NotificationEvent::ChatMessage { message, room_preview_text, sender },
-)).await;
+// in a service holding a RoomNotifier
+self.notifier
+    .notify_users(
+        context.member_ids(),
+        NotificationEvent::ChatMessage { message, room_preview_text, sender },
+    )
+    .await;
 ```

@@ -1,9 +1,5 @@
 use crate::core::AppState;
-use crate::messaging::handler::handle_send_message;
-use crate::messaging::notifications::{
-    get_latest_notification_events, get_notification_cursor, stream_server_events,
-    websocket_server_events,
-};
+use crate::messaging::handler::{get_latest_notification_events, get_notification_cursor, handle_send_message, stream_server_events, websocket_server_events};
 use axum::Router;
 use axum::routing::{any, get, post};
 use std::sync::Arc;

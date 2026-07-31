@@ -14,7 +14,7 @@ Event name: $ARGUMENTS
 
 First read:
 - `src/broadcast/notification.rs` — existing `NotificationEvent` variants
-- `src/broadcast/mod.rs` — `BroadcastChannel` API
+- `.claude/rules/broadcast.md` — the bus API and the injection rules
 
 Then implement:
 
@@ -24,7 +24,10 @@ Then implement:
 
 ### 2. Broadcast call in the service
 - Show where in the service the broadcast call belongs
-- Use the pattern from `BroadcastChannel::get()` — either `send_event` or `send_event_to_all`
+- The bus is **injected**, never global: use the service's `self.notifier` (`RoomNotifier`) for
+  room-scoped events, or its `self.bus` (`Arc<BroadcastChannel>`) for a direct-to-user event
+- Prefer the `notify*` methods, which take the event and build the envelope themselves; the
+  `notify!` / `notify_room!` macros wrap them for fire-and-forget calls
 - Always broadcast **after** a successful DB write, never before
 
 ### 3. Final check

@@ -1,6 +1,8 @@
-pub mod chat_repository;
 mod handler;
-mod message_service;
 pub mod model;
-mod notifications;
+pub mod repository;
 pub mod routes;
+pub mod service;
+
+pub use repository::ChatRepository;
+pub use service::{MessageService, NotificationService};

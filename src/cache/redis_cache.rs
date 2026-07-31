@@ -1,11 +1,11 @@
 use crate::broadcast::Notification;
-use crate::cache::redis_subscriber::run_event_processor;
 use crate::cache::util::{CHAT_CHANNEL, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
 use crate::rooms::room_member::RoomContext;
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::aio::ConnectionManagerConfig;
-use redis::{AsyncTypedCommands, Client, ErrorKind, RedisError, RedisResult};
+use redis::{AsyncTypedCommands, Client, ErrorKind, PushInfo, RedisError, RedisResult};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::info;
 use uuid::Uuid;
 
@@ -51,27 +51,24 @@ pub trait Cache: Send + Sync {
     async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>>;
     /// Return all durable notifications for a user with sequence strictly greater than
     /// `last_seq`, or `ResyncNeeded` if part of that range has already fallen out of the cache.
-    async fn get_notifications_since_seq(
-        &self,
-        user_id: &Uuid,
-        last_seq: u64,
-    ) -> RedisResult<ReplayResult>;
-    async fn add_notification_for_user(
-        &self,
-        user_id: &Uuid,
-        notification: &Notification,
-    ) -> RedisResult<()>;
+    async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult>;
+    async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()>;
     async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>>;
     async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()>;
     async fn invalidate_room_context(&self, room_id: &Uuid) -> RedisResult<()>;
-    async fn publish_notification(
-        &self,
-        notification: Notification,
-        channel_name: &String,
-    ) -> RedisResult<()>;
+    async fn publish_notification(&self, notification: Notification, channel_name: &String) -> RedisResult<()>;
 }
 
 //docs: https://docs.rs/redis/latest/redis/
+///
+/// # Sharing
+///
+/// `RedisCache` is [`Clone`], and the [`ConnectionManager`] inside it is designed to be cloned:
+/// it multiplexes every clone over one connection and reconnects transparently. Cloning it is the
+/// intended way to share Redis access — every method here does `self.connection.clone()`.
+///
+/// Never reach for `Arc<Mutex<Connection>>`: that would funnel all Redis traffic through a single
+/// lock and serialize requests that the manager is built to pipeline.
 #[derive(Clone)]
 #[allow(unused)]
 pub struct RedisCache {
@@ -79,27 +76,38 @@ pub struct RedisCache {
     pub connection: ConnectionManager,
 }
 
+/// What [`RedisCache::new`] hands back so the caller can start the keyspace subscriber.
+///
+/// The connection is subscribed to `chat:*` here, but the task that *consumes* those push messages
+/// needs a [`BroadcastChannel`](crate::broadcast::BroadcastChannel) — which in turn needs the cache
+/// being constructed. Rather than resolve that ordering with a global, the constructor returns the
+/// receiver and lets the composition root spawn the task once both halves exist. See
+/// [`crate::core::AppStateBuilder`].
+pub struct RedisConnection {
+    pub cache: RedisCache,
+    pub push_messages: UnboundedReceiver<PushInfo>,
+}
+
 impl RedisCache {
-    pub async fn new(redis_url: String) -> RedisResult<Self> {
+    /// Connects to Redis and subscribes to the chat keyspace.
+    ///
+    /// Does **not** spawn anything: see [`RedisConnection`].
+    pub async fn connect(redis_url: String) -> RedisResult<RedisConnection> {
         let redis_client = Client::open(format!("{}/?protocol=3", redis_url))?;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let config = ConnectionManagerConfig::new()
-            .set_push_sender(tx)
-            .set_automatic_resubscription();
+        let config = ConnectionManagerConfig::new().set_push_sender(tx).set_automatic_resubscription();
 
-        let mut connection_manager = redis_client
-            .get_connection_manager_with_config(config)
-            .await?;
-        connection_manager
-            .psubscribe(format!("{}*", CHAT_CHANNEL))
-            .await?;
+        let mut connection_manager = redis_client.get_connection_manager_with_config(config).await?;
+        connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?;
 
         info!("Established connection to the redis cache.");
-        tokio::spawn(run_event_processor(rx, connection_manager.clone()));
-        Ok(Self {
-            client: redis_client,
-            connection: connection_manager,
+        Ok(RedisConnection {
+            cache: Self {
+                client: redis_client,
+                connection: connection_manager,
+            },
+            push_messages: rx,
         })
     }
 }
@@ -119,19 +127,11 @@ impl Cache for RedisCache {
     async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>> {
         let mut con = self.connection.clone();
         let key = format!("{}{}", USER_SEQUENCE, user_id);
-        let current = con
-            .get(&key)
-            .await?
-            .and_then(|raw: String| raw.parse().ok())
-            .unwrap_or(0);
+        let current = con.get(&key).await?.and_then(|raw: String| raw.parse().ok()).unwrap_or(0);
         Ok(Some(current))
     }
 
-    async fn get_notifications_since_seq(
-        &self,
-        user_id: &Uuid,
-        last_seq: u64,
-    ) -> RedisResult<ReplayResult> {
+    async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult> {
         let mut con = self.connection.clone();
         let stream_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
         let seq_key = format!("{}{}", USER_SEQUENCE, user_id);
@@ -141,11 +141,7 @@ impl Cache for RedisCache {
         // the cache was flushed) and the client references sequences that no longer exist. Silently
         // continuing would let the dedup high-water swallow every new (now lower-numbered) event,
         // so we force a resync instead.
-        let current_seq: u64 = con
-            .get(&seq_key)
-            .await?
-            .and_then(|raw: String| raw.parse().ok())
-            .unwrap_or(0);
+        let current_seq: u64 = con.get(&seq_key).await?.and_then(|raw: String| raw.parse().ok()).unwrap_or(0);
         if last_seq > current_seq {
             return Ok(ReplayResult::ResyncNeeded);
         }
@@ -196,11 +192,7 @@ impl Cache for RedisCache {
         Ok(ReplayResult::Events(notifications))
     }
 
-    async fn add_notification_for_user(
-        &self,
-        user_id: &Uuid,
-        notification: &Notification,
-    ) -> RedisResult<()> {
+    async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()> {
         let mut con = self.connection.clone();
 
         // Durable notifications must carry a sequence number; it becomes the stream entry ID
@@ -215,13 +207,8 @@ impl Cache for RedisCache {
             }
         };
 
-        let notification_json = serde_json::to_string(notification).map_err(|err| {
-            RedisError::from((
-                ErrorKind::Parse,
-                "Failed to serialize notification to JSON",
-                err.to_string(),
-            ))
-        })?;
+        let notification_json = serde_json::to_string(notification)
+            .map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize notification to JSON", err.to_string())))?;
 
         let stream_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
 
@@ -257,13 +244,7 @@ impl Cache for RedisCache {
     async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()> {
         let mut con = self.connection.clone();
         let key = format!("{}{}", ROOM_CONTEXT, room_id);
-        let json = serde_json::to_string(context).map_err(|err| {
-            RedisError::from((
-                ErrorKind::Parse,
-                "Failed to serialize RoomContext",
-                err.to_string(),
-            ))
-        })?;
+        let json = serde_json::to_string(context).map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize RoomContext", err.to_string())))?;
         con.set_ex(&key, json, 900).await?;
         Ok(())
     }
@@ -275,19 +256,10 @@ impl Cache for RedisCache {
         Ok(())
     }
 
-    async fn publish_notification(
-        &self,
-        notification: Notification,
-        channel_name: &String,
-    ) -> RedisResult<()> {
+    async fn publish_notification(&self, notification: Notification, channel_name: &String) -> RedisResult<()> {
         let mut con = self.connection.clone();
-        let notification_json = serde_json::to_string(&notification).map_err(|err| {
-            RedisError::from((
-                ErrorKind::Parse,
-                "Failed to serialize notification to JSON",
-                err.to_string(),
-            ))
-        })?;
+        let notification_json = serde_json::to_string(&notification)
+            .map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize notification to JSON", err.to_string())))?;
         con.publish(channel_name, notification_json).await?;
         Ok(())
     }
@@ -303,18 +275,10 @@ impl Cache for NoOpCache {
     async fn current_sequence(&self, _user_id: &Uuid) -> RedisResult<Option<u64>> {
         Ok(None)
     }
-    async fn get_notifications_since_seq(
-        &self,
-        _user_id: &Uuid,
-        _last_seq: u64,
-    ) -> RedisResult<ReplayResult> {
+    async fn get_notifications_since_seq(&self, _user_id: &Uuid, _last_seq: u64) -> RedisResult<ReplayResult> {
         Ok(ReplayResult::Events(vec![]))
     }
-    async fn add_notification_for_user(
-        &self,
-        _user_id: &Uuid,
-        _notification: &Notification,
-    ) -> RedisResult<()> {
+    async fn add_notification_for_user(&self, _user_id: &Uuid, _notification: &Notification) -> RedisResult<()> {
         Ok(())
     }
 
@@ -330,11 +294,7 @@ impl Cache for NoOpCache {
         Ok(())
     }
 
-    async fn publish_notification(
-        &self,
-        _notification: Notification,
-        _channel_name: &String,
-    ) -> RedisResult<()> {
+    async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
         Ok(())
     }
 }

@@ -8,8 +8,9 @@
 
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::cache::redis_cache::{Cache, ReplayResult};
-use crate::core::Service;
 use crate::core::errors::AppError;
+use crate::core::{Service, ShutdownSignal};
+use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::broadcast::Receiver;
 use tracing::error;
@@ -20,6 +21,7 @@ use uuid::Uuid;
 pub struct NotificationService {
     bus: Arc<BroadcastChannel>,
     cache: Arc<dyn Cache>,
+    shutdown: ShutdownSignal,
 }
 
 impl Service for NotificationService {
@@ -27,8 +29,30 @@ impl Service for NotificationService {
 }
 
 impl NotificationService {
-    pub fn new(bus: Arc<BroadcastChannel>, cache: Arc<dyn Cache>) -> Self {
-        Self { bus, cache }
+    pub fn new(
+        bus: Arc<BroadcastChannel>,
+        cache: Arc<dyn Cache>,
+        shutdown: ShutdownSignal,
+    ) -> Self {
+        Self {
+            bus,
+            cache,
+            shutdown,
+        }
+    }
+
+    /// Resolves when the server has begun shutting down.
+    ///
+    /// Both streaming endpoints must select on this. Axum cannot end a live connection for them:
+    /// its graceful shutdown only asks HTTP/1 to finish the in-flight response, and an SSE body
+    /// never finishes while an upgraded WebSocket is past the HTTP layer altogether. A stream that
+    /// ignores this signal holds the whole process open until it is killed.
+    ///
+    /// The signal lives on this service rather than being its own `FromRef` extractor because this
+    /// is already where a connection's lifecycle is decided — [`Self::subscribe`],
+    /// [`Self::connection_guard`], [`Self::resolve_handshake`].
+    pub fn cancelled(&self) -> impl Future<Output = ()> + Send + use<> {
+        self.shutdown.cancelled()
     }
 
     /// Registers a connection and returns its event receiver.

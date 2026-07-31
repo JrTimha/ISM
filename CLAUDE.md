@@ -118,11 +118,17 @@ Redis subscriber → `ObjectStorage` → repositories → `RoomNotifier` → tie
 `UserService`.
 
 `build()` returns `Bootstrap { state, shutdown }`. The `state` is *moved* into the router; the
-`Shutdown` half — the spawned `JoinHandle`s and the `Database` — stays with the caller, which is
-why neither has to be cloned. `Shutdown::run()` aborts the tasks, then closes the pool — **always
-call it, including on the error path**. Without `Database::close()` the pool's `Drop` only closes
-the client side and PostgreSQL holds the backends until its TCP keepalive expires, which a restart
-loop turns into a `max_connections` outage.
+`Shutdown` half — the spawned `JoinHandle`s, the `Database` and the `ShutdownController` — stays
+with the caller, which is why neither has to be cloned. `Shutdown::run()` aborts the tasks, then
+closes the pool — **always call it, including on the error path**. Without `Database::close()` the
+pool's `Drop` only closes the client side and PostgreSQL holds the backends until its TCP keepalive
+expires, which a restart loop turns into a `max_connections` outage.
+
+**Live SSE/WebSocket connections would otherwise block shutdown forever** — axum can stop accepting
+but cannot end a response body that never completes. `Shutdown::begin_when(os_signal())` is passed
+to `with_graceful_shutdown`; it waits for SIGTERM/Ctrl-C and then fires a `ShutdownSignal` that both
+streaming handlers select on. Any new long-lived handler **must** do the same; see
+`.claude/rules/architecture.md` and `tests/graceful_shutdown.rs`.
 
 The single PostgreSQL pool (max 20 connections) lives in `core::Database` and is shared by cloning;
 `Database::begin()` is the only way to a transaction, and only services call it.

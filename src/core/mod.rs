@@ -10,10 +10,12 @@ mod config;
 pub mod cursor;
 mod database;
 pub mod errors;
+mod shutdown;
 mod traits;
 
 pub use app_state::*;
 pub use builder::{AppStateBuilder, Bootstrap, Shutdown, StartupError, StartupResult};
 pub use config::{ISMConfig, KafkaConfig, ObjectStorageConfig, RoomDbConfig, TokenIssuer};
 pub use database::{Database, PgTransaction};
+pub use shutdown::{ShutdownController, ShutdownSignal};
 pub use traits::{Repository, Service};

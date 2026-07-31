@@ -12,7 +12,9 @@ use crate::messaging::model::{MessageDto, NewMessage};
 use crate::messaging::service::NotificationService;
 use crate::messaging::{MessageService, service::ConnectionGuard};
 use axum::Json;
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::ws::{
+    CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade, close_code,
+};
 use axum::extract::{Query, State};
 use axum::response::sse::Event;
 use axum::response::{IntoResponse, Sse};
@@ -92,7 +94,13 @@ pub async fn stream_server_events(
         }
     });
 
-    let stream = replay_stream.chain(live_stream);
+    // Ends the stream when the server starts shutting down. Without this the response body never
+    // completes, and axum's graceful shutdown waits on this connection forever — see
+    // `NotificationService::cancelled`. Ending the stream drops it, which drops the
+    // `ConnectionGuard` tied into `live_stream` below, so the usual unsubscribe still runs.
+    let stream = replay_stream
+        .chain(live_stream)
+        .take_until(notifications.cancelled());
 
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(5)).text("keep-alive-text"))
 }
@@ -127,8 +135,27 @@ async fn handle_socket(mut socket: WebSocket, notifications: NotificationService
     let mut ping_interval = time::interval(Duration::from_secs(15));
     let mut last_pong_received = time::Instant::now();
 
+    // Created once and pinned so the loop polls the same future every pass; rebuilding it inside
+    // `select!` would restart the wait on each iteration and the signal could be missed.
+    let cancelled = notifications.cancelled();
+    tokio::pin!(cancelled);
+
     loop {
         tokio::select! {
+            // 0. Server is shutting down — an upgraded socket is past the HTTP layer, so axum
+            //    cannot close it for us. Say goodbye properly: 1001 tells the client this is a
+            //    server going away, not an error, so it reconnects instead of backing off.
+            _ = &mut cancelled => {
+                debug!(%user_id, "Server shutting down, closing websocket");
+                let _ = socket
+                    .send(Message::Close(Some(CloseFrame {
+                        code: close_code::AWAY,
+                        reason: Utf8Bytes::from_static("server shutting down"),
+                    })))
+                    .await;
+                break;
+            }
+
             // 1. Handle new broadcasting event:
             notification_result = broadcast_events.recv() => {
                 match notification_result {

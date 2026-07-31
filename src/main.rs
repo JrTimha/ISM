@@ -4,7 +4,7 @@ use ism::welcome::welcome;
 use std::process::ExitCode;
 use tokio::net::TcpListener;
 use tokio::signal;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::ParseError;
 
@@ -58,9 +58,22 @@ async fn run(config: ISMConfig) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(&url).await?;
 
     info!("ISM-Server up and is listening on: {url}");
-    let served = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal()) //only working when there aren't active connections
-        .await;
+
+    // `begin_when` waits for the OS signal and then tells live SSE/WebSocket streams to close.
+    // Both halves are needed: axum stops accepting new connections, but it cannot end a response
+    // body that never completes, so without the second half it would wait on them forever.
+    let server = axum::serve(listener, app).with_graceful_shutdown(shutdown.begin_when(os_signal()));
+
+    let served = tokio::select! {
+        result = server => result,
+        // Backstop for a long-lived handler that does not listen for the signal. This cannot
+        // cancel those connections — axum spawns each one as its own task — it only stops waiting
+        // for them; the runtime drops them when `main` returns.
+        _ = shutdown.grace_deadline() => {
+            warn!("Connections still open after the grace period, stopping anyway");
+            Ok(())
+        }
+    };
 
     // Runs whether the server stopped cleanly or failed: a serve error would otherwise skip
     // closing the pool and leave PostgreSQL holding the backends until its keepalive reaps them.
@@ -69,7 +82,11 @@ async fn run(config: ISMConfig) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn shutdown_signal() {
+/// Resolves on Ctrl-C or SIGTERM.
+///
+/// Only reports that the operating system asked us to stop — turning that into "close the live
+/// connections" is [`Shutdown::begin_when`](ism::core::Shutdown::begin_when)'s job.
+async fn os_signal() {
     let ctrl_c = async {
         signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
     };

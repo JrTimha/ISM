@@ -83,6 +83,17 @@ distinct `seq` for each recipient — there is no shared sequence across users.
    between replay and the live buffer). Ephemeral events always pass.
 4. On `RecvError::Lagged` (slow consumer overran the 100-deep broadcast buffer),
    send a `Resync` and reset `high_water` to 0.
+5. On **server shutdown**, close the connection: the WebSocket receives a close
+   frame with code `1001` (GOING_AWAY), the SSE stream simply ends. Both
+   handlers select on `NotificationService::cancelled()` — axum cannot end a
+   live connection itself, so a stream that ignored this would keep the process
+   alive until it was killed.
+
+   No `Resync` is sent, and none is needed: the client reconnects with its
+   stored `last_seq` and replays whatever it missed from the Redis stream, the
+   same as after any other disconnect. `1001` specifically means "the server is
+   going away", so a client should reconnect rather than treat it as an error —
+   browser `EventSource` does this on its own.
 
 The REST endpoint `GET /api/notifications?last_seq=<n>` exposes the same replay
 for explicit pulls; a `ResyncNeeded` surfaces as a single `Resync` element.

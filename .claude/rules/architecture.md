@@ -181,6 +181,48 @@ comes back later", so if teardown and serving share one struct, the caller is fo
 disjoint owners need no clone at all. Prefer this over a cheap-clone workaround whenever two halves
 of a value have genuinely different lifetimes.
 
+### Long-lived connections must listen for the signal
+
+**Axum cannot end a live connection for you.** Its graceful shutdown stops the accept loop and asks
+each connection to finish its in-flight response — but an SSE body never finishes, and an upgraded
+WebSocket is past the HTTP layer entirely. The serve future then waits on those connection tasks
+forever, and there is no timeout to configure. This is not a bug to work around; it is what
+graceful means.
+
+So **any handler that holds a connection open past a single request/response must select on
+`ShutdownSignal`**, or it holds the whole process open until it is killed — which also skips
+`Shutdown::run()`, so the pool never closes either.
+
+The signal is a `tokio::sync::watch` split into two capabilities: `ShutdownController` (fires it,
+held only by `Shutdown`) and `ShutdownSignal` (observes it, cloned into services). A service that
+owns long-lived work takes the listen-only half through its constructor, like any other dependency
+— `NotificationService` does, and exposes it as `cancelled()` for both streaming handlers.
+
+```rust
+// SSE — one combinator ends the whole stream
+let stream = replay_stream.chain(live_stream).take_until(notifications.cancelled());
+
+// WebSocket — one more select arm; close with 1001 so the client reconnects
+_ = &mut cancelled => {
+    socket.send(Message::Close(Some(CloseFrame {
+        code: close_code::AWAY,
+        reason: Utf8Bytes::from_static("server shutting down"),
+    }))).await.ok();
+    break;
+}
+```
+
+`main` races the server against `Shutdown::grace_deadline()`, which resolves `SHUTDOWN_GRACE` after
+the signal fires. That is a **backstop, not the mechanism**: it cannot cancel the connections —
+axum spawns each as its own task — it only stops waiting for them, leaving the runtime to drop them
+when `main` returns. A handler that ignores the signal therefore degrades to "exits rudely" rather
+than "never exits". `tests/graceful_shutdown.rs` pins both halves of this down.
+
+`SHUTDOWN_GRACE` and `SHUTDOWN_TIMEOUT` run in sequence, so keep their sum under the orchestrator's
+grace period or the process is SIGKILLed mid-teardown.
+
+### Teardown order
+
 `run()` aborts the background tasks first, then closes the pool, bounded by a timeout:
 
 - **Closing the pool is not optional.** Rust has no async `Drop`, so dropping the last `Pool` handle

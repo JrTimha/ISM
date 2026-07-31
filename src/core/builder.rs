@@ -8,7 +8,7 @@
 use crate::broadcast::BroadcastChannel;
 use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
 use crate::cache::redis_subscriber::run_event_processor;
-use crate::core::{AppState, Database, ISMConfig, Repository, Service};
+use crate::core::{AppState, Database, ISMConfig, Repository, Service, ShutdownController};
 use crate::kafka::PushNotificationProducer;
 use crate::messaging::{ChatRepository, MessageService, NotificationService};
 use crate::object_storage::ObjectStorage;
@@ -80,9 +80,50 @@ pub struct Shutdown {
     /// Lives here rather than on [`AppState`] because it is a *lifecycle* concern, not something a
     /// request handler should be able to reach. Services hold their own clones for querying.
     database: Database,
+    /// Fires the signal that tells live SSE/WebSocket connections to close themselves.
+    ///
+    /// The trigger half stays here; services only ever get the listen-only
+    /// [`ShutdownSignal`](crate::core::ShutdownSignal).
+    controller: ShutdownController,
 }
 
 impl Shutdown {
+    /// Builds the future to hand to `axum::serve(..).with_graceful_shutdown(..)`.
+    ///
+    /// Awaits `trigger` — in practice the OS signal — and then fires the shutdown signal. Coupling
+    /// the two here is the whole mechanism: axum stops accepting connections, and in the same
+    /// moment every live stream is told to finish. Without the second half, axum would wait on
+    /// those streams forever.
+    ///
+    /// The returned future owns a clone of the controller and captures nothing from `&self` (see
+    /// the `use<F>` bound), so the borrow ends immediately and [`Self::run`] can still consume
+    /// `self` afterwards.
+    pub fn begin_when<F>(&self, trigger: F) -> impl Future<Output = ()> + Send + use<F>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        let controller = self.controller.clone();
+        async move {
+            trigger.await;
+            info!("Shutdown signal received, telling live connections to close.");
+            controller.trigger();
+        }
+    }
+
+    /// Resolves [`SHUTDOWN_GRACE`] after shutdown begins, and never before.
+    ///
+    /// Safe to race against the server for the whole life of the process: until the signal fires,
+    /// this future simply stays pending. Once it does resolve, the caller stops *waiting* for the
+    /// remaining connections — it cannot cancel them, because axum spawns each one as an
+    /// independent task, but the runtime drops them when `main` returns.
+    pub fn grace_deadline(&self) -> impl Future<Output = ()> + Send + use<> {
+        let cancelled = self.controller.signal().cancelled();
+        async move {
+            cancelled.await;
+            tokio::time::sleep(SHUTDOWN_GRACE).await;
+        }
+    }
+
     /// Stops the background tasks and closes the database pool.
     ///
     /// Order matters: the tasks are aborted first so nothing can check out a connection while the
@@ -105,8 +146,19 @@ impl Shutdown {
     }
 }
 
+/// How long live connections get to close themselves before the process stops waiting for them.
+///
+/// Applies from the moment the shutdown signal fires. A stream that listens ends within
+/// milliseconds; this bound only matters for one that does not.
+const SHUTDOWN_GRACE: Duration = Duration::from_secs(15);
+
 /// How long shutdown waits for in-flight database connections to be returned.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+
+// The two bounds above run in sequence — connections first, then the pool — so the worst case is
+// roughly their sum. Keep that total below the orchestrator's grace period (Kubernetes'
+// `terminationGracePeriodSeconds`, Docker's `--stop-timeout`), or the process is SIGKILLed
+// mid-teardown and the pool never gets closed at all.
 
 /// Builds the [`AppState`].
 ///
@@ -166,6 +218,10 @@ impl AppStateBuilder {
     pub async fn build(self) -> StartupResult<Bootstrap> {
         let config = self.config;
         let mut tasks: Vec<JoinHandle<()>> = Vec::new();
+
+        // Created first: services that own long-lived connections need the listen-only half, and
+        // the trigger half goes to `Shutdown` at the end.
+        let shutdown_controller = ShutdownController::new();
 
         // ── 1. Infrastructure ────────────────────────────────────────────────
         let database = match self.database {
@@ -229,7 +285,8 @@ impl AppStateBuilder {
         let share_service = ShareService::new(rooms.clone());
         let timeline_service = TimelineService::new(rooms.clone(), chats.clone());
         let message_service = MessageService::new(database.clone(), rooms, chats, notifier);
-        let notification_service = NotificationService::new(bus.clone(), cache);
+        let notification_service =
+            NotificationService::new(bus.clone(), cache, shutdown_controller.signal());
         let user_service = UserService::new(database.clone(), users, room_service.clone(), bus);
 
         for name in [
@@ -253,7 +310,11 @@ impl AppStateBuilder {
                 notification_service,
                 user_service,
             },
-            shutdown: Shutdown { tasks, database },
+            shutdown: Shutdown {
+                tasks,
+                database,
+                controller: shutdown_controller,
+            },
         })
     }
 }

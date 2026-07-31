@@ -16,7 +16,7 @@ use axum::extract::ws::{
     CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade, close_code,
 };
 use axum::extract::{Query, State};
-use axum::response::sse::Event;
+use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Sse};
 use bytes::Bytes;
 use futures::Stream;
@@ -102,7 +102,12 @@ pub async fn stream_server_events(
         .chain(live_stream)
         .take_until(notifications.cancelled());
 
-    Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(5)).text("keep-alive-text"))
+    Sse::new(stream)
+        .keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(5))
+                .text("live-connection-heartbeat")
+        )
 }
 
 pub async fn websocket_server_events(

@@ -851,12 +851,20 @@ mod refresh_tests {
         const CALLERS: usize = 250;
         // Deliberately generous: if the waiters are not woken, the burst takes this long.
         const BUDGET: Duration = Duration::from_secs(5);
+        // The single-flight lock only holds a burst together while the discovery it guards is still
+        // running. Spawning 250 tasks is not instant, so against a mock that answers immediately the
+        // first failure releases the lock before the tail of the burst has even reached it, and a
+        // straggler legitimately starts a second discovery — the cooldown that would otherwise
+        // absorb it is `ZERO` here. That made the discovery count a race with task startup rather
+        // than a statement about the code. A latency longer than the burst takes to fan out pins it.
+        const LATENCY: Duration = Duration::from_millis(200);
 
         let (server, mock) = start_mock().await;
         let instance = instance_for(server, BUDGET, Duration::ZERO).await;
         let startup_issuer = instance.get_discovered_jwks().get_issuer().to_owned();
 
         mock.fail.store(true, Ordering::SeqCst);
+        mock.set_latency(LATENCY);
         let elapsed = burst(&instance, CALLERS).await;
 
         assert_eq!(mock.discoveries(), 2, "still one discovery for the burst");

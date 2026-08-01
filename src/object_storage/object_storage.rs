@@ -2,6 +2,7 @@ use crate::core::{ObjectStorageConfig, StartupError, StartupResult};
 use bytes::Bytes;
 use minio::s3::builders::ObjectContent;
 use minio::s3::creds::StaticProvider;
+use minio::s3::error::Error;
 use minio::s3::http::BaseUrl;
 use minio::s3::response_traits::{HasObject, HasVersion};
 use minio::s3::segmented_bytes::SegmentedBytes;
@@ -66,14 +67,14 @@ impl ObjectStorage {
         Ok(object)
     }
 
-    pub async fn delete_object(&self, object_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn delete_object(&self, object_id: &str) -> Result<(), Error> {
         let session = self.session.clone();
         let response = session.delete_object(&self.config.bucket_name, object_id)?.build().send().await?;
         debug!(version_id = ?response.version_id(), "Deleted object");
         Ok(())
     }
 
-    pub async fn insert_object(&self, object_id: &String, content: Bytes) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn insert_object(&self, object_id: &String, content: Bytes) -> Result<(), Error> {
         let session = self.session.clone();
         let object = ObjectContent::from(content);
         let response = session

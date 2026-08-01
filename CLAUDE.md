@@ -220,7 +220,8 @@ caller's `module_path!()`/`line!()` for the failure log, which a function cannot
 - Always broadcast **after** a successful DB write, never before.
 - Invalidate the cached room context **before** broadcasting a membership change.
 - Never construct `Notification` directly; `seq` is assigned per-user during delivery.
-- `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` (Redis `INCR`), cache durable events in a per-user Redis Stream (`user_notifications:{id}`, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N` — no background cleanup), and fall back to Kafka push notifications for offline users.
+- `send_event` / `send_event_to_all` assign a monotonic **per-user** `seq` and cache durable events in a per-user Redis Stream (`user_notifications:{id}`, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N` — no background cleanup). Both happen in **one atomic Lua script** (`Cache::append_notification`): the entry ID must be the value `INCR` returned, which a `MULTI`/`EXEC` pipeline cannot express, and as two round trips the pair could half-succeed and burn a sequence. The stored JSON omits `seq` — the entry ID is it, re-attached on read.
+- The fan-out is concurrent (`FANOUT_CONCURRENCY`, 32) and offline recipients share **one** Kafka push record, whose envelope carries no `seq`.
 - **Ephemeral** events (`NotificationEvent::is_ephemeral()`) get no `seq` and are never cached — live-only (e.g. `Resync`, future typing indicators).
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
 - Wire envelope: `{ v, seq, type, createdAt, ...payload }`. Clients reconnect with `?last_seq=<n>` on `/api/v1/sse` and `/api/v1/wss`; the server replays missing durable events or emits a `Resync` when the gap was trimmed out of the retained window. See `docs/streaming-sequencing.md`.

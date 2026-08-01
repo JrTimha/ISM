@@ -72,6 +72,40 @@ impl EventProducer for LogEventProducer {
     }
 }
 
+/// Records what would have been pushed, so a test can assert on the batching.
+///
+/// Test-only, and it earns the `#[cfg(test)]` variant it adds to [`PushNotificationProducer`]:
+/// "one record for the offline set instead of one per user" is the point of the fan-out change,
+/// and neither the Kafka producer nor [`LogEventProducer`] lets anyone see it happen.
+///
+/// [`PushNotificationProducer`]: crate::kafka::PushNotificationProducer
+#[cfg(test)]
+#[derive(Default)]
+pub struct RecordingEventProducer {
+    sent: std::sync::Mutex<Vec<(Notification, Vec<Uuid>)>>,
+}
+
+#[cfg(test)]
+impl RecordingEventProducer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Every `send_notification` call so far, in order.
+    pub fn sent(&self) -> Vec<(Notification, Vec<Uuid>)> {
+        self.sent.lock().expect("recorder mutex").clone()
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl EventProducer for RecordingEventProducer {
+    async fn send_notification(&self, notification: Notification, to_user: Vec<Uuid>) -> Result<(), AppError> {
+        self.sent.lock().expect("recorder mutex").push((notification, to_user));
+        Ok(())
+    }
+}
+
 fn generate_header() -> OwnedHeaders {
     OwnedHeaders::new()
         .insert(Header {

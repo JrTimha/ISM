@@ -29,16 +29,8 @@ impl Service for NotificationService {
 }
 
 impl NotificationService {
-    pub fn new(
-        bus: Arc<BroadcastChannel>,
-        cache: Arc<dyn Cache>,
-        shutdown: ShutdownSignal,
-    ) -> Self {
-        Self {
-            bus,
-            cache,
-            shutdown,
-        }
+    pub fn new(bus: Arc<BroadcastChannel>, cache: Arc<dyn Cache>, shutdown: ShutdownSignal) -> Self {
+        Self { bus, cache, shutdown }
     }
 
     /// Resolves when the server has begun shutting down.
@@ -139,5 +131,109 @@ impl Drop for ConnectionGuard {
         tokio::spawn(async move {
             bus.unsubscribe(user_id).await;
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::test_support::{FailingCache, InMemoryCache};
+    use crate::core::{KafkaConfig, ShutdownController};
+    use crate::kafka::PushNotificationProducer;
+
+    fn service(cache: Arc<dyn Cache>) -> NotificationService {
+        let producer = PushNotificationProducer::connect(
+            false,
+            KafkaConfig {
+                bootstrap_host: String::new(),
+                bootstrap_port: 0,
+                topic: String::new(),
+                client_id: String::new(),
+                partition: vec![],
+                consumer_group: String::new(),
+            },
+        )
+        .expect("logging producer never fails");
+
+        let bus = Arc::new(BroadcastChannel::new(cache.clone(), producer));
+        NotificationService::new(bus, cache, ShutdownController::new().signal())
+    }
+
+    fn is_resync(notification: &Notification) -> bool {
+        matches!(notification.body, NotificationEvent::Resync { .. })
+    }
+
+    /// A fresh connection has no cursor, so there is nothing to replay and no baseline to dedupe
+    /// against — every live event must reach it.
+    #[tokio::test]
+    async fn a_connection_without_a_cursor_replays_nothing() {
+        let (events, high_water) = service(Arc::new(InMemoryCache::new())).resolve_handshake(&Uuid::new_v4(), None).await;
+
+        assert!(events.is_empty());
+        assert_eq!(high_water, 0);
+    }
+
+    #[tokio::test]
+    async fn a_reconnecting_client_gets_the_events_it_missed() {
+        let cache = Arc::new(InMemoryCache::new());
+        let user_id = Uuid::new_v4();
+
+        for _ in 0..3 {
+            cache
+                .append_notification(&user_id, &NotificationService::resync("filler"))
+                .await
+                .expect("append");
+        }
+
+        let (events, high_water) = service(cache).resolve_handshake(&user_id, Some(1)).await;
+
+        assert_eq!(events.iter().filter_map(|event| event.seq).collect::<Vec<_>>(), vec![2, 3]);
+        // The client is now guaranteed to hold everything up to 3; live events at or below that
+        // are duplicates.
+        assert_eq!(high_water, 3);
+    }
+
+    /// The gap fell out of the retained window. The client cannot be caught up losslessly, so it is
+    /// told to reload via REST — and the high-water goes back to 0 so nothing that arrives during
+    /// the reload is filtered out as a duplicate.
+    #[tokio::test]
+    async fn a_gap_that_was_trimmed_away_forces_a_resync() {
+        let cache = Arc::new(InMemoryCache::new());
+        let user_id = Uuid::new_v4();
+
+        for _ in 0..5 {
+            cache
+                .append_notification(&user_id, &NotificationService::resync("filler"))
+                .await
+                .expect("append");
+        }
+        cache.trim_to(&user_id, 2); // only seq 4 and 5 survive; a client at 1 cannot be served
+
+        let (events, high_water) = service(cache).resolve_handshake(&user_id, Some(1)).await;
+
+        assert_eq!(events.len(), 1);
+        assert!(is_resync(&events[0]));
+        assert_eq!(high_water, 0);
+    }
+
+    /// The cursor is ahead of the counter, so the sequence space was reset under the client.
+    #[tokio::test]
+    async fn a_cursor_ahead_of_the_counter_forces_a_resync() {
+        let (events, high_water) = service(Arc::new(InMemoryCache::new())).resolve_handshake(&Uuid::new_v4(), Some(999)).await;
+
+        assert_eq!(events.len(), 1);
+        assert!(is_resync(&events[0]));
+        assert_eq!(high_water, 0);
+    }
+
+    /// An unreachable cache must not silently look like "nothing to replay": that would leave the
+    /// client believing it is caught up.
+    #[tokio::test]
+    async fn an_unreachable_cache_forces_a_resync() {
+        let (events, high_water) = service(Arc::new(FailingCache)).resolve_handshake(&Uuid::new_v4(), Some(1)).await;
+
+        assert_eq!(events.len(), 1);
+        assert!(is_resync(&events[0]));
+        assert_eq!(high_water, 0);
     }
 }

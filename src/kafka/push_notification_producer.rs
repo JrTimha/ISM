@@ -10,6 +10,10 @@ use uuid::Uuid;
 pub enum PushNotificationProducer {
     Kafka(KafkaEventProducer),
     Logger(LogEventProducer),
+    /// Test-only. Behind an `Arc` because the bus takes the producer by value, and a test has to
+    /// keep a handle to read back what was sent.
+    #[cfg(test)]
+    Recording(std::sync::Arc<crate::kafka::event_producer::RecordingEventProducer>),
 }
 
 #[async_trait]
@@ -18,6 +22,8 @@ impl EventProducer for PushNotificationProducer {
         match self {
             PushNotificationProducer::Kafka(producer) => producer.send_notification(notification, to_user).await,
             PushNotificationProducer::Logger(producer) => producer.send_notification(notification, to_user).await,
+            #[cfg(test)]
+            PushNotificationProducer::Recording(producer) => producer.send_notification(notification, to_user).await,
         }
     }
 }
@@ -25,8 +31,9 @@ impl EventProducer for PushNotificationProducer {
 impl PushNotificationProducer {
     /// Picks the push-notification backend from config.
     ///
-    /// An enum rather than `Box<dyn EventProducer>`: there are exactly two variants, both known at
-    /// compile time, so the enum dispatches statically and keeps the type concrete.
+    /// An enum rather than `Box<dyn EventProducer>`: the backends are known at compile time, so
+    /// the enum dispatches statically and keeps the type concrete. The third variant is
+    /// `#[cfg(test)]` and never reaches a release build.
     pub fn connect(use_kafka: bool, kafka_config: KafkaConfig) -> StartupResult<Self> {
         if use_kafka {
             info!("Kafka-Producer initializing.");

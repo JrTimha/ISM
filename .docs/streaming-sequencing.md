@@ -44,15 +44,38 @@ Built only via `Notification::new(body)` (`src/broadcast/notification.rs`).
 
 ## 4. Sequencing
 
-`Cache::next_sequence(user_id)` → Redis `INCR user_seq:{id}` (+ TTL refresh,
-`SEQUENCE_TTL_SECONDS`). Returns `Option<u64>`:
+`Cache::append_notification(user_id, notification)` allocates the sequence **and**
+stores the event in one Lua script (`EVALSHA`): `INCR user_seq:{id}` →
+`XADD user_notifications:{id} MAXLEN ~ N <seq>-0` → `EXPIRE` on both keys. Returns
+`Option<u64>`:
 
 - `Some(seq)` — sequencing available.
 - `None` — `NoOpCache` / no Redis: events are delivered best-effort, `seq` stays
   `None`, and replay is unavailable.
 
+Why a script rather than two calls or a `MULTI`/`EXEC` pipeline: the entry ID has
+to *be* the value `INCR` returned, and a queued transaction has no results until it
+executes. As two round trips the pair could half-succeed — a sequence allocated and
+then not stored burned that number and left a hole mid-stream that no reader could
+detect, because the gap check in §5 only inspects the *oldest* retained entry.
+
+**A script is atomic in isolation, not in rollback.** Nothing interleaves with it,
+but a failing command is not undone — so `XADD` must not be able to fail after
+`INCR` has run, and it can: `XADD` rejects any explicit ID that is not strictly
+greater than the stream's `last-generated-id`, and that value survives trimming. If
+the counter is lost while the stream is not (eviction under `maxmemory` is the
+realistic trigger — the counter is tiny, the stream is not), `INCR` restarts at 1
+and every write for that user fails until the stream's own TTL expires. The script
+therefore realigns onto `last-generated-id` when `INCR` returns 1, which costs one
+extra command on a user's first write and nothing afterwards.
+
 Because `seq` is **per-user**, a fan-out (`send_event_to_all`) allocates a
 distinct `seq` for each recipient — there is no shared sequence across users.
+Recipients are processed concurrently (bounded by `FANOUT_CONCURRENCY`, 32); a user
+appears at most once per fan-out and the whole fan-out is awaited, so per-user
+ordering is unaffected. Offline recipients are collected and pushed in **one** Kafka
+record, whose envelope carries no `seq` — one envelope for many recipients has no
+single correct value.
 
 ## 5. Caching & Replay (`src/cache/redis_cache.rs`)
 
@@ -60,16 +83,30 @@ distinct `seq` for each recipient — there is no shared sequence across users.
   (`user_notifications:{id}`). Each entry's ID is `<seq>-0`, so the stream is
   ordered by `seq` and the entry holds the serialized notification under the
   `data` field.
+- The stored JSON deliberately **omits `seq`**: the entry ID is it. That is what
+  lets the write happen in one round trip (the payload no longer depends on the
+  number being allocated), and it means the sequence has exactly one source and
+  cannot disagree with itself. The read path re-attaches it from the entry ID.
+  Entries written before this change carry `seq` in the payload as well; it is the
+  same number, so both formats replay identically.
 - `XADD ... MAXLEN ~ STREAM_MAX_LEN` trims older entries on every write (amortized
   O(1)), bounding retention to the last ~N events. A TTL is refreshed on each
   write so a fully inactive user's stream is reclaimed — there is **no background
   cleanup task**.
 - `get_notifications_since_seq(user_id, last_seq)` → `ReplayResult`:
   - `Events(vec)` — `XRANGE` from exclusive `(<last_seq>-0` to `+`, in order.
-  - `ResyncNeeded` — the oldest retained `seq` is already newer than
-    `last_seq + 1` (the gap was trimmed). Because the stream is a single
-    structure, there is no separate index that can dangle, so this is the only
-    resync trigger.
+  - `ResyncNeeded` — three triggers, all of them "the gap cannot be served
+    losslessly":
+    1. the oldest retained `seq` is newer than `last_seq + 1` — the gap was
+       trimmed out of the retained window;
+    2. `last_seq` is above the counter — the sequence space was reset under the
+       client (TTL expiry, eviction, `FLUSH`), so its cursor references sequences
+       that no longer exist;
+    3. an entry cannot be decoded. Skipping it would be a silent event loss: the
+       caller derives its high-water mark from what it received, so the client's
+       cursor would advance past an event it never got. This goes live the moment
+       the envelope format changes while a user's 24-hour stream still holds older
+       entries.
 
 ## 6. Connection Handshake (`src/messaging/handler.rs` + `src/messaging/service/notification.rs`)
 
@@ -129,10 +166,26 @@ state. Connecting fresh avoids re-delivering events it has applied.
   delivery is at-least-once and the replay/live windows overlap by design.
 - On a `Resync` event: reload authoritative state via REST (timeline, friends,
   rooms), then reconnect **without** `last_seq` (full-sync mode above).
-- Ephemeral events carry no `seq` — never use them for sync state.
+- Ephemeral events carry no `seq` — but **the converse does not hold**: a missing
+  `seq` does not mean the event was ephemeral. A durable event is delivered without
+  one when the cache write failed, deliberately, so the client's cursor is not
+  advanced past an event that never reached the stream. Read ephemerality from the
+  event `type`, never from the absence of `seq`.
 
 ## 8. Out of Scope / Next
 
+- **Redis Cluster.** `user_seq:{id}` and `user_notifications:{id}` share no hash
+  tag, so they may hash to different slots and the sequencing script would be
+  rejected with `CROSSSLOT`. Moving to a cluster means a key-format migration to
+  `user_seq:{<uuid>}` / `user_notifications:{<uuid>}`, which invalidates every
+  existing key.
+- **Fan-out off the request path.** `send_message` still awaits the whole fan-out
+  before responding. Two blockers before that can move into a task: `Shutdown.tasks`
+  is a `build()`-local `Vec` with no accessor, so a request-time spawn cannot be
+  tracked, and `Shutdown::run()` aborts rather than drains. There is also an
+  ordering hazard — two independently spawned fan-outs could allocate their
+  sequences in the opposite order from the send order. Measure `duration_ms` on the
+  fan-out log line before deciding it is worth the machinery.
 - Topic subscriptions over the WS uplink (would let typing/presence target only
   interested connections).
 - Presence — see `docs/location-presence-sharing.md`.

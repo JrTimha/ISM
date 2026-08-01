@@ -4,9 +4,10 @@ use crate::rooms::model::RoomContext;
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::aio::ConnectionManagerConfig;
-use redis::{AsyncTypedCommands, Client, ErrorKind, PushInfo, RedisError, RedisResult};
+use redis::{AsyncTypedCommands, Client, ErrorKind, PushInfo, RedisError, RedisResult, Script};
+use std::sync::LazyLock;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// TTL for the per-user sequence counter and notification stream. Refreshed on every write, so a
@@ -25,6 +26,71 @@ const STREAM_FIELD: &str = "data";
 /// Decoded `XRANGE` reply: a list of `(entry_id, [(field, value), ...])`.
 type StreamEntries = Vec<(String, Vec<(String, String)>)>;
 
+/// Compiled once. [`Script`] caches the SHA1 and `invoke_async` sends `EVALSHA`, falling back to
+/// `SCRIPT LOAD` + retry on `NOSCRIPT`, so a Redis restart recovers on its own.
+static APPEND_NOTIFICATION: LazyLock<Script> = LazyLock::new(|| Script::new(APPEND_NOTIFICATION_LUA));
+
+/// Runs inside Redis so the sequence allocation and the stream append cannot come apart.
+///
+/// `MULTI`/`EXEC` cannot express this: the entry ID must be the value `INCR` returned, and a queued
+/// transaction has no results until it executes. Splitting it across two round trips is what let a
+/// sequence be allocated and then not stored — a hole mid-stream that no reader could detect,
+/// because the gap check below only inspects the *oldest* retained entry.
+///
+/// Not Redis Cluster safe: the two keys share no hash tag, so they may live in different slots and
+/// the script would be rejected with `CROSSSLOT`. Moving to a cluster means changing the key format
+/// to `user_seq:{<uuid>}` / `user_notifications:{<uuid>}`, which invalidates every existing key.
+const APPEND_NOTIFICATION_LUA: &str = r#"
+-- Atomically allocate the next per-user sequence and append the event to that user's stream.
+--
+-- KEYS[1] sequence counter (user_seq:<uuid>)   KEYS[2] stream (user_notifications:<uuid>)
+-- ARGV[1] TTL seconds   ARGV[2] approximate max stream length
+-- ARGV[3] stream field name   ARGV[4] serialized notification, without `seq`
+-- Returns the assigned sequence number.
+--
+-- A script is atomic in that nothing interleaves with it, NOT in that a failed command is rolled
+-- back. So XADD must not be able to fail after INCR has run -- and it can: XADD rejects any
+-- explicit ID that is not strictly greater than the stream's last-generated-id, and that survives
+-- trimming. If the counter is lost while the stream survives (eviction under maxmemory is the
+-- realistic trigger: the counter is tiny, the stream is not), INCR restarts at 1 and every write
+-- for that user fails until the stream expires. The realign below closes that.
+
+local function stream_last_seq(key)
+  local info = redis.pcall('XINFO', 'STREAM', key)   -- pcall: XINFO errors on a missing key
+  if type(info) ~= 'table' or info.err then return nil end
+  for i = 1, #info, 2 do
+    if info[i] == 'last-generated-id' then
+      return tonumber(string.match(info[i + 1], '^(%d+)'))
+    end
+  end
+  return nil
+end
+
+local seq = redis.call('INCR', KEYS[1])
+
+if seq == 1 then
+  -- The counter did not exist: either this is the user's first event, or the counter was reclaimed
+  -- while the stream survived. Only in the second case is `1-0` too small, so this costs one extra
+  -- command on a user's first write and nothing on the hot path.
+  local last = stream_last_seq(KEYS[2])
+  if last and last >= seq then
+    seq = last + 1
+    redis.call('SET', KEYS[1], string.format('%d', seq))
+  end
+end
+
+-- `~` lets Redis trim at node boundaries (amortized O(1)); it keeps at least ARGV[2] entries.
+redis.call('XADD', KEYS[2], 'MAXLEN', '~', ARGV[2], string.format('%d-0', seq), ARGV[3], ARGV[4])
+
+-- Refreshed on every write, so the pair is reclaimed only after the user has been completely
+-- inactive for the TTL -- there is no cleanup task. Both are set in the same atomic call now, so a
+-- partial failure can no longer leave the counter outliving its stream.
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[2], ARGV[1])
+
+return seq
+"#;
+
 /// Extract the numeric sequence from a `<seq>-<n>` stream entry ID.
 fn parse_stream_seq(id: &str) -> Option<u64> {
     id.split('-').next()?.parse().ok()
@@ -41,10 +107,16 @@ pub enum ReplayResult {
 
 #[async_trait]
 pub trait Cache: Send + Sync {
-    /// Allocate the next monotonic sequence number for a user. Returns `None` when sequencing
-    /// is unavailable (no Redis), in which case durable events are delivered best-effort
-    /// without replay support.
-    async fn next_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>>;
+    /// Allocate this user's next monotonic sequence number **and** append the event to their
+    /// replay stream, in one atomic Redis call.
+    ///
+    /// Returns the assigned sequence, or `None` when sequencing is unavailable (no Redis), in
+    /// which case the event is delivered best-effort without replay support.
+    ///
+    /// The stored JSON deliberately omits `seq`: the stream entry ID **is** `<seq>-0`, so the
+    /// sequence has exactly one source and cannot disagree with itself.
+    /// [`Self::get_notifications_since_seq`] re-attaches it on read.
+    async fn append_notification(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<Option<u64>>;
     /// Read the highest sequence number currently issued to a user **without** advancing it.
     /// Returns `Some(0)` when no event has been issued yet, or `None` when sequencing is
     /// unavailable (no Redis). A freshly REST-synced client uses this as its replay baseline.
@@ -52,7 +124,6 @@ pub trait Cache: Send + Sync {
     /// Return all durable notifications for a user with sequence strictly greater than
     /// `last_seq`, or `ResyncNeeded` if part of that range has already fallen out of the cache.
     async fn get_notifications_since_seq(&self, user_id: &Uuid, last_seq: u64) -> RedisResult<ReplayResult>;
-    async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()>;
     async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>>;
     async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()>;
     async fn invalidate_room_context(&self, room_id: &Uuid) -> RedisResult<()>;
@@ -114,14 +185,33 @@ impl RedisCache {
 
 #[async_trait]
 impl Cache for RedisCache {
-    async fn next_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>> {
+    async fn append_notification(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<Option<u64>> {
         let mut con = self.connection.clone();
-        let key = format!("{}{}", USER_SEQUENCE, user_id);
-        let seq = con.incr(&key, 1).await?;
-        // Refresh the TTL so an active user's counter never disappears mid-session, while
-        // counters for long-inactive users are eventually reclaimed.
-        con.expire(&key, SEQUENCE_TTL_SECONDS).await?;
-        Ok(Some(seq as u64))
+
+        // The Redis subscriber forwards envelopes that already carry another node's sequence;
+        // everywhere else this is already `None` and the match costs nothing. Stripping it here
+        // rather than at the call site is what makes "the entry ID is the only source of `seq`"
+        // an invariant of the cache instead of a convention every caller has to remember.
+        let payload = match notification.seq {
+            None => serde_json::to_string(notification),
+            Some(_) => serde_json::to_string(&Notification {
+                seq: None,
+                ..notification.clone()
+            }),
+        }
+        .map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize notification to JSON", err.to_string())))?;
+
+        let seq: u64 = APPEND_NOTIFICATION
+            .key(format!("{}{}", USER_SEQUENCE, user_id))
+            .key(format!("{}{}", USER_NOTIFICATIONS, user_id))
+            .arg(SEQUENCE_TTL_SECONDS)
+            .arg(STREAM_MAX_LEN)
+            .arg(STREAM_FIELD)
+            .arg(payload)
+            .invoke_async(&mut con)
+            .await?;
+
+        Ok(Some(seq))
     }
 
     async fn current_sequence(&self, user_id: &Uuid) -> RedisResult<Option<u64>> {
@@ -179,59 +269,38 @@ impl Cache for RedisCache {
             .query_async(&mut con)
             .await?;
 
+        // An entry we cannot decode is a lost event, not a skippable one: the caller derives its
+        // high-water mark from what it received, so dropping the entry would advance the client's
+        // cursor past an event it never got, with no way for either side to notice. This goes live
+        // the moment the envelope format changes while a user's stream still holds older entries.
+        let mut lost_entry = false;
+
         let notifications: Vec<Notification> = entries
             .into_iter()
-            .filter_map(|(_, fields)| {
-                fields
-                    .into_iter()
-                    .find(|(field, _)| field == STREAM_FIELD)
-                    .and_then(|(_, json)| serde_json::from_str(&json).ok())
+            .filter_map(|(id, fields)| {
+                let (_, json) = fields.into_iter().find(|(field, _)| field == STREAM_FIELD)?;
+                match serde_json::from_str::<Notification>(&json) {
+                    Ok(mut notification) => {
+                        // The stored JSON carries no `seq`; the entry ID is where it lives. Entries
+                        // written before that change do carry one, and it is the same number, so
+                        // both formats replay identically.
+                        notification.seq = parse_stream_seq(&id);
+                        Some(notification)
+                    }
+                    Err(error) => {
+                        warn!(%user_id, entry = %id, error = %error, "Unparsable cached notification, forcing resync");
+                        lost_entry = true;
+                        None
+                    }
+                }
             })
             .collect();
 
+        if lost_entry {
+            return Ok(ReplayResult::ResyncNeeded);
+        }
+
         Ok(ReplayResult::Events(notifications))
-    }
-
-    async fn add_notification_for_user(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<()> {
-        let mut con = self.connection.clone();
-
-        // Durable notifications must carry a sequence number; it becomes the stream entry ID
-        // (`<seq>-0`) and the cursor a reconnecting client replays from.
-        let seq = match notification.seq {
-            Some(seq) => seq,
-            None => {
-                return Err(RedisError::from((
-                    ErrorKind::Client,
-                    "Refusing to cache a notification without a sequence number",
-                )));
-            }
-        };
-
-        let notification_json = serde_json::to_string(notification)
-            .map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize notification to JSON", err.to_string())))?;
-
-        let stream_key = format!("{}{}", USER_NOTIFICATIONS, user_id);
-
-        let mut pipe = redis::pipe(); //single round trip: append (with trim) + refresh inactivity TTL
-        pipe.atomic()
-            // Append using the per-user seq as the explicit entry ID and trim to ~STREAM_MAX_LEN.
-            // `~` lets Redis trim at node boundaries (amortized O(1)); it keeps at least N entries.
-            .cmd("XADD")
-            .arg(&stream_key)
-            .arg("MAXLEN")
-            .arg("~")
-            .arg(STREAM_MAX_LEN)
-            .arg(format!("{}-0", seq))
-            .arg(STREAM_FIELD)
-            .arg(&notification_json)
-            .ignore()
-            // Refresh the TTL so an active user's stream never disappears mid-session, while a
-            // fully inactive user's stream is eventually reclaimed without any cleanup task.
-            .expire(&stream_key, SEQUENCE_TTL_SECONDS)
-            .ignore();
-
-        pipe.exec_async(&mut con).await?;
-        Ok(())
     }
 
     async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>> {
@@ -269,7 +338,7 @@ pub struct NoOpCache;
 
 #[async_trait]
 impl Cache for NoOpCache {
-    async fn next_sequence(&self, _user_id: &Uuid) -> RedisResult<Option<u64>> {
+    async fn append_notification(&self, _user_id: &Uuid, _notification: &Notification) -> RedisResult<Option<u64>> {
         Ok(None)
     }
     async fn current_sequence(&self, _user_id: &Uuid) -> RedisResult<Option<u64>> {
@@ -277,9 +346,6 @@ impl Cache for NoOpCache {
     }
     async fn get_notifications_since_seq(&self, _user_id: &Uuid, _last_seq: u64) -> RedisResult<ReplayResult> {
         Ok(ReplayResult::Events(vec![]))
-    }
-    async fn add_notification_for_user(&self, _user_id: &Uuid, _notification: &Notification) -> RedisResult<()> {
-        Ok(())
     }
 
     async fn get_room_context(&self, _room_id: &Uuid) -> RedisResult<Option<RoomContext>> {
@@ -296,5 +362,77 @@ impl Cache for NoOpCache {
 
     async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::broadcast::NotificationEvent;
+
+    fn resync() -> Notification {
+        Notification::new(NotificationEvent::Resync { reason: "too old".into() })
+    }
+
+    #[test]
+    fn stream_ids_decode_to_their_sequence() {
+        assert_eq!(parse_stream_seq("42-0"), Some(42));
+        // Only the first component is the sequence; the rest is Redis' intra-millisecond counter.
+        assert_eq!(parse_stream_seq("42-7"), Some(42));
+        assert_eq!(parse_stream_seq("0-1"), Some(0));
+        assert_eq!(parse_stream_seq("abc-0"), None);
+        assert_eq!(parse_stream_seq("-0"), None);
+        assert_eq!(parse_stream_seq(""), None);
+    }
+
+    /// The write path stores the envelope without `seq` and the read path restores it from the
+    /// entry ID. This pins the round trip, which is what makes the entry ID the single source of
+    /// the sequence.
+    #[test]
+    fn seq_survives_the_round_trip_through_the_entry_id() {
+        let stored = Notification { seq: None, ..resync() };
+
+        let json = serde_json::to_string(&stored).expect("serialize");
+        assert!(!json.contains("\"seq\""), "the stored payload must not carry a sequence: {json}");
+
+        let mut restored: Notification = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(restored.seq, None);
+
+        restored.seq = parse_stream_seq("42-0");
+        assert_eq!(restored.seq, Some(42));
+
+        // Everything else came back unchanged.
+        let expected = Notification { seq: Some(42), ..stored };
+        assert_eq!(
+            serde_json::to_string(&restored).expect("re-serialize"),
+            serde_json::to_string(&expected).expect("expected")
+        );
+    }
+
+    /// Entries written before the sequence moved into the entry ID still carry it in the payload.
+    /// Both formats must replay identically, which they do because the read path overwrites it
+    /// with the same number.
+    #[test]
+    fn a_legacy_entry_with_an_inline_seq_replays_the_same() {
+        let legacy = Notification { seq: Some(42), ..resync() };
+        let json = serde_json::to_string(&legacy).expect("serialize");
+        assert!(json.contains("\"seq\""));
+
+        let mut restored: Notification = serde_json::from_str(&json).expect("deserialize");
+        restored.seq = parse_stream_seq("42-0");
+
+        assert_eq!(restored.seq, Some(42));
+    }
+
+    #[tokio::test]
+    async fn the_noop_cache_reports_that_sequencing_is_unavailable() {
+        let user_id = Uuid::new_v4();
+
+        assert_eq!(NoOpCache.append_notification(&user_id, &resync()).await.expect("append"), None);
+        assert_eq!(NoOpCache.current_sequence(&user_id).await.expect("current"), None);
+        assert!(matches!(
+            NoOpCache.get_notifications_since_seq(&user_id, 0).await.expect("replay"),
+            ReplayResult::Events(events) if events.is_empty()
+        ));
     }
 }

@@ -113,6 +113,9 @@ impl AppError {
             AppError::Validation(_) => "validation",
             AppError::NotFound(_) => "not_found",
             AppError::Forbidden(_) => "forbidden",
+            // A query that found no row is a missing resource, not a database failure. Must
+            // precede the generic `Database` arm below, or it never matches.
+            AppError::Database(sqlx::Error::RowNotFound) => "not_found",
             AppError::Database(_) => "database",
             AppError::Cache(_) => "cache",
             AppError::Serialization(_) => "serialization",
@@ -126,6 +129,9 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         // Log every internal error with its full details before the message is sanitised.
         match &self {
+            // Not an internal failure: a caller asking for a row that does not exist is an
+            // ordinary 404, and logging it at `error` level would drown the real failures.
+            AppError::Database(sqlx::Error::RowNotFound) => {}
             AppError::Database(_)
             | AppError::Cache(_)
             | AppError::Serialization(_)
@@ -145,6 +151,11 @@ impl IntoResponse for AppError {
                 ErrorCode::InsufficientPermissions,
                 msg,
             ),
+
+            // A `fetch_one` that matched no row. Mapped centrally rather than at each call site,
+            // so a new query cannot forget it — the same reason authorization lives in
+            // `RoomService::ensure_member` rather than in the handlers.
+            AppError::Database(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, ErrorCode::ContentNotFound, "Resource not found.".to_owned()),
 
             // Internal — return a safe, generic message.
             AppError::Database(_) | AppError::Cache(_) => (

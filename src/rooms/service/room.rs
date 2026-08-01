@@ -135,6 +135,7 @@ impl RoomService {
     }
 
     pub async fn mark_room_as_read(&self, client_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
+        self.ensure_member(&client_id, &room_id).await?;
         self.rooms.update_user_read_status(self.db.pool(), &room_id, &client_id).await?;
 
         let room = self.rooms.select_room(&room_id).await?;

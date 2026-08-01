@@ -69,16 +69,22 @@ request, a macro that swallows it is in the way.
   that reacts by reading the room cannot race a stale snapshot.
 - Never construct `Notification` directly. `Notification::new(body)` sets the envelope version and
   leaves `seq` unset (assigned per-user during delivery); the `notify*` methods do it for you.
-- Delivery goes through `deliver_to_user`, which assigns a per-user sequence number, caches durable
-  events in Redis, and falls back to Kafka push for offline users.
+- Delivery goes through `deliver_to_user`, which sequences and caches durable events in one atomic
+  Redis call and reports whether a live connection took the event. The push fallback belongs to
+  `send_event_to_all`, which collects every offline recipient of a fan-out into **one** Kafka record
+  — put it nowhere else, or a large room goes back to one record per user.
+- The fan-out runs recipients concurrently, bounded by `FANOUT_CONCURRENCY`. Safe because a user
+  appears at most once per fan-out; anything that could deliver twice to one user in one call would
+  break per-user sequence ordering.
 - Push notifications are only sent for: `ChatMessage`, `FriendRequestReceived`, `NewRoom`.
 
 ## Envelope, Sequencing & Replay
 
 Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdAt, ...payload }`.
 
-- `seq` is a **monotonic per-user** sequence (`Cache::next_sequence`, backed by Redis `INCR`). Each recipient of a fan-out gets its **own** `seq`.
-- **Durable** events are sequenced and cached (per-user Redis Stream, entry ID `<seq>-0`, length-capped via `XADD ... MAXLEN ~ N`) so a reconnecting client can replay. **Ephemeral** events (`NotificationEvent::is_ephemeral() == true`) get no `seq` and are never cached — they are live-only.
+- `seq` is a **monotonic per-user** sequence, allocated by `Cache::append_notification` — one Lua script that does `INCR` + `XADD` + both `EXPIRE`s atomically. Each recipient of a fan-out gets its **own** `seq`.
+- **The stream entry ID (`<seq>-0`) is the only source of `seq`**; the stored JSON omits it and the read path re-attaches it. Never write `seq` into a cached payload — two copies can disagree, and that is exactly what the single round trip removed.
+- **Durable** events are sequenced and cached (per-user Redis Stream, length-capped via `XADD ... MAXLEN ~ N`) so a reconnecting client can replay. **Ephemeral** events (`NotificationEvent::is_ephemeral() == true`) get no `seq` and are never cached — they are live-only. The converse does not hold: a durable event is delivered with `seq: None` when the cache write failed.
 - Without Redis (`NoOpCache`) there is no sequencing: `seq` is `None` and no replay is possible (best-effort delivery).
 - On connect, SSE/WebSocket clients pass `?last_seq=<n>`; the server replays missing durable events, deduping live events with `seq <= high_water`. If the gap was trimmed out of the retained window (or a `Lagged` is hit), the server emits a `Resync` event and the client must reload state via REST. See `Cache::get_notifications_since_seq` → `ReplayResult`.
 

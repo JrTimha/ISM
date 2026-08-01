@@ -7,7 +7,6 @@
 
 use crate::broadcast::BroadcastChannel;
 use crate::cache::redis_cache::{Cache, NoOpCache, RedisCache};
-use crate::cache::redis_subscriber::run_event_processor;
 use crate::core::{AppState, Database, ISMConfig, Repository, Service, ShutdownController};
 use crate::kafka::PushNotificationProducer;
 use crate::messaging::{ChatRepository, MessageService, NotificationService};
@@ -138,10 +137,7 @@ impl Shutdown {
         // that gives up and lets the server's keepalive reap the rest.
         match tokio::time::timeout(SHUTDOWN_TIMEOUT, self.database.close()).await {
             Ok(()) => info!("Database pool closed."),
-            Err(_) => warn!(
-                timeout_secs = SHUTDOWN_TIMEOUT.as_secs(),
-                "Database pool did not close in time, abandoning it"
-            ),
+            Err(_) => warn!(timeout_secs = SHUTDOWN_TIMEOUT.as_secs(), "Database pool did not close in time, abandoning it"),
         }
     }
 }
@@ -200,9 +196,6 @@ impl AppStateBuilder {
     }
 
     /// Uses a specific cache implementation instead of choosing one from config.
-    ///
-    /// A cache supplied this way brings no push-message receiver with it, so the Redis keyspace
-    /// subscriber is not started — the bus still delivers to locally connected clients.
     pub fn with_cache(mut self, cache: Arc<dyn Cache>) -> Self {
         self.cache = Some(cache);
         self
@@ -217,6 +210,10 @@ impl AppStateBuilder {
     /// Wires everything, in dependency order.
     pub async fn build(self) -> StartupResult<Bootstrap> {
         let config = self.config;
+        // Currently empty: nothing the builder wires needs a background task of its own. Kept
+        // because the *shutdown* contract lives here — anything spawned during wiring must be
+        // pushed onto this, or `Shutdown::run` cannot abort it before the pool is closed.
+        #[allow(unused_mut)]
         let mut tasks: Vec<JoinHandle<()>> = Vec::new();
 
         // Created first: services that own long-lived connections need the listen-only half, and
@@ -230,20 +227,12 @@ impl AppStateBuilder {
         };
         info!("Established connection to the PostgreSQL database.");
 
-        // The cache is built *without* starting its subscriber: that task needs the bus, and the
-        // bus needs the cache. Returning the receiver instead of spawning inside the constructor
-        // is what unties the knot — the ordering is resolved here, where both halves are in scope,
-        // rather than by a lazily-initialised global.
-        let (cache, push_messages): (Arc<dyn Cache>, _) = match (self.cache, &config.redis_cache_url) {
-            (Some(cache), _) => (cache, None),
-            (None, Some(url)) => {
-                let redis = RedisCache::connect(url.clone()).await?;
-                let connection = redis.cache.connection.clone();
-                (Arc::new(redis.cache), Some((redis.push_messages, connection)))
-            }
+        let cache: Arc<dyn Cache> = match (self.cache, &config.redis_cache_url) {
+            (Some(cache), _) => cache,
+            (None, Some(url)) => Arc::new(RedisCache::connect(url.clone()).await?),
             (None, None) => {
                 info!("Redis is deactivated. Initializing NoOpCache...");
-                (Arc::new(NoOpCache), None)
+                Arc::new(NoOpCache)
             }
         };
 
@@ -252,15 +241,9 @@ impl AppStateBuilder {
             None => ObjectStorage::connect(&config.object_db_config).await?,
         };
 
-        // ── 2. Event bus, then the task that feeds it ────────────────────────
+        // ── 2. Event bus ─────────────────────────────────────────────────────
         let producer = PushNotificationProducer::connect(config.use_kafka, config.kafka_config.clone())?;
         let bus = Arc::new(BroadcastChannel::new(cache.clone(), producer));
-
-        if let Some((push_messages, connection)) = push_messages {
-            // `bus.clone()` is an `Arc` clone moved into the task — the ordinary way to share with
-            // a spawned future, and no less convenient than the global it replaces.
-            tasks.push(tokio::spawn(run_event_processor(push_messages, connection, bus.clone())));
-        }
 
         // ── 3. Repositories ──────────────────────────────────────────────────
         let rooms = RoomRepository::new(&database);
@@ -285,8 +268,7 @@ impl AppStateBuilder {
         let share_service = ShareService::new(rooms.clone());
         let timeline_service = TimelineService::new(rooms.clone(), chats.clone());
         let message_service = MessageService::new(database.clone(), rooms, chats, notifier);
-        let notification_service =
-            NotificationService::new(bus.clone(), cache, shutdown_controller.signal());
+        let notification_service = NotificationService::new(bus.clone(), cache, shutdown_controller.signal());
         let user_service = UserService::new(database.clone(), users, room_service.clone(), bus);
 
         for name in [

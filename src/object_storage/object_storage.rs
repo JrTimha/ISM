@@ -53,7 +53,7 @@ impl ObjectStorage {
             )));
         }
 
-        info!("Established connection to the s3 storage.");
+        info!("Established connection to the S3 Object Storage.");
         Ok(ObjectStorage {
             session: Arc::new(client),
             config: config.clone(),

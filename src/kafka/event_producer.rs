@@ -7,7 +7,7 @@ use rdkafka::ClientConfig;
 use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 #[async_trait]
@@ -28,6 +28,8 @@ impl KafkaEventProducer {
             .set("enable.idempotence", "true")
             .create()
             .map_err(|error| StartupError::Kafka(error.to_string()))?;
+
+        info!("Established connection to Kafka, push notification producer enabled.");
         Ok(Self { producer, config })
     }
 }

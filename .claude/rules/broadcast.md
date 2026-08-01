@@ -43,9 +43,9 @@ notifier.room_context(&room_id).await?;             // cache-first participant s
 notifier.invalidate(&room_id).await?;               // after any membership change
 ```
 
-`send_event` / `send_event_to_all` take a pre-built `Notification` and remain for the one case that
-needs it: the Redis subscriber forwards envelopes serialized by another node, which must keep their
-original `createdAt`.
+`send_event_to_all` takes a pre-built `Notification` and is what the `notify*` methods delegate to.
+Call it directly only when the envelope did not originate here and must keep its original
+`createdAt` — nothing does today, so reach for `notify` / `notify_all`.
 
 ### Macros
 

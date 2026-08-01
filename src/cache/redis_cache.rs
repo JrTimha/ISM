@@ -1,12 +1,10 @@
 use crate::broadcast::Notification;
-use crate::cache::util::{CHAT_CHANNEL, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
+use crate::cache::util::{ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
 use crate::rooms::model::RoomContext;
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
-use redis::aio::ConnectionManagerConfig;
-use redis::{AsyncTypedCommands, Client, ErrorKind, PushInfo, RedisError, RedisResult, Script};
+use redis::{AsyncTypedCommands, Client, ErrorKind, RedisError, RedisResult, Script};
 use std::sync::LazyLock;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -127,7 +125,6 @@ pub trait Cache: Send + Sync {
     async fn get_room_context(&self, room_id: &Uuid) -> RedisResult<Option<RoomContext>>;
     async fn set_room_context(&self, room_id: &Uuid, context: &RoomContext) -> RedisResult<()>;
     async fn invalidate_room_context(&self, room_id: &Uuid) -> RedisResult<()>;
-    async fn publish_notification(&self, notification: Notification, channel_name: &String) -> RedisResult<()>;
 }
 
 //docs: https://docs.rs/redis/latest/redis/
@@ -141,57 +138,34 @@ pub trait Cache: Send + Sync {
 /// Never reach for `Arc<Mutex<Connection>>`: that would funnel all Redis traffic through a single
 /// lock and serialize requests that the manager is built to pipeline.
 #[derive(Clone)]
-#[allow(unused)]
 pub struct RedisCache {
-    client: Client,
     pub connection: ConnectionManager,
 }
 
-/// What [`RedisCache::new`] hands back so the caller can start the keyspace subscriber.
-///
-/// The connection is subscribed to `chat:*` here, but the task that *consumes* those push messages
-/// needs a [`BroadcastChannel`](crate::broadcast::BroadcastChannel) — which in turn needs the cache
-/// being constructed. Rather than resolve that ordering with a global, the constructor returns the
-/// receiver and lets the composition root spawn the task once both halves exist. See
-/// [`crate::core::AppStateBuilder`].
-pub struct RedisConnection {
-    pub cache: RedisCache,
-    pub push_messages: UnboundedReceiver<PushInfo>,
-}
-
 impl RedisCache {
-    /// Connects to Redis and subscribes to the chat keyspace.
+    /// Connects to Redis.
     ///
-    /// Does **not** spawn anything: see [`RedisConnection`].
-    pub async fn connect(redis_url: String) -> RedisResult<RedisConnection> {
+    /// Does **not** spawn anything: the cache is a request/response store, and every read and write
+    /// happens on the caller's task.
+    pub async fn connect(redis_url: String) -> RedisResult<Self> {
         let redis_client = Client::open(format!("{}/?protocol=3", redis_url))?;
+        let connection = redis_client.get_connection_manager().await?;
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let config = ConnectionManagerConfig::new().set_push_sender(tx).set_automatic_resubscription();
-
-        let mut connection_manager = redis_client.get_connection_manager_with_config(config).await?;
-        connection_manager.psubscribe(format!("{}*", CHAT_CHANNEL)).await?;
-
-        info!("Established connection to the redis cache.");
-        Ok(RedisConnection {
-            cache: Self {
-                client: redis_client,
-                connection: connection_manager,
-            },
-            push_messages: rx,
-        })
+        info!("Established connection to the Redis, caching enabled.");
+        Ok(Self { connection })
     }
 }
 
 #[async_trait]
 impl Cache for RedisCache {
+
     async fn append_notification(&self, user_id: &Uuid, notification: &Notification) -> RedisResult<Option<u64>> {
         let mut con = self.connection.clone();
 
-        // The Redis subscriber forwards envelopes that already carry another node's sequence;
-        // everywhere else this is already `None` and the match costs nothing. Stripping it here
-        // rather than at the call site is what makes "the entry ID is the only source of `seq`"
-        // an invariant of the cache instead of a convention every caller has to remember.
+        // `seq` has exactly one source: the stream entry ID assigned below. Stripping it here
+        // rather than at the call site makes that an invariant of the cache instead of a
+        // convention every caller has to remember — an envelope that already carries a sequence
+        // cannot store a second, disagreeing copy of it.
         let payload = match notification.seq {
             None => serde_json::to_string(notification),
             Some(_) => serde_json::to_string(&Notification {
@@ -324,14 +298,6 @@ impl Cache for RedisCache {
         con.del(&key).await?;
         Ok(())
     }
-
-    async fn publish_notification(&self, notification: Notification, channel_name: &String) -> RedisResult<()> {
-        let mut con = self.connection.clone();
-        let notification_json = serde_json::to_string(&notification)
-            .map_err(|err| RedisError::from((ErrorKind::Parse, "Failed to serialize notification to JSON", err.to_string())))?;
-        con.publish(channel_name, notification_json).await?;
-        Ok(())
-    }
 }
 
 pub struct NoOpCache;
@@ -357,10 +323,6 @@ impl Cache for NoOpCache {
     }
 
     async fn invalidate_room_context(&self, _room_id: &Uuid) -> RedisResult<()> {
-        Ok(())
-    }
-
-    async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
         Ok(())
     }
 }

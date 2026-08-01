@@ -1,10 +1,5 @@
 /**
- * Used to pub/sub room updates to the cache
- */
-pub const CHAT_CHANNEL: &str = "chat_room:";
-
-/**
- * Used to pub/sub room updates to the cache
+ * Cached participant snapshot per room, used for fast membership lookups and broadcast fan-out
  */
 pub const ROOM_CONTEXT: &str = "room_context:";
 

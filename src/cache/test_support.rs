@@ -130,10 +130,6 @@ impl Cache for InMemoryCache {
     async fn invalidate_room_context(&self, _room_id: &Uuid) -> RedisResult<()> {
         Ok(())
     }
-
-    async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
-        Ok(())
-    }
 }
 
 /// A `Cache` where every operation fails, for the error branches that a working cache cannot reach.
@@ -168,10 +164,6 @@ impl Cache for FailingCache {
     }
 
     async fn invalidate_room_context(&self, _room_id: &Uuid) -> RedisResult<()> {
-        Err(Self::error())
-    }
-
-    async fn publish_notification(&self, _notification: Notification, _channel_name: &String) -> RedisResult<()> {
         Err(Self::error())
     }
 }

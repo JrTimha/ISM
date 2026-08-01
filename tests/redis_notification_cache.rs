@@ -52,9 +52,9 @@ async fn connect() -> Option<(RedisCache, ConnectionManager)> {
     };
 
     match RedisCache::connect(url.clone()).await {
-        Ok(connection) => {
-            let raw = connection.cache.connection.clone();
-            Some((connection.cache, raw))
+        Ok(cache) => {
+            let raw = cache.connection.clone();
+            Some((cache, raw))
         }
         Err(error) => {
             skip(&format!("Redis at {url} is unreachable: {error}"));

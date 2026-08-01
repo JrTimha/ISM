@@ -93,7 +93,7 @@ impl BroadcastChannel {
 
     /// Sends one event to one user.
     ///
-    /// Prefer this over [`Self::send_event`]: taking the [`NotificationEvent`] rather than a
+    /// Prefer this over [`Self::send_event_to_all`]: taking the [`NotificationEvent`] rather than a
     /// pre-built [`Notification`] means the envelope is constructed in exactly one place, so the
     /// version field and the unset `seq` cannot be got wrong at a call site.
     pub async fn notify(&self, to_user: &Uuid, event: NotificationEvent) {
@@ -106,16 +106,8 @@ impl BroadcastChannel {
         self.send_event_to_all(user_ids, Notification::new(event)).await;
     }
 
-    /// Sends an already-built envelope. Used when the envelope did not originate here — the Redis
-    /// subscriber forwards notifications that were serialized by another node and must keep their
-    /// original `createdAt`. Everywhere else, prefer [`Self::notify`].
-    pub async fn send_event(&self, notification: Notification, to_user: &Uuid) {
-        // A single recipient is a fan-out of one. Routing both through the same function keeps the
-        // push-notification fallback in exactly one place.
-        self.send_event_to_all(vec![*to_user], notification).await;
-    }
-
-    /// Fan-out counterpart of [`Self::send_event`]. Prefer [`Self::notify_all`].
+    /// Sends an already-built envelope to many users. Prefer [`Self::notify_all`], which builds the
+    /// envelope for you.
     ///
     /// Recipients are independent — each touches only its own Redis keys and its own broadcast
     /// sender — so they are delivered concurrently, bounded by [`FANOUT_CONCURRENCY`]. Per-user
@@ -309,35 +301,6 @@ mod tests {
         let recv_json = serde_json::to_string(&received).expect("serialize recv");
         assert_eq!(sent_json, recv_json);
         assert_eq!(received.seq, None);
-    }
-
-    #[tokio::test]
-    async fn assigns_independent_per_user_sequence_and_skips_ephemeral() {
-        let cache = Arc::new(InMemoryCache::new());
-        let bc = BroadcastChannel::new(cache.clone(), logging_producer());
-
-        let user_a = Uuid::new_v4();
-        let mut rx_a = bc.subscribe_to_user_events(user_a).await;
-
-        // Two durable events to the same user -> monotonic seq 1, then 2.
-        bc.send_event(read_receipt(user_a), &user_a).await;
-        bc.send_event(read_receipt(user_a), &user_a).await;
-        assert_eq!(rx_a.recv().await.expect("a1").seq, Some(1));
-        assert_eq!(rx_a.recv().await.expect("a2").seq, Some(2));
-
-        // A second user has an independent sequence space (also starts at 1).
-        let user_b = Uuid::new_v4();
-        let mut rx_b = bc.subscribe_to_user_events(user_b).await;
-        bc.send_event(read_receipt(user_b), &user_b).await;
-        assert_eq!(rx_b.recv().await.expect("b1").seq, Some(1));
-
-        // Ephemeral event: no sequence number, never cached.
-        bc.send_event(Notification::new(NotificationEvent::Resync { reason: "too old".into() }), &user_a)
-            .await;
-        assert_eq!(rx_a.recv().await.expect("resync").seq, None);
-
-        // Only the 3 durable events were cached; the ephemeral one was not.
-        assert_eq!(cache.cached_count(), 3);
     }
 
     /// The fan-out runs recipients concurrently, so the thing worth pinning is that concurrency

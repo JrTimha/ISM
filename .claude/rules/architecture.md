@@ -145,19 +145,23 @@ already-`Arc`'d type adds an indirection and buys nothing.
 
 ## Background tasks
 
-Constructors construct; the composition root spawns.
+Constructors construct; the composition root spawns. `RedisCache::connect` opens a connection and
+returns — it does not spawn, and neither does any other constructor.
 
-`RedisCache::connect` returns its push-message receiver instead of spawning the subscriber itself,
-because that task needs the `BroadcastChannel`, which needs the cache. Resolving that ordering is
-the builder's job — it is why the bus could stop being a global. A spawned task gets an `Arc` clone
-moved in:
+There are currently **no** background tasks: `build()` still assembles a `Vec<JoinHandle<()>>`,
+which is empty. Anything spawned during wiring goes onto it, with the dependency handed in as an
+`Arc` clone moved to the spawn site rather than reached for through a global:
 
 ```rust
-tasks.push(tokio::spawn(run_event_processor(push_messages, connection, bus.clone())));
+tasks.push(tokio::spawn({
+    let bus = bus.clone();
+    async move { /* … */ }
+}));
 ```
 
-The builder returns the `JoinHandle`s in `Bootstrap::tasks`, so shutdown can join or abort them —
-something a global-spawned task can never offer.
+The handles travel to `Shutdown`, which aborts them **before** closing the pool — so a task that is
+spawned but not pushed can still be holding a connection while the pool drains. That is the whole
+reason the vec stays: a global-spawned task offers no handle at all.
 
 ## Startup
 

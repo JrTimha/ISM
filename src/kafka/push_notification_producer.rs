@@ -4,7 +4,6 @@ use crate::core::{KafkaConfig, StartupResult};
 use crate::kafka::EventProducer;
 use crate::kafka::event_producer::{KafkaEventProducer, LogEventProducer};
 use async_trait::async_trait;
-use tracing::info;
 use uuid::Uuid;
 
 pub enum PushNotificationProducer {
@@ -36,7 +35,6 @@ impl PushNotificationProducer {
     /// `#[cfg(test)]` and never reaches a release build.
     pub fn connect(use_kafka: bool, kafka_config: KafkaConfig) -> StartupResult<Self> {
         if use_kafka {
-            info!("Kafka-Producer initializing.");
             Ok(PushNotificationProducer::Kafka(KafkaEventProducer::connect(kafka_config)?))
         } else {
             Ok(PushNotificationProducer::Logger(LogEventProducer::new()))

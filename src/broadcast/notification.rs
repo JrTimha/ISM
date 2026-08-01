@@ -1,7 +1,7 @@
-use crate::messaging::model::MessageDto;
-use crate::rooms::room::{ChatRoomDto, LastMessagePreviewText};
-use crate::rooms::room_member::RoomMember;
-use crate::users::model::User;
+use crate::messaging::response::MessageResponse;
+use crate::rooms::response::RoomMemberResponse;
+use crate::rooms::response::{LastMessagePreviewResponse, RoomResponse};
+use crate::users::response::UserProfileResponse;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -46,10 +46,10 @@ impl Notification {
 #[serde(tag = "type")]
 pub enum NotificationEvent {
     #[serde(rename_all = "camelCase")]
-    FriendRequestReceived { from_user: User },
+    FriendRequestReceived { from_user: UserProfileResponse },
 
     #[serde(rename_all = "camelCase")]
-    FriendRequestAccepted { from_user: User },
+    FriendRequestAccepted { from_user: UserProfileResponse },
 
     /**
      * Different chat messages, sent to all active users in a room. `sender` carries the
@@ -58,9 +58,9 @@ pub enum NotificationEvent {
      */
     #[serde(rename_all = "camelCase")]
     ChatMessage {
-        message: MessageDto,
-        room_preview_text: LastMessagePreviewText,
-        sender: RoomMember,
+        message: MessageResponse,
+        room_preview_text: LastMessagePreviewResponse,
+        sender: RoomMemberResponse,
     },
 
     /**
@@ -76,9 +76,9 @@ pub enum NotificationEvent {
      */
     #[serde(rename_all = "camelCase")]
     NewRoom {
-        room: ChatRoomDto,
-        created_by: User,
-        first_message: Option<MessageDto>,
+        room: RoomResponse,
+        created_by: UserProfileResponse,
+        first_message: Option<MessageResponse>,
     },
 
     /**
@@ -92,8 +92,8 @@ pub enum NotificationEvent {
      */
     #[serde(rename_all = "camelCase")]
     RoomChangeEvent {
-        message: MessageDto,
-        room_preview_text: LastMessagePreviewText,
+        message: MessageResponse,
+        room_preview_text: LastMessagePreviewResponse,
     },
 
     /**
@@ -130,12 +130,4 @@ impl NotificationEvent {
             | NotificationEvent::UserReadChat { .. } => false,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SendNotification {
-    #[serde(flatten)]
-    pub body: Notification,
-    pub to_user: Uuid,
 }

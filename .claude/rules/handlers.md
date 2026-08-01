@@ -10,10 +10,41 @@ paths:
 - **No business logic in handlers.** Handlers only extract inputs, call the service, and return the result.
 - Business logic, validation, and error handling belong in the service layer.
 
-**Where the line falls:** the handler validates *syntax* — `validator` derives, `decode_cursor`,
-`clamp_page_size`, pulling a field out of a multipart body. Anything that requires reading the
-database, **including authorization**, is the service's. "Is this user in this room?" is not a
-handler question; `RoomService` answers it for every caller, so a new endpoint cannot forget to ask.
+**Where the line falls:** the handler validates *syntax* — the `validator` bounds on its request
+type, `decode_cursor`, the `PageSize` clamp, pulling a field out of a multipart body. Anything that
+requires reading the database, **including authorization**, is the service's. "Is this user in this
+room?" is not a handler question; `RoomService` answers it for every caller, so a new endpoint
+cannot forget to ask.
+
+## Request Extraction
+
+**Take `ValidatedJson<T>` / `ValidatedQuery<T>`, never bare `Json<T>` / `Query<T>`.**
+
+```rust
+pub async fn handle_create_room(
+    State(rooms): State<RoomService>,
+    user: CurrentUser,
+    ValidatedJson(payload): ValidatedJson<NewRoomRequest>,
+) -> Result<Json<RoomResponse>, AppError> {
+    let room = rooms.create_room(user.subject, payload).await?;
+    Ok(Json(room))
+}
+```
+
+Both extractors (`core/extract.rs`) are bound on `ApiRequest`, whose `Validate` supertrait makes a
+request type without rules impossible to register, and both run `validate()` before the handler body
+starts. A handler that compiles has validated its input.
+
+This replaced a hand-written `payload.validate().map_err(AppError::from)?` that existed at two call
+sites in the whole project — one of which checked a single nested field and let an unbounded room
+name and an uncapped invite list through. Deserialization failures and rule violations both become
+`AppError::Validation`, so the client sees one 400 shape either way.
+
+`limit` is *not* validated: a value above `MAX_PAGE_SIZE` is not a client error, it is a request for
+more than the server serves. Declare it as `PageSize`, which clamps while deserializing — see
+`.claude/rules/pagination.md`.
+
+See `.claude/rules/model.md` for the request/response/row/JSONB taxonomy these types belong to.
 
 ## Dependency Injection
 

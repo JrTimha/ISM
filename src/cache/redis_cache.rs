@@ -1,6 +1,6 @@
 use crate::broadcast::Notification;
 use crate::cache::util::{CHAT_CHANNEL, ROOM_CONTEXT, USER_NOTIFICATIONS, USER_SEQUENCE};
-use crate::rooms::room_member::RoomContext;
+use crate::rooms::model::RoomContext;
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::aio::ConnectionManagerConfig;

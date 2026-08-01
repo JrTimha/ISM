@@ -1,30 +1,32 @@
 use crate::auth::CurrentUser;
-use crate::core::cursor::{CursorResults, clamp_page_size, decode_cursor};
+use crate::core::ValidatedQuery;
+use crate::core::cursor::{CursorResults, decode_cursor};
 use crate::core::errors::{AppError, AppResponse};
 use crate::users::UserService;
-use crate::users::model::{RelationshipStateResponse, User, UserPaginationCursor, UserWithRelationshipDto};
-use crate::users::query_param::{RelationshipQueryParams, UserSearchParams};
+use crate::users::model::UserPaginationCursor;
+use crate::users::request::{FriendListQuery, UserSearchQuery};
+use crate::users::response::{RelationshipStateResponse, UserProfileResponse, UserWithRelationshipResponse};
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use uuid::Uuid;
 
 pub async fn handle_search_user_by_id(
     State(users): State<UserService>,
     Path(target_id): Path<Uuid>,
     user: CurrentUser,
-) -> AppResponse<Json<UserWithRelationshipDto>> {
-    let user_dto = users.query_user_by_id(&user.subject, &target_id).await?;
+) -> AppResponse<Json<UserWithRelationshipResponse>> {
+    let response = users.query_user_by_id(&user.subject, &target_id).await?;
 
-    Ok(Json(user_dto))
+    Ok(Json(response))
 }
 
 pub async fn handle_search_user_by_name(
     State(users): State<UserService>,
     user: CurrentUser,
-    Query(params): Query<UserSearchParams>,
-) -> AppResponse<Json<CursorResults<UserWithRelationshipDto>>> {
+    ValidatedQuery(params): ValidatedQuery<UserSearchQuery>,
+) -> AppResponse<Json<CursorResults<UserWithRelationshipResponse>>> {
     let cursor: UserPaginationCursor = decode_cursor(params.cursor).map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
-    let page_size = clamp_page_size(params.limit);
+    let page_size = params.limit.get();
 
     let search_results = users.query_user_by_name(&user.subject, &params.username, cursor, page_size).await?;
 
@@ -34,10 +36,10 @@ pub async fn handle_search_user_by_name(
 pub async fn handle_get_open_friend_requests(
     State(users): State<UserService>,
     user: CurrentUser,
-    Query(params): Query<RelationshipQueryParams>,
-) -> AppResponse<Json<CursorResults<User>>> {
+    ValidatedQuery(params): ValidatedQuery<FriendListQuery>,
+) -> AppResponse<Json<CursorResults<UserProfileResponse>>> {
     let cursor: UserPaginationCursor = decode_cursor(params.cursor).map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
-    let page_size = clamp_page_size(params.limit);
+    let page_size = params.limit.get();
 
     let results = users.get_open_friend_requests(&user.subject, params.username, cursor, page_size).await?;
 
@@ -47,10 +49,10 @@ pub async fn handle_get_open_friend_requests(
 pub async fn handle_get_friends(
     State(users): State<UserService>,
     user: CurrentUser,
-    Query(params): Query<RelationshipQueryParams>,
-) -> AppResponse<Json<CursorResults<User>>> {
+    ValidatedQuery(params): ValidatedQuery<FriendListQuery>,
+) -> AppResponse<Json<CursorResults<UserProfileResponse>>> {
     let cursor: UserPaginationCursor = decode_cursor(params.cursor).map_err(|_| AppError::Validation("Invalid Cursor-Parameters.".to_string()))?;
-    let page_size = clamp_page_size(params.limit);
+    let page_size = params.limit.get();
 
     let results = users.get_friends(&user.subject, params.username, cursor, page_size).await?;
     Ok(Json(results))

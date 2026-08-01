@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                message_id,\n                chat_room_id,\n                sender_id,\n                msg_body AS \"msg_body: sqlx::types::Json<MessageBody>\",\n                msg_type AS \"msg_type: MsgType\",\n                created_at\n            FROM chat_message\n            WHERE message_id = $1 AND chat_room_id = $2\n            ",
+  "query": "\n            SELECT\n                message_id,\n                chat_room_id,\n                sender_id,\n                msg_body AS \"msg_body: sqlx::types::Json<MessageBodyJson>\",\n                msg_type AS \"msg_type: MsgType\",\n                created_at\n            FROM chat_message\n            WHERE message_id = $1 AND chat_room_id = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -38,7 +38,7 @@
       },
       {
         "ordinal": 3,
-        "name": "msg_body: sqlx::types::Json<MessageBody>",
+        "name": "msg_body: sqlx::types::Json<MessageBodyJson>",
         "type_info": "Jsonb",
         "origin": {
           "Table": {
@@ -97,5 +97,5 @@
       false
     ]
   },
-  "hash": "637e0d0a476c53431c7bac444d50465ef8673610590ae1488c0f4fd75604f7b2"
+  "hash": "17147d37c8dadd21a08119d095537458a19ea984d8911f6649eceefbf7f5601e"
 }

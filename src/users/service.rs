@@ -6,7 +6,9 @@ use crate::core::{Database, Service};
 use crate::notify;
 use crate::rooms::RoomService;
 use crate::users::UserRepository;
-use crate::users::model::{Relationship, RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipDto};
+use crate::users::entity::UserRelationshipRow;
+use crate::users::model::{RelationshipState, UserPaginationCursor};
+use crate::users::response::{Relationship, UserProfileResponse, UserWithRelationshipResponse};
 use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -51,19 +53,21 @@ impl UserService {
         username_query: &str,
         cursor: UserPaginationCursor,
         page_size: usize,
-    ) -> Result<CursorResults<UserWithRelationshipDto>, AppError> {
+    ) -> Result<CursorResults<UserWithRelationshipResponse>, AppError> {
         let mut users = self
             .users
             .find_user_by_name_with_relationship_type(current_user_id, username_query, (page_size + 1) as i64, cursor)
             .await?;
 
+        // Cursor first, responses second: the cursor is keyed on the row's `(display_name, id)`,
+        // and `next_cursor` truncates the extra look-ahead row that must not reach the client.
         let next_cursor_string = next_cursor(&mut users, page_size, |last_user| UserPaginationCursor {
-            last_seen_id: Some(last_user.r_user.id),
-            last_seen_name: Some(last_user.r_user.display_name.clone()),
+            last_seen_id: Some(last_user.user.id),
+            last_seen_name: Some(last_user.user.display_name.clone()),
         })
         .map_err(|e| AppError::Processing(format!("Cursor encoding failed: {}", e)))?;
 
-        let mapped_users = users.iter().map(|item| item.to_dto(current_user_id)).collect();
+        let mapped_users = users.iter().map(|row| UserWithRelationshipResponse::for_viewer(row, current_user_id)).collect();
 
         Ok(CursorResults {
             cursor: next_cursor_string,
@@ -71,12 +75,12 @@ impl UserService {
         })
     }
 
-    pub async fn query_user_by_id(&self, current_user_id: &Uuid, user_id: &Uuid) -> Result<UserWithRelationshipDto, AppError> {
+    pub async fn query_user_by_id(&self, current_user_id: &Uuid, user_id: &Uuid) -> Result<UserWithRelationshipResponse, AppError> {
         let db_user = self.users.find_user_by_id_with_relationship_type(current_user_id, user_id).await?;
 
         let user = db_user.ok_or_else(|| AppError::NotFound(format!("User with ID {} not found.", user_id)))?;
 
-        Ok(user.to_dto(current_user_id))
+        Ok(UserWithRelationshipResponse::for_viewer(&user, current_user_id))
     }
 
     pub async fn get_open_friend_requests(
@@ -85,7 +89,7 @@ impl UserService {
         username: Option<String>,
         cursor: UserPaginationCursor,
         page_size: usize,
-    ) -> Result<CursorResults<User>, AppError> {
+    ) -> Result<CursorResults<UserProfileResponse>, AppError> {
         let mut users = self
             .users
             .select_open_friend_requests(current_user_id, username.as_deref(), cursor, (page_size + 1) as i64)
@@ -99,7 +103,7 @@ impl UserService {
 
         Ok(CursorResults {
             cursor: next_cursor_string,
-            content: users,
+            content: users.into_iter().map(UserProfileResponse::from).collect(),
         })
     }
 
@@ -109,7 +113,7 @@ impl UserService {
         username: Option<String>,
         cursor: UserPaginationCursor,
         page_size: usize,
-    ) -> Result<CursorResults<User>, AppError> {
+    ) -> Result<CursorResults<UserProfileResponse>, AppError> {
         let mut users = self
             .users
             .find_users_with_specific_relationship(current_user_id, RelationshipState::FRIEND, username.as_deref(), cursor, (page_size + 1) as i64)
@@ -123,16 +127,16 @@ impl UserService {
 
         Ok(CursorResults {
             cursor: next_cursor_string,
-            content: users,
+            content: users.into_iter().map(UserProfileResponse::from).collect(),
         })
     }
 
     pub async fn add_friend(&self, sender_id: Uuid, receiver_id: Uuid) -> Result<(), AppError> {
         let mut tx = self.db.begin().await?;
         let relationship = self.users.search_for_relationship(&mut tx, &sender_id, &receiver_id).await?;
-        if relationship.is_some() {
+        if let Some(existing) = relationship {
             //don't handle this request further when the users are in a relationship
-            return match relationship.unwrap().state {
+            return match existing.state {
                 RelationshipState::A_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
                 RelationshipState::B_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
                 RelationshipState::ALL_BLOCKED => Err(AppError::Validation("Relationship between users is blocked.".to_string())),
@@ -153,7 +157,7 @@ impl UserService {
             RelationshipState::B_INVITED
         };
 
-        let init_relationship = UserRelationshipEntity {
+        let init_relationship = UserRelationshipRow {
             user_a_id,
             user_b_id,
             state: relationship_state,
@@ -163,12 +167,18 @@ impl UserService {
         self.users.insert_relationship(&mut tx, &init_relationship).await?;
 
         tx.commit().await?;
-        let client_dto = self
+        let sender = self
             .users
             .find_user_by_id(&sender_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("User with ID {} not found.", sender_id)))?;
-        notify!(self.bus, &receiver_id, FriendRequestReceived { from_user: client_dto });
+        notify!(
+            self.bus,
+            &receiver_id,
+            FriendRequestReceived {
+                from_user: UserProfileResponse::from(sender)
+            }
+        );
         Ok(())
     }
 
@@ -197,13 +207,19 @@ impl UserService {
         self.users.increment_friends_count(&mut tx, &relationship.user_b_id).await?;
         tx.commit().await?;
 
-        let client_dto = self
+        let accepter = self
             .users
             .find_user_by_id(&client_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("User with ID {} not found.", client_id)))?;
 
-        notify!(self.bus, &sender_id, FriendRequestAccepted { from_user: client_dto });
+        notify!(
+            self.bus,
+            &sender_id,
+            FriendRequestAccepted {
+                from_user: UserProfileResponse::from(accepter)
+            }
+        );
 
         Ok(())
     }
@@ -217,7 +233,7 @@ impl UserService {
             .ok_or_else(|| AppError::NotFound("Relationship between these users not found.".to_string()))?;
 
         let is_rejecter_user_a = client_id == relationship.user_a_id;
-        match (relationship.state.clone(), is_rejecter_user_a) {
+        match (relationship.state, is_rejecter_user_a) {
             (RelationshipState::B_INVITED, true) => {}  //valid state
             (RelationshipState::A_INVITED, false) => {} //valid state
             _ => {
@@ -299,7 +315,7 @@ impl UserService {
             };
             let entity = self.users.update_relationship_state(&mut tx, &rel.user_a_id, &rel.user_b_id, new_state).await?;
             tx.commit().await?;
-            Ok(entity.resolve_relationship_state(&client_id))
+            Ok(Relationship::for_viewer(&entity, &client_id))
         } else {
             //no relationship found, create one
             let (user_a_id, user_b_id) = if client_id < ignored_user_id {
@@ -314,15 +330,15 @@ impl UserService {
                 RelationshipState::B_BLOCKED
             };
 
-            let init_relationship = UserRelationshipEntity {
+            let init_relationship = UserRelationshipRow {
                 user_a_id,
                 user_b_id,
-                state: relationship_state.clone(),
+                state: relationship_state,
                 relationship_change_timestamp: Utc::now(),
             };
             self.users.insert_relationship(&mut tx, &init_relationship).await?;
             tx.commit().await?;
-            Ok(init_relationship.resolve_relationship_state(&client_id))
+            Ok(Relationship::for_viewer(&init_relationship, &client_id))
         }
     }
 
@@ -337,7 +353,7 @@ impl UserService {
         // Named `updated` rather than `state`: the old name shadowed the `AppState` parameter
         // halfway through the match, so the arms below read as if they used the binding they were
         // still defining.
-        let updated = match (relationship.state.clone(), is_client_user_a) {
+        let updated = match (relationship.state, is_client_user_a) {
             (RelationshipState::ALL_BLOCKED, true) => {
                 // Client was A, only B blocking now
                 let entity = self
@@ -371,7 +387,7 @@ impl UserService {
         };
         tx.commit().await?;
         match updated {
-            Some(entity) => Ok(Some(entity.resolve_relationship_state(&client_id))),
+            Some(entity) => Ok(Some(Relationship::for_viewer(&entity, &client_id))),
             None => Ok(None),
         }
     }

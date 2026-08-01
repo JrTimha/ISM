@@ -1,154 +1,24 @@
-use chrono::{DateTime, Utc};
+//! Types shared by more than one boundary in the users domain.
+//!
+//! [`RelationshipState`] is the stored `user_relationship.state` value; the pagination cursor is
+//! an opaque client token. Neither is a row, a request or a response, so neither belongs in
+//! `entity.rs`, `request.rs` or `response.rs`.
+
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, Type};
+use sqlx::Type;
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct FriendRequestResult {
-    pub id: Uuid,
-    pub from_user: User,
-}
-
-#[derive(Debug, Clone)]
-pub struct UserRelationshipEntity {
-    pub user_a_id: Uuid,
-    pub user_b_id: Uuid,
-    pub state: RelationshipState,
-    pub relationship_change_timestamp: DateTime<Utc>,
-}
-
-impl UserRelationshipEntity {
-    pub fn resolve_relationship_state(&self, client_id: &Uuid) -> Relationship {
-        let relationship = self;
-
-        match relationship.state {
-            RelationshipState::FRIEND => Relationship::Friend,
-
-            RelationshipState::A_BLOCKED => {
-                if relationship.user_a_id == *client_id {
-                    Relationship::ClientBlocked
-                } else {
-                    Relationship::ClientGotBlocked
-                }
-            }
-
-            RelationshipState::B_BLOCKED => {
-                if relationship.user_b_id == *client_id {
-                    Relationship::ClientBlocked
-                } else {
-                    Relationship::ClientGotBlocked
-                }
-            }
-
-            RelationshipState::ALL_BLOCKED => {
-                if relationship.user_b_id == *client_id || relationship.user_a_id == *client_id {
-                    Relationship::ClientBlocked
-                } else {
-                    Relationship::ClientGotBlocked
-                }
-            }
-
-            RelationshipState::A_INVITED => {
-                if relationship.user_a_id == *client_id {
-                    Relationship::InviteSent
-                } else {
-                    Relationship::InviteReceived
-                }
-            }
-
-            RelationshipState::B_INVITED => {
-                if relationship.user_b_id == *client_id {
-                    Relationship::InviteSent
-                } else {
-                    Relationship::InviteReceived
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct UserWithRelationshipEntity {
-    pub r_user: User,
-    user_a_id: Option<Uuid>,
-    user_b_id: Option<Uuid>,
-    relationship_state: Option<RelationshipState>,
-    relationship_change_timestamp: Option<DateTime<Utc>>,
-}
-
-impl UserWithRelationshipEntity {
-    pub fn get_relationship(&self) -> Option<UserRelationshipEntity> {
-        if self.user_a_id.is_some()
-            && self.user_b_id.is_some()
-            && self.relationship_state.is_some()
-            && self.relationship_change_timestamp.is_some()
-        {
-            Some(UserRelationshipEntity {
-                user_a_id: self.user_a_id.unwrap(),
-                user_b_id: self.user_b_id.unwrap(),
-                state: self.relationship_state.clone().unwrap(),
-                relationship_change_timestamp: self.relationship_change_timestamp.unwrap(),
-            })
-        } else {
-            None
-        }
-    }
-
-    pub fn to_dto(&self, client_id: &Uuid) -> UserWithRelationshipDto {
-        let rel_type = match self.get_relationship() {
-            Some(rel) => Some(rel.resolve_relationship_state(client_id)),
-            None => None,
-        };
-
-        UserWithRelationshipDto {
-            user: self.r_user.clone(),
-            relationship_type: rel_type,
-        }
-    }
-}
-
-impl<'r, R: Row> FromRow<'r, R> for UserWithRelationshipEntity
-where
-    &'r str: sqlx::ColumnIndex<R>,
-    Uuid: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
-    String: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
-    i64: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
-    DateTime<Utc>: sqlx::Decode<'r, R::Database> + sqlx::Type<R::Database>,
-{
-    fn from_row(row: &'r R) -> Result<Self, sqlx::Error> {
-        let r_user = User::from_row(row)?;
-        let state_str: Option<String> = row.try_get("state")?;
-
-        let relationship_state: Option<RelationshipState> = state_str
-            .map(RelationshipState::try_from)
-            .transpose()
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
-
-        let user_a_id = row.try_get("user_a_id")?;
-        let user_b_id = row.try_get("user_b_id")?;
-        let relationship_change_timestamp = row.try_get("relationship_change_timestamp")?;
-
-        Ok(UserWithRelationshipEntity {
-            r_user,
-            user_a_id,
-            user_b_id,
-            relationship_state,
-            relationship_change_timestamp,
-        })
-    }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserWithRelationshipDto {
-    pub user: User,
-    pub relationship_type: Option<Relationship>,
-}
-
+/// The stored state of a relationship, from the table's own point of view.
+///
+/// `A` and `B` refer to the row's `user_a_id` / `user_b_id`, which are ordered by id and have
+/// nothing to do with who is asking. Turning this into something a client can read requires the
+/// viewer's id — see [`Relationship::for_viewer`](crate::users::response::Relationship::for_viewer).
+///
+/// The column is `varchar` with a `CHECK` constraint rather than a Postgres enum, which is why
+/// values are bound through [`Display`] and read back through [`TryFrom<String>`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Deserialize, Serialize, Clone, Type, PartialEq, Copy)]
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -161,6 +31,7 @@ pub enum RelationshipState {
     B_INVITED,
 }
 
+/// A `user_relationship.state` value the `CHECK` constraint should have made impossible.
 #[derive(Debug)]
 pub struct InvalidState(String);
 
@@ -169,10 +40,12 @@ impl fmt::Display for InvalidState {
         write!(f, "Unknown RelationshipState-Value: '{}'", self.0)
     }
 }
+
 impl Error for InvalidState {}
 
 impl TryFrom<String> for RelationshipState {
     type Error = InvalidState;
+
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
             "A_BLOCKED" => Ok(Self::A_BLOCKED),
@@ -188,49 +61,25 @@ impl TryFrom<String> for RelationshipState {
 
 impl Display for RelationshipState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            RelationshipState::FRIEND => write!(f, "FRIEND"),
-            RelationshipState::B_BLOCKED => write!(f, "B_BLOCKED"),
-            RelationshipState::A_BLOCKED => write!(f, "A_BLOCKED"),
-            RelationshipState::ALL_BLOCKED => write!(f, "ALL_BLOCKED"),
-            RelationshipState::A_INVITED => write!(f, "A_INVITED"),
-            RelationshipState::B_INVITED => write!(f, "B_INVITED"),
-        }
+        let value = match self {
+            RelationshipState::FRIEND => "FRIEND",
+            RelationshipState::B_BLOCKED => "B_BLOCKED",
+            RelationshipState::A_BLOCKED => "A_BLOCKED",
+            RelationshipState::ALL_BLOCKED => "ALL_BLOCKED",
+            RelationshipState::A_INVITED => "A_INVITED",
+            RelationshipState::B_INVITED => "B_INVITED",
+        };
+        write!(f, "{value}")
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Relationship {
-    InviteReceived,
-    InviteSent,
-    ClientBlocked,
-    ClientGotBlocked,
-    Friend,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct User {
-    pub id: Uuid,
-    pub display_name: String,
-    pub street_credits: i64,
-    pub profile_picture: Option<String>,
-    pub description: Option<String>,
-    pub friends_count: i64,
-    pub posts_count: i64,
-    pub role: String,
-}
-
+/// Keyset cursor for every user list: search, friends and friend requests.
+///
+/// Ordered by `(display_name, id)` ascending, with `id` as the deterministic tie-breaker for
+/// duplicate display names.
 #[derive(Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UserPaginationCursor {
     pub last_seen_name: Option<String>,
     pub last_seen_id: Option<Uuid>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RelationshipStateResponse {
-    pub state: Option<Relationship>,
 }

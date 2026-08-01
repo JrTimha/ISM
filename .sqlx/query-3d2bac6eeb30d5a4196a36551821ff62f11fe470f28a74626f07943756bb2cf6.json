@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                room.id,\n                room.room_type AS \"room_type: RoomType\",\n                room.created_at,\n                room.latest_message,\n                room.latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewText>\",\n                COALESCE(other_user.display_name, room.room_name) AS room_name,\n                COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,\n                COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread\n            FROM\n                chat_room_participant AS participants\n            JOIN\n                chat_room AS room ON participants.room_id = room.id\n            -- 3. To find the other participant, only for single chat rooms!\n            LEFT JOIN LATERAL (\n                SELECT\n                    p2.user_id\n                FROM\n                    chat_room_participant p2\n                WHERE\n                    p2.room_id = room.id AND p2.user_id != $1\n                LIMIT 1\n            ) AS other_participant ON room.room_type = 'Single'\n            -- Only executed when the lateral join has matched something:\n            LEFT JOIN\n                app_user AS other_user ON other_user.id = other_participant.user_id\n            WHERE\n                participants.user_id = $1\n                AND room.id = $2\n            ",
+  "query": "\n            SELECT\n                room.id,\n                room.room_type AS \"room_type: RoomType\",\n                room.created_at,\n                room.latest_message,\n                room.latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewJson>\",\n                COALESCE(other_user.display_name, room.room_name) AS room_name,\n                COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,\n                COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread\n            FROM\n                chat_room_participant AS participants\n            JOIN\n                chat_room AS room ON participants.room_id = room.id\n            -- 3. To find the other participant, only for single chat rooms!\n            LEFT JOIN LATERAL (\n                SELECT\n                    p2.user_id\n                FROM\n                    chat_room_participant p2\n                WHERE\n                    p2.room_id = room.id AND p2.user_id != $1\n                LIMIT 1\n            ) AS other_participant ON room.room_type = 'Single'\n            -- Only executed when the lateral join has matched something:\n            LEFT JOIN\n                app_user AS other_user ON other_user.id = other_participant.user_id\n            WHERE\n                participants.user_id = $1\n                AND room.id = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "latest_message_preview_text: Json<LastMessagePreviewText>",
+        "name": "latest_message_preview_text: Json<LastMessagePreviewJson>",
         "type_info": "Varchar",
         "origin": {
           "Table": {
@@ -94,5 +94,5 @@
       null
     ]
   },
-  "hash": "69faf49936069fe6d515d2cb5e225b27f3e0159f3a9184a69bb2b952bc589fa6"
+  "hash": "3d2bac6eeb30d5a4196a36551821ff62f11fe470f28a74626f07943756bb2cf6"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    r_user.id,\n                    r_user.display_name,\n                    r_user.profile_picture,\n                    r_user.street_credits,\n                    r_user.description,\n                    r_user.friends_count,\n                    r_user.posts_count,\n                    r_user.role\n                    FROM app_user r_user\n                    WHERE r_user.id = $1\n                ",
+  "query": "SELECT\n                    r_user.id,\n                    r_user.display_name,\n                    r_user.profile_picture,\n                    r_user.street_credits,\n                    r_user.description,\n                    r_user.friends_count,\n                    r_user.posts_count,\n                    r_user.role,\n                    r_user.email,\n                    r_user.created_at,\n                    r_user.deleted_at,\n                    r_user.last_modified_at,\n                    r_user.raw_name\n                    FROM app_user r_user\n                    WHERE r_user.id = $1\n                ",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,61 @@
             "name": "role"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "email",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "deleted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "deleted_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "last_modified_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "last_modified_at"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "raw_name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "app_user",
+            "name": "raw_name"
+          }
+        }
       }
     ],
     "parameters": {
@@ -105,8 +160,13 @@
       true,
       false,
       false,
-      false
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "cf18bc54419542900d4503b85fe650a2644001898dd16ece12bb8384cf1e304a"
+  "hash": "69e4edb98b51bb2cc49be17c61839269bedda5c5c812dac861872f3f75e36c0c"
 }

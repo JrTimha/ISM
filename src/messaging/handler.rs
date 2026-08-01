@@ -7,20 +7,20 @@
 
 use crate::auth::CurrentUser;
 use crate::broadcast::Notification;
-use crate::core::errors::{AppError, AppResponse};
-use crate::messaging::model::{MessageDto, NewMessage};
+use crate::core::ValidatedJson;
+use crate::core::ValidatedQuery;
+use crate::core::errors::AppResponse;
+use crate::messaging::request::{NotificationBacklogQuery, SendMessageRequest, StreamHandshakeQuery};
+use crate::messaging::response::{MessageResponse, NotificationCursorResponse};
 use crate::messaging::service::NotificationService;
 use crate::messaging::{MessageService, service::ConnectionGuard};
 use axum::Json;
-use axum::extract::ws::{
-    CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade, close_code,
-};
-use axum::extract::{Query, State};
+use axum::extract::State;
+use axum::extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade, close_code};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Sse};
 use bytes::Bytes;
 use futures::Stream;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::time;
@@ -28,25 +28,14 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::{debug, warn};
 use uuid::Uuid;
-use validator::Validate;
 
 pub async fn handle_send_message(
     State(messages): State<MessageService>,
     user: CurrentUser,
-    Json(payload): Json<NewMessage>,
-) -> Result<Json<MessageDto>, AppError> {
-    payload.validate().map_err(AppError::from)?;
+    ValidatedJson(payload): ValidatedJson<SendMessageRequest>,
+) -> AppResponse<Json<MessageResponse>> {
     let response_msg = messages.send_message(payload, user.subject).await?;
     Ok(Json(response_msg))
-}
-
-/// Handshake parameters shared by the SSE and WebSocket endpoints. The client passes the
-/// highest sequence number it has already seen; the server replays everything after it.
-/// Omitted on a fresh connection (the client loads its initial state via REST instead).
-#[derive(Deserialize)]
-pub struct StreamHandshakeParams {
-    #[serde(default)]
-    last_seq: Option<u64>,
 }
 
 /// Build the live notification stream wire format.
@@ -57,7 +46,7 @@ fn notification_to_sse(notification: &Notification) -> Event {
 pub async fn stream_server_events(
     user: CurrentUser,
     State(notifications): State<NotificationService>,
-    Query(params): Query<StreamHandshakeParams>,
+    ValidatedQuery(params): ValidatedQuery<StreamHandshakeQuery>,
 ) -> Sse<impl Stream<Item = Result<Event, BroadcastStreamRecvError>>> {
     use futures::StreamExt;
 
@@ -114,7 +103,7 @@ pub async fn websocket_server_events(
     websocket: WebSocketUpgrade,
     user: CurrentUser,
     State(notifications): State<NotificationService>,
-    Query(params): Query<StreamHandshakeParams>,
+    ValidatedQuery(params): ValidatedQuery<StreamHandshakeQuery>,
 ) -> impl IntoResponse {
     // Bound out of the token so the upgrade closure captures a `Copy` id, not the whole token.
     let user_id = user.subject;
@@ -232,29 +221,25 @@ async fn handle_socket(mut socket: WebSocket, notifications: NotificationService
     }
 }
 
-#[derive(Deserialize)]
-pub struct NotificationQueryParam {
-    last_seq: u64,
-}
-
 /// Current per-user sequence cursor. A client that has just completed a full REST sync reads this
 /// to learn the sequence its snapshot corresponds to, then persists it as the baseline for future
 /// short reconnects. The REST-sync itself opens its live stream **without** a `last_seq` parameter
 /// (fresh connection, no replay) — this endpoint only seeds the stored cursor.
-#[derive(Serialize)]
-pub struct NotificationCursor {
-    seq: u64,
-}
-
-pub async fn get_notification_cursor(State(notifications): State<NotificationService>, user: CurrentUser) -> AppResponse<Json<NotificationCursor>> {
+pub async fn get_notification_cursor(
+    State(notifications): State<NotificationService>,
+    user: CurrentUser
+) -> AppResponse<Json<NotificationCursorResponse>> {
     let seq = notifications.current_sequence(&user.subject).await?;
-    Ok(Json(NotificationCursor { seq }))
+    Ok(Json(NotificationCursorResponse { seq }))
 }
 
+/// Returns the raw broadcast envelope rather than a domain response type: this endpoint exists so a
+/// reconnecting client can replay exactly what it would have received on the stream, so the two
+/// must be the same bytes.
 pub async fn get_latest_notification_events(
     State(notifications): State<NotificationService>,
     user: CurrentUser,
-    Query(params): Query<NotificationQueryParam>,
+    ValidatedQuery(params): ValidatedQuery<NotificationBacklogQuery>,
 ) -> AppResponse<Json<Vec<Notification>>> {
     let events = notifications.events_since(&user.subject, params.last_seq).await?;
     Ok(Json(events))

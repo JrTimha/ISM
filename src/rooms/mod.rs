@@ -1,9 +1,10 @@
+pub mod entity;
 mod handler;
-mod model;
+pub mod model;
 mod notifier;
 pub mod repository;
-pub mod room;
-pub mod room_member;
+pub mod request;
+pub mod response;
 pub mod routes;
 pub mod service;
 

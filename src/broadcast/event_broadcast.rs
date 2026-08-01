@@ -182,7 +182,7 @@ mod tests {
     use crate::cache::redis_cache::{Cache, NoOpCache, ReplayResult};
     use crate::core::KafkaConfig;
     use crate::kafka::PushNotificationProducer;
-    use crate::rooms::room_member::RoomContext;
+    use crate::rooms::model::RoomContext;
     use async_trait::async_trait;
     use redis::RedisResult;
     use std::collections::HashMap;

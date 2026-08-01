@@ -48,7 +48,17 @@ base64 = "0.23.0"
 # build, and with both `aws_lc_rs` and `rust_crypto` enabled `jsonwebtoken` cannot pick a
 # `CryptoProvider` from its features and panics on the first sign/verify.
 jsonwebtoken = { version = "11.0.0", features = ["aws_lc_rs"] }
+# Compile-time trait introspection, used by the `convention_guards` module in every `entity.rs` to
+# assert that no `…Row` derives `Serialize`. Rust has no negative trait bounds, so "this type must
+# NOT implement Serialize" cannot be written as a where-clause; `impls!` resolves it via autoref
+# specialization and folds to a `const bool`, which makes the guard a compile-time assertion rather
+# than a code-review habit. Dev-only: no runtime cost and nothing added to the release graph.
+impls = "1.0.3"
 # `form` is what the Keycloak direct access grant is posted with; it affects the test build only.
 reqwest = { version = "0.13.4", features = ["json", "form"] }
+# Already in the build graph as axum's query-string decoder; declared here so `core::cursor`'s tests
+# can parse a query exactly the way `Query`/`ValidatedQuery` will at runtime, rather than asserting
+# against a hand-rolled stand-in that could drift from the real extractor.
+serde_urlencoded = "0.7.1"
 serde_json = "1.0.151"
 tokio = { version = "1.53.1", features = ["full"] }

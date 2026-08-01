@@ -75,8 +75,38 @@ Repositories (<domain>/repository.rs)    hold core::Database, nothing else ─�
 Arc<BroadcastChannel> ── injected into services and background tasks (no global)
 ```
 
-Per-domain file layout is fixed: `mod.rs`, `routes.rs`, `handler.rs`, `repository.rs`, `model.rs`,
-and `service.rs` (single service) or `service/` (several).
+Per-domain file layout is fixed: `mod.rs`, `routes.rs`, `handler.rs`, `repository.rs`,
+`entity.rs`, `request.rs`, `response.rs`, `model.rs`, and `service.rs` (single service) or
+`service/` (several).
+
+### Data model taxonomy
+
+**The contract is `.claude/rules/model.md` — read it before adding any type.** Every type belongs to
+exactly one of four categories, and the category decides which boundary it may cross:
+
+| Category | Suffix | serde | File |
+|---|---|---|---|
+| Database row | `…Row` | **none** | `entity.rs` |
+| JSONB column payload | `…Json` | `Serialize + Deserialize` (this *is* the storage format) | `entity.rs` |
+| Request body | `…Request` | `Deserialize` + `Validate` | `request.rs` |
+| Query string | `…Query` | `Deserialize` + `Validate` | `request.rs` |
+| Response body | `…Response` | `Serialize` | `response.rs` |
+
+Cursors, enums that are both a column value and a wire value (`RoomType`, `MsgType`,
+`RelationshipState`), and cache shapes live in `model.rs`.
+
+Four marker traits in `core/model.rs` pin this: `DbRow`, `JsonColumn`, `ApiRequest`, `ApiResponse`.
+`ApiRequest: DeserializeOwned + Validate` is the load-bearing one — a request type without
+validation rules cannot be registered, so handlers extract with `ValidatedJson<T>` /
+`ValidatedQuery<T>` (`core/extract.rs`) and validation cannot be forgotten at a call site.
+
+Rows carry backend-only columns precisely because they cannot serialize — `UserRow` holds `email`,
+`created_at`, `deleted_at`, `last_modified_at` and `raw_name`, none of which reach a response. Each
+`entity.rs` ends in a `#[cfg(test)] mod convention_guards` that asserts the absence of `Serialize`
+via `impls!`, so an accidental derive fails `cargo test`.
+
+Conversions are `From` impls (`impl From<UserRow> for UserProfileResponse`), or a named constructor
+when the conversion needs context `From` cannot carry (`Relationship::for_viewer(&row, viewer_id)`).
 
 Two convention traits in `core/traits.rs` — `Repository` and `Service` — pin the construction shape
 project-wide. They are static: no `dyn`, no `async_trait`. There are deliberately **no**
@@ -199,7 +229,7 @@ caller's `module_path!()`/`line!()` for the failure log, which a function cannot
 
 | Variant | Sent to | Trigger |
 |---|---|---|
-| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember` so clients render a first-time sender without a lookup) |
+| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMemberResponse` so clients render a first-time sender without a lookup) |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite |
 | `NewRoom { room, created_by, first_message }` | invited user | room creation / invite (`first_message`: optional first message, embedded on creation) |
 | `LeaveRoom { room_id }` | leaving user | user leaves room |
@@ -235,28 +265,45 @@ See `.docs/auth.md` for the full request path, roles and custom token extractors
 
 Cursors are base64url-encoded JSON structs. The generic infrastructure:
 ```rust
-CursorResults<T> { next_cursor: Option<String>, content: Vec<T> }
+CursorResults<T> { cursor: Option<String>, content: Vec<T> }
 decode_cursor::<MyCursor>(base64_str) -> Result<MyCursor, CursorError>
 encode_cursor(&cursor) -> Result<String, CursorError>
 ```
 
 Existing cursor types:
 - `UserPaginationCursor { last_seen_name, last_seen_id }` — user search via `raw_name` index
-- Message timeline — timestamp-based (`created_at` DESC), efficient with indexed column. Returns a `TimelinePage { messages, senders }`: `senders` is the deduplicated set of `RoomMember`s that authored a message in the page **or are the original author referenced by a reply** (`reply_sender_id`), resolved via `app_user LEFT JOIN chat_room_participant`, so authors who have since left still resolve, with `joined_at`/`last_message_read_at` as `null`. Combined with the `sender` on live `ChatMessage` events, the client never needs a separate sender lookup.
+- Message timeline — timestamp-based (`created_at` DESC), efficient with indexed column. Returns a `TimelinePageResponse { messages, senders }`: `senders` is the deduplicated set of `RoomMemberResponse`s that authored a message in the page **or are the original author referenced by a reply** (`reply_sender_id`), resolved via `app_user LEFT JOIN chat_room_participant`, so authors who have since left still resolve, with `joined_at`/`last_message_read_at` as `null`. Combined with the `sender` on live `ChatMessage` events, the client never needs a separate sender lookup.
 
 ### Key Data Model Facts
 
 **Rooms & Membership** (`chat_room_participant`):
 - A row means the user is **currently in the room** — there is no membership state.
 - Leaving **deletes** the participant row. Message history is preserved independently in `chat_message`, and sender profiles resolve from `app_user` (see Timeline below), so deleting the row loses no history.
-- `RoomContext` (`Vec<RoomMember>`) is cached in Redis for fast participant lookups / broadcast fan-out.
+- `RoomContext` (`Vec<RoomMemberResponse>`) is cached in Redis for fast participant lookups / broadcast fan-out.
 
 **Messages** (`chat_message`):
-- Stored in PostgreSQL, `msg_body` column is JSONB (`sqlx::types::Json<MessageBody>`)
-- `MsgType`: `Text`, `Media`, `Reply`, `RoomChange`
-- `MessageBody` variants: `TextBody`, `MediaBody`, `ReplyBody`, `RoomChangeBody`
-- `RoomChangeBody` sub-types: `UserJoined`, `UserLeft`, `UserInvited`
-- `latest_message_preview_text` on rooms is JSONB (`LastMessagePreviewText` enum)
+- Stored in PostgreSQL, `msg_body` column is JSONB (`sqlx::types::Json<MessageBodyJson>`)
+- `MsgType`: `Text`, `Media`, `Reply`, `RoomChange` — the only real Postgres `ENUM` in the schema
+- `MessageBodyJson` variants: `TextJson`, `MediaJson`, `ReplyJson`, `RoomChangeJson`; the wire
+  counterparts are `MessageBodyResponse` / `TextBodyResponse` / … in `messaging/response.rs`
+- `RoomChangeJson` sub-types: `UserJoined`, `UserLeft`, `UserInvited`, each holding a
+  `RoomMemberSnapshotJson` — a *frozen* member snapshot, deliberately not the live member type
+- `latest_message_preview_text` on rooms is JSONB (`LastMessagePreviewJson`), rendered as
+  `LastMessagePreviewResponse`. Long previews are truncated **in that conversion**, not on the
+  write path — when one type did both jobs the display rule also ran on `INSERT` and the column
+  stored pre-truncated text.
+
+**Soft-deleted users** (`app_user.deleted_at`):
+- Set by the wider Meventure platform, not by ISM. Relationship rows pointing at a deleted account
+  are dissolved by **another service**, so ISM must filter on read — the row outlives the account.
+- Every query that *offers* a user filters `deleted_at IS NULL`: user search, profile-by-id, friends,
+  friend requests, and both halves of the share-target list.
+- Queries that report a user as *historical fact* deliberately do not: `select_all_room_member`,
+  `add_user_to_room` and `select_message_senders`. A room's participant list drives broadcast
+  fan-out, and the timeline's `senders` bundle must resolve every message author or messages render
+  unattributed.
+- Consequence to expect: `friendsCount` still counts a deleted friend until the other service
+  catches up, so a friends list can be shorter than the count beside it.
 
 **User Relationships** (`user_relationship`):
 - Symmetric — stored once as (user_a_id, user_b_id) with directional state
@@ -317,7 +364,7 @@ All handlers return `AppResponse<Json<T>>` (= `Result<Json<T>, AppError>`, `core
 
 ## Development Patterns
 
-**New endpoint**: handler in `handler.rs` (taking `State<XService>`) → service logic → repository query → register in `routes.rs`. No business logic in handlers.
+**New endpoint**: handler in `handler.rs` (taking `State<XService>`) → service logic → repository query → register in `routes.rs`. No business logic in handlers. Handlers take request bodies as `ValidatedJson<T>` and query strings as `ValidatedQuery<T>` — never bare `Json<T>` / `Query<T>`.
 
 **New service**: `Clone` struct in `<domain>/service.rs` or `<domain>/service/<name>.rs`, `impl Service`, dependencies through `new(...)`, wire it in `AppStateBuilder::build()` **after** everything it depends on, add the field to `AppState` and its `FromRef` entry.
 
@@ -327,11 +374,11 @@ All handlers return `AppResponse<Json<T>>` (= `Result<Json<T>, AppError>`, `core
 
 **SQLx executor signatures**: read `.docs/sqlx-executor-pattern.md` before writing any repository function that needs to participate in a transaction.
 
-**New message type**: add to `MsgType` and `MessageBody` enums in `messaging/model.rs`, handle in `messaging/service/message.rs`, update `LastMessagePreviewText` if needed for room previews.
+**New message type**: add to `MsgType` in `messaging/model.rs`, add the stored variant to `MessageBodyJson` in `messaging/entity.rs` **and** its wire counterpart to `MessageBodyResponse` in `messaging/response.rs` with the `From` between them, handle it in `messaging/service/message.rs`, and update `LastMessagePreviewJson` / `LastMessagePreviewResponse` if it needs a room preview. Add a golden case to `tests/wire_contract.rs`.
 
 **New broadcast event**: add variant to `NotificationEvent` in `broadcast/notification.rs`, broadcast through the injected bus or `RoomNotifier` after the DB write, update all `match` arms.
 
-**New cursor type**: implement `Serialize + Deserialize + Default` on a struct, use `encode_cursor` / `decode_cursor` from `core/cursor.rs`, return `CursorResults<T>` from the endpoint.
+**New cursor type**: implement `Serialize + Deserialize + Default` on a struct, use `encode_cursor` / `decode_cursor` from `core/cursor.rs`, return `CursorResults<T>` from the endpoint. Cursors live in the domain's `model.rs`.
 
 **Broadcasting after writes**:
 ```rust

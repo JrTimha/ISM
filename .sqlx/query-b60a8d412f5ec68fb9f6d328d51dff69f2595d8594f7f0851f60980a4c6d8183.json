@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id,\n                room_type as \"room_type: RoomType\",\n                room_name,\n                created_at,\n                latest_message,\n                room_image_url,\n                latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewText>\",\n                NULL::boolean as \"unread: _\"\n            FROM chat_room\n            WHERE id = $1\n            ",
+  "query": "\n            SELECT\n                id,\n                room_type as \"room_type: RoomType\",\n                room_name,\n                created_at,\n                latest_message,\n                room_image_url,\n                latest_message_preview_text AS \"latest_message_preview_text: Json<LastMessagePreviewJson>\",\n                NULL::boolean as \"unread: _\"\n            FROM chat_room\n            WHERE id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -71,7 +71,7 @@
       },
       {
         "ordinal": 6,
-        "name": "latest_message_preview_text: Json<LastMessagePreviewText>",
+        "name": "latest_message_preview_text: Json<LastMessagePreviewJson>",
         "type_info": "Varchar",
         "origin": {
           "Table": {
@@ -103,5 +103,5 @@
       null
     ]
   },
-  "hash": "ee2adfa114874fed9a9b92d9c53ea098a498ebc03cea58f111ba53a2419cfaf8"
+  "hash": "b60a8d412f5ec68fb9f6d328d51dff69f2595d8594f7f0851f60980a4c6d8183"
 }

@@ -86,7 +86,7 @@ Every notification is wrapped in a versioned envelope: `{ v, seq, type, createdA
 
 | Variant | Sent to | Trigger | Ephemeral |
 |---|---|---|---|
-| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMember`) | no |
+| `ChatMessage { message, room_preview_text, sender }` | all room members | new message (`sender: RoomMemberResponse`) | no |
 | `RoomChangeEvent { message, room_preview_text }` | all room members | join/leave/invite | no |
 | `NewRoom { room, created_by, first_message }` | invited user | room creation / invite (`first_message`: optional, embedded on creation) | no |
 | `LeaveRoom { room_id }` | leaving user | user leaves room | no |

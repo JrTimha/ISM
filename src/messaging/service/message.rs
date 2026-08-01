@@ -2,8 +2,11 @@ use crate::broadcast::NotificationEvent::ChatMessage;
 use crate::core::errors::AppError;
 use crate::core::{Database, Service};
 use crate::messaging::ChatRepository;
-use crate::messaging::model::{MessageBody, MessageDto, MessageEntity, NewMessage, NewMessageBody, NewReplyBody, RepliedMessageDetails, ReplyBody};
-use crate::rooms::room::LastMessagePreviewText;
+use crate::messaging::entity::{MessageBodyJson, MessageRow, RepliedMessageJson, ReplyJson};
+use crate::messaging::request::{ReplyBodyRequest, SendMessageBodyRequest, SendMessageRequest};
+use crate::messaging::response::MessageResponse;
+use crate::rooms::entity::LastMessagePreviewJson;
+use crate::rooms::response::LastMessagePreviewResponse;
 use crate::rooms::{RoomNotifier, RoomRepository};
 use uuid::Uuid;
 
@@ -27,7 +30,7 @@ impl MessageService {
         Self { db, rooms, chats, notifier }
     }
 
-    pub async fn send_message(&self, message: NewMessage, client_id: Uuid) -> Result<MessageDto, AppError> {
+    pub async fn send_message(&self, message: SendMessageRequest, client_id: Uuid) -> Result<MessageResponse, AppError> {
         // 1. Room membership, cached — this one lookup answers "may they post here?" and
         //    "what is their display name?" without a second query.
         let context = self.notifier.room_context(&message.chat_room_id).await?;
@@ -41,18 +44,17 @@ impl MessageService {
 
         // 3. Build message body
         let msg_body = match message.msg_body.clone() {
-            NewMessageBody::Text(text) => MessageBody::Text(text),
-            NewMessageBody::Media(media) => MessageBody::Media(media),
-            NewMessageBody::Reply(reply) => {
+            SendMessageBodyRequest::Text(_) | SendMessageBodyRequest::Media(_) => MessageBodyJson::from(message.msg_body.clone()),
+            SendMessageBodyRequest::Reply(reply) => {
                 let reply = self
                     .create_reply_message(&reply, &message.chat_room_id)
                     .await
                     .map_err(|err| AppError::Processing(format!("Can't create reply message: {}", err)))?;
-                MessageBody::Reply(reply)
+                MessageBodyJson::Reply(reply)
             }
         };
 
-        let entity = MessageEntity::new(message.chat_room_id, client_id, msg_body);
+        let entity = MessageRow::new(message.chat_room_id, client_id, msg_body);
 
         // 4. Generate preview text — display name from context, no DB call
         let room_preview_text = generate_room_preview_text(&message, sender_display_name);
@@ -66,13 +68,13 @@ impl MessageService {
         tx.commit().await?;
 
         // 6. Broadcast to all room members
-        let dto = MessageDto::from(entity);
+        let dto = MessageResponse::from(entity);
         self.notifier
             .notify_users(
                 context.member_ids(),
                 ChatMessage {
                     message: dto.clone(),
-                    room_preview_text,
+                    room_preview_text: LastMessagePreviewResponse::from(room_preview_text),
                     sender: sender_member,
                 },
             )
@@ -80,17 +82,17 @@ impl MessageService {
         Ok(dto)
     }
 
-    async fn create_reply_message(&self, msg: &NewReplyBody, room_id: &Uuid) -> Result<ReplyBody, Box<dyn std::error::Error>> {
+    async fn create_reply_message(&self, msg: &ReplyBodyRequest, room_id: &Uuid) -> Result<ReplyJson, Box<dyn std::error::Error>> {
         let replied_to = self.chats.fetch_message_by_id(&msg.reply_msg_id, room_id).await?;
 
         let details = match replied_to.msg_body.0 {
-            MessageBody::Text(text) => RepliedMessageDetails::Text(text),
-            MessageBody::Media(media) => RepliedMessageDetails::Media(media),
-            MessageBody::Reply(reply) => RepliedMessageDetails::Reply { reply_text: reply.reply_text },
+            MessageBodyJson::Text(text) => RepliedMessageJson::Text(text),
+            MessageBodyJson::Media(media) => RepliedMessageJson::Media(media),
+            MessageBodyJson::Reply(reply) => RepliedMessageJson::Reply { reply_text: reply.reply_text },
             _ => return Err(Box::from("Cannot reply to a room change event")),
         };
 
-        Ok(ReplyBody {
+        Ok(ReplyJson {
             reply_msg_id: replied_to.message_id,
             reply_sender_id: replied_to.sender_id,
             reply_msg_type: replied_to.msg_type,
@@ -101,17 +103,17 @@ impl MessageService {
     }
 }
 
-fn generate_room_preview_text(msg: &NewMessage, username: String) -> LastMessagePreviewText {
+fn generate_room_preview_text(msg: &SendMessageRequest, username: String) -> LastMessagePreviewJson {
     match &msg.msg_body {
-        NewMessageBody::Text(body) => LastMessagePreviewText::Text {
+        SendMessageBodyRequest::Text(body) => LastMessagePreviewJson::Text {
             sender_username: username,
             text: body.text.clone(),
         },
-        NewMessageBody::Media(body) => LastMessagePreviewText::Media {
+        SendMessageBodyRequest::Media(body) => LastMessagePreviewJson::Media {
             sender_username: username,
             media_type: body.media_type.clone(),
         },
-        NewMessageBody::Reply(body) => LastMessagePreviewText::Reply {
+        SendMessageBodyRequest::Reply(body) => LastMessagePreviewJson::Reply {
             sender_username: username,
             reply_text: body.reply_text.clone(),
         },

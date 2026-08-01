@@ -10,4 +10,4 @@ mod macros;
 mod notification;
 
 pub use event_broadcast::BroadcastChannel;
-pub use notification::{Notification, NotificationEvent, SendNotification};
+pub use notification::{Notification, NotificationEvent};

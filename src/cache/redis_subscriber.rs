@@ -1,6 +1,6 @@
 use crate::broadcast::{BroadcastChannel, Notification, NotificationEvent};
 use crate::cache::util::ROOM_CONTEXT;
-use crate::rooms::room_member::RoomContext;
+use crate::rooms::model::RoomContext;
 use redis::aio::ConnectionManager;
 use redis::{AsyncTypedCommands, PushInfo, RedisError, from_redis_value};
 use std::sync::Arc;

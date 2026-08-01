@@ -1,7 +1,6 @@
 use crate::core::{Database, Repository};
-use crate::rooms::room::{ChatRoomEntity, LastMessagePreviewText, NewRoom, RoomPaginationCursor, RoomType};
-use crate::rooms::room_member::RoomMember;
-use crate::rooms::service::{ActiveShareRow, InactiveShareRow};
+use crate::rooms::entity::{ActiveShareRow, ChatRoomRow, InactiveShareRow, LastMessagePreviewJson, RoomMemberRow};
+use crate::rooms::model::{RoomPaginationCursor, RoomType};
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
 use sqlx::{PgConnection, Postgres, QueryBuilder};
@@ -20,9 +19,16 @@ impl Repository for RoomRepository {
 }
 
 impl RoomRepository {
-    pub async fn select_all_room_member(&self, room_id: &Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
+    /// Every participant of a room, **including soft-deleted users**.
+    ///
+    /// Deliberately unfiltered, unlike the friend and search queries. A room member list drives
+    /// broadcast fan-out and message attribution: dropping a deleted user here would silently stop
+    /// delivering their room's events and leave their past messages with an unresolvable sender.
+    /// Deleted users are hidden where they are *offered* — friend lists, search, share targets —
+    /// not where they are historical fact.
+    pub async fn select_all_room_member(&self, room_id: &Uuid) -> Result<Vec<RoomMemberRow>, sqlx::Error> {
         let users = sqlx::query_as!(
-            RoomMember,
+            RoomMemberRow,
             r#"
             SELECT users.id,
                    users.display_name,
@@ -56,16 +62,16 @@ impl RoomRepository {
         name_filter: Option<&str>,
         cursor: RoomPaginationCursor,
         limit: i64,
-    ) -> Result<Vec<ChatRoomEntity>, sqlx::Error> {
+    ) -> Result<Vec<ChatRoomRow>, sqlx::Error> {
         let rooms = sqlx::query_as!(
-            ChatRoomEntity,
+            ChatRoomRow,
             r#"
             SELECT
                 room.id,
                 room.room_type AS "room_type: RoomType",
                 room.created_at,
                 room.latest_message,
-                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
+                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewJson>",
                 COALESCE(other_user.display_name, room.room_name) AS room_name,
                 COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
                 COALESCE(p1.last_message_read_at < room.latest_message, TRUE) AS unread
@@ -158,6 +164,7 @@ impl RoomRepository {
                     LIMIT 1
                 ) sr ON true
                 WHERE ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
+                  AND u.deleted_at IS NULL
 
                 UNION ALL
 
@@ -218,6 +225,7 @@ impl RoomRepository {
                           END
                AND rl.state = 'FRIEND'
             WHERE ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
+              AND u.deleted_at IS NULL
               AND NOT EXISTS (
                   SELECT 1
                   FROM chat_room r
@@ -248,16 +256,16 @@ impl RoomRepository {
         Ok(())
     }
 
-    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomEntity>, sqlx::Error> {
+    pub async fn find_specific_joined_room(&self, room_id: &Uuid, user_id: &Uuid) -> Result<Option<ChatRoomRow>, sqlx::Error> {
         let room = sqlx::query_as!(
-            ChatRoomEntity,
+            ChatRoomRow,
             r#"
             SELECT
                 room.id,
                 room.room_type AS "room_type: RoomType",
                 room.created_at,
                 room.latest_message,
-                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
+                room.latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewJson>",
                 COALESCE(other_user.display_name, room.room_name) AS room_name,
                 COALESCE(other_user.profile_picture, room.room_image_url) AS room_image_url,
                 COALESCE(participants.last_message_read_at < room.latest_message, TRUE) AS unread
@@ -293,38 +301,40 @@ impl RoomRepository {
     /// Inserts the room row and its participants on the given connection. The caller
     /// owns the transaction so room creation can be made atomic together with an
     /// optional first message (see `RoomService::create_room`).
-    pub async fn insert_room(&self, conn: &mut PgConnection, new_room: &NewRoom) -> Result<ChatRoomEntity, sqlx::Error> {
-        let room_entity = ChatRoomEntity {
-            id: Uuid::new_v4(),
-            room_type: new_room.room_type.clone(),
-            room_name: new_room.room_name.clone(),
-            room_image_url: None,
-            created_at: Utc::now(),
-            latest_message: Some(Utc::now()),
-            latest_message_preview_text: Some(Json(LastMessagePreviewText::New)),
-            unread: None,
-        };
-
+    ///
+    /// Takes the room's fields rather than the request DTO that carried them: a repository that
+    /// knows `NewRoomRequest` can only ever be called from that one endpoint, and it would put a
+    /// client-facing type in the layer furthest from the client.
+    pub async fn insert_room(
+        &self,
+        conn: &mut PgConnection,
+        room_type: RoomType,
+        room_name: Option<&str>,
+        participants: &[Uuid],
+    ) -> Result<ChatRoomRow, sqlx::Error> {
+        let now = Utc::now();
         let room = sqlx::query_as!(
-            ChatRoomEntity,
+            ChatRoomRow,
             r#"
             INSERT INTO chat_room (id, room_type, room_name, created_at, latest_message, latest_message_preview_text)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>", room_image_url, TRUE as "unread: _"
+            RETURNING id, room_name, created_at, room_type as "room_type: RoomType", latest_message, latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewJson>", room_image_url, TRUE as "unread: _"
             "#,
-            room_entity.id,
-            room_entity.room_type.to_string(),
-            room_entity.room_name,
-            room_entity.created_at,
-            room_entity.latest_message,
-            room_entity.latest_message_preview_text as Option<Json<LastMessagePreviewText>>
-        ).fetch_one(&mut *conn).await?;
+            Uuid::new_v4(),
+            room_type.to_string(),
+            room_name,
+            now,
+            now,
+            Some(Json(LastMessagePreviewJson::New)) as Option<Json<LastMessagePreviewJson>>
+        )
+        .fetch_one(&mut *conn)
+        .await?;
 
         //https://docs.rs/sqlx-core/0.5.13/sqlx_core/query_builder/struct.QueryBuilder.html#method.push_values
         let mut builder: QueryBuilder<Postgres> = QueryBuilder::new("INSERT INTO chat_room_participant (user_id, room_id, joined_at) ");
         builder
-            .push_values(&new_room.invited_users, |mut db, user| {
-                db.push_bind(user).push_bind(&room.id).push_bind(Utc::now());
+            .push_values(participants, |mut db, user| {
+                db.push_bind(user).push_bind(room.id).push_bind(Utc::now());
             })
             .build()
             .execute(&mut *conn)
@@ -333,9 +343,9 @@ impl RoomRepository {
         Ok(room)
     }
 
-    pub async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomEntity, sqlx::Error> {
+    pub async fn select_room(&self, room_id: &Uuid) -> Result<ChatRoomRow, sqlx::Error> {
         let room_details = sqlx::query_as!(
-            ChatRoomEntity,
+            ChatRoomRow,
             r#"
             SELECT
                 id,
@@ -344,7 +354,7 @@ impl RoomRepository {
                 created_at,
                 latest_message,
                 room_image_url,
-                latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewText>",
+                latest_message_preview_text AS "latest_message_preview_text: Json<LastMessagePreviewJson>",
                 NULL::boolean as "unread: _"
             FROM chat_room
             WHERE id = $1
@@ -395,7 +405,7 @@ impl RoomRepository {
         }
     }
 
-    pub async fn add_user_to_room(&self, conn: &mut PgConnection, user_id: &Uuid, room_id: &Uuid) -> Result<RoomMember, sqlx::Error> {
+    pub async fn add_user_to_room(&self, conn: &mut PgConnection, user_id: &Uuid, room_id: &Uuid) -> Result<RoomMemberRow, sqlx::Error> {
         sqlx::query!(
             r#"
                 INSERT INTO chat_room_participant (user_id, room_id, joined_at)
@@ -411,7 +421,7 @@ impl RoomRepository {
         .await?;
 
         let user = sqlx::query_as!(
-            RoomMember,
+            RoomMemberRow,
             r#"
             SELECT
                 users.id,
@@ -445,11 +455,11 @@ impl RoomRepository {
     ///
     /// Callers pass `&mut *tx` from a transaction opened by the service via
     /// [`Database::begin`](crate::core::Database::begin). See `.docs/sqlx-executor-pattern.md`.
-    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, preview_text: &LastMessagePreviewText) -> Result<(), sqlx::Error> {
+    pub async fn update_last_room_message(&self, conn: &mut PgConnection, room_id: &Uuid, preview_text: &LastMessagePreviewJson) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "UPDATE chat_room SET latest_message = NOW(), latest_message_preview_text = $2 WHERE id = $1",
             room_id,
-            Json(preview_text) as Json<&LastMessagePreviewText>
+            Json(preview_text) as Json<&LastMessagePreviewJson>
         )
         .execute(&mut *conn)
         .await?;
@@ -482,7 +492,7 @@ impl RoomRepository {
         conn: &mut PgConnection,
         room_id: &Uuid,
         user_id: &Uuid,
-        preview_text: &LastMessagePreviewText,
+        preview_text: &LastMessagePreviewJson,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"
@@ -502,20 +512,24 @@ impl RoomRepository {
             WHERE id = $1
             "#,
             room_id,
-            Json(preview_text) as Json<&LastMessagePreviewText>
+            Json(preview_text) as Json<&LastMessagePreviewJson>
         )
         .execute(&mut *conn)
         .await?;
         Ok(())
     }
 
-    /// Resolves the given user ids to `RoomMember`s for a room, used to bundle the
+    /// Resolves the given user ids to `RoomMemberRow`s for a room, used to bundle the
     /// authors of a timeline page. Uses a LEFT JOIN on the participant table so that
     /// senders who have since left the room (no participant row) still resolve from
     /// `app_user`, with `joined_at` / `last_message_read_at` as `None`.
-    pub async fn select_message_senders(&self, room_id: &Uuid, sender_ids: &[Uuid]) -> Result<Vec<RoomMember>, sqlx::Error> {
+    ///
+    /// Soft-deleted authors are **not** filtered out, for the same reason they are not filtered
+    /// from the participant list: a message that exists must render with the name of whoever wrote
+    /// it. Hiding the author would leave the message itself visible and unattributed.
+    pub async fn select_message_senders(&self, room_id: &Uuid, sender_ids: &[Uuid]) -> Result<Vec<RoomMemberRow>, sqlx::Error> {
         let senders = sqlx::query_as!(
-            RoomMember,
+            RoomMemberRow,
             r#"
             SELECT
                 users.id,
@@ -542,7 +556,7 @@ impl RoomRepository {
         &self,
         conn: &mut PgConnection,
         room_id: &Uuid,
-        preview_text: &LastMessagePreviewText,
+        preview_text: &LastMessagePreviewJson,
         sender_id: &Uuid,
         timestamp: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
@@ -559,7 +573,7 @@ impl RoomRepository {
             WHERE user_id = $4 AND room_id = $1
             "#,
             room_id,
-            Json(preview_text) as Json<&LastMessagePreviewText>,
+            Json(preview_text) as Json<&LastMessagePreviewJson>,
             timestamp,
             sender_id,
         )

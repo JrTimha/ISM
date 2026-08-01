@@ -4,13 +4,17 @@ use crate::core::cursor::{CursorResults, next_cursor};
 use crate::core::errors::AppError;
 use crate::core::{Database, Service};
 use crate::messaging::ChatRepository;
-use crate::messaging::model::{FirstMessageBody, MessageBody, MessageDto, MessageEntity, RoomChangeBody};
+use crate::messaging::entity::{MessageBodyJson, MessageRow, RoomChangeJson};
+use crate::messaging::request::FirstMessageRequest;
+use crate::messaging::response::MessageResponse;
 use crate::object_storage::ObjectStorage;
-use crate::rooms::model::UploadResponse;
-use crate::rooms::room::{ChatRoomDto, ChatRoomEntity, ChatRoomWithUserDTO, LastMessagePreviewText, NewRoom, RoomChangeType, RoomPaginationCursor, RoomType};
-use crate::rooms::room_member::RoomMember;
+use crate::rooms::entity::{ChatRoomRow, LastMessagePreviewJson, RoomMemberRow, RoomMemberSnapshotJson};
+use crate::rooms::model::{RoomChangeType, RoomPaginationCursor, RoomType};
+use crate::rooms::request::NewRoomRequest;
+use crate::rooms::response::{LastMessagePreviewResponse, RoomDetailResponse, RoomImageUploadResponse, RoomMemberResponse, RoomResponse};
 use crate::rooms::{RoomNotifier, RoomRepository};
 use crate::users::UserRepository;
+use crate::users::response::UserProfileResponse;
 use crate::utils::crop_image_from_center;
 use crate::{notify_room, notify_user};
 use bytes::Bytes;
@@ -77,14 +81,14 @@ impl RoomService {
         }
     }
 
-    pub async fn get_users_in_room(&self, client_id: Uuid, room_id: Uuid) -> Result<Vec<RoomMember>, AppError> {
+    pub async fn get_users_in_room(&self, client_id: Uuid, room_id: Uuid) -> Result<Vec<RoomMemberResponse>, AppError> {
         self.ensure_member(&client_id, &room_id).await?;
         let users = self
             .rooms
             .select_all_room_member(&room_id)
             .await
             .map_err(|_| AppError::NotFound("Room not found:".to_string()))?;
-        Ok(users)
+        Ok(users.into_iter().map(RoomMemberResponse::from).collect())
     }
 
     pub async fn get_joined_rooms(
@@ -93,7 +97,7 @@ impl RoomService {
         name_filter: Option<String>,
         cursor: RoomPaginationCursor,
         page_size: usize,
-    ) -> Result<CursorResults<ChatRoomDto>, AppError> {
+    ) -> Result<CursorResults<RoomResponse>, AppError> {
         let mut rooms = self
             .rooms
             .get_joined_rooms(&client_id, name_filter.as_deref(), cursor, (page_size + 1) as i64)
@@ -107,11 +111,11 @@ impl RoomService {
 
         Ok(CursorResults {
             cursor: next_cursor,
-            content: rooms.iter().map(|room| room.to_dto()).collect(),
+            content: rooms.iter().map(RoomResponse::from).collect(),
         })
     }
 
-    pub async fn get_room_with_details(&self, client_id: Uuid, room_id: Uuid) -> Result<ChatRoomWithUserDTO, AppError> {
+    pub async fn get_room_with_details(&self, client_id: Uuid, room_id: Uuid) -> Result<RoomDetailResponse, AppError> {
         let (chat_room, users) = tokio::try_join!(
             //executing 2 queries async
             self.rooms.find_specific_joined_room(&room_id, &client_id),
@@ -120,7 +124,10 @@ impl RoomService {
 
         match chat_room {
             Some(room) => {
-                let room_details = ChatRoomWithUserDTO { room: room.to_dto(), users };
+                let room_details = RoomDetailResponse {
+                    room: RoomResponse::from(room),
+                    users: users.into_iter().map(RoomMemberResponse::from).collect(),
+                };
                 Ok(room_details)
             }
             None => Err(AppError::NotFound("Room not found:".to_string())),
@@ -139,11 +146,15 @@ impl RoomService {
         Ok(())
     }
 
-    pub async fn get_read_states(&self, client_id: Uuid, room_id: Uuid) -> Result<Vec<RoomMember>, AppError> {
+    pub async fn get_read_states(&self, client_id: Uuid, room_id: Uuid) -> Result<Vec<RoomMemberResponse>, AppError> {
         self.ensure_member(&client_id, &room_id).await?;
         let users = self.rooms.select_all_room_member(&room_id).await?;
         let room = self.rooms.select_room(&room_id).await?;
-        let read_users: Vec<RoomMember> = users.into_iter().filter(|user| user_has_read(user, room.latest_message)).collect();
+        let read_users = users
+            .into_iter()
+            .filter(|user| user_has_read(user, room.latest_message))
+            .map(RoomMemberResponse::from)
+            .collect();
         Ok(read_users)
     }
 
@@ -154,7 +165,7 @@ impl RoomService {
     /// list, and a room type's cardinality (`Single` is exactly two people and only one may exist
     /// per pair) is enforced. Those are decisions about what a room *is*, and they have to hold for
     /// every caller — not only for requests that arrive through this one HTTP handler.
-    pub async fn create_room(&self, client_id: Uuid, mut new_room: NewRoom) -> Result<ChatRoomDto, AppError> {
+    pub async fn create_room(&self, client_id: Uuid, mut new_room: NewRoomRequest) -> Result<RoomResponse, AppError> {
         if !new_room.invited_users.contains(&client_id) {
             return Err(AppError::Validation("Sender ID is not in the list of invited users.".to_string()));
         }
@@ -187,30 +198,31 @@ impl RoomService {
             }
         }
 
-        let creator_entity = self
-            .users
-            .find_user_by_id(&client_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("UserID not found.".to_string()))?;
+        let creator = UserProfileResponse::from(
+            self.users
+                .find_user_by_id(&client_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("UserID not found.".to_string()))?,
+        );
 
         // Atomic: room + participants (+ optional first message) are created together,
         // so a failing message insert never leaves a half-created room behind.
         let mut tx = self.db.begin().await?;
-        let room_entity = self.rooms.insert_room(&mut tx, &new_room).await?;
+        let room_entity = self
+            .rooms
+            .insert_room(&mut tx, new_room.room_type, new_room.room_name.as_deref(), &new_room.invited_users)
+            .await?;
 
         let first_message = match &new_room.first_message {
             Some(body) => {
-                let msg_body = match body.clone() {
-                    FirstMessageBody::Text(text) => MessageBody::Text(text),
-                    FirstMessageBody::Media(media) => MessageBody::Media(media),
-                };
-                let entity = MessageEntity::new(room_entity.id, client_id, msg_body);
-                let preview_text = first_message_preview_text(body, creator_entity.display_name.clone());
+                let msg_body = MessageBodyJson::from(body.clone());
+                let entity = MessageRow::new(room_entity.id, client_id, msg_body);
+                let preview_text = first_message_preview_text(body, creator.display_name.clone());
                 self.chats.insert_message(&mut *tx, &entity).await?;
                 self.rooms
                     .apply_message_to_room(&mut tx, &room_entity.id, &preview_text, &entity.sender_id, entity.created_at)
                     .await?;
-                Some(MessageDto::from(entity))
+                Some(MessageResponse::from(entity))
             }
             None => None,
         };
@@ -236,8 +248,8 @@ impl RoomService {
                     self.notifier,
                     other_user,
                     NotificationEvent::NewRoom {
-                        room: participator_room.to_dto(),
-                        created_by: creator_entity.clone(),
+                        room: RoomResponse::from(participator_room),
+                        created_by: creator.clone(),
                         first_message: first_message.clone(),
                     }
                 );
@@ -245,25 +257,25 @@ impl RoomService {
                     self.notifier,
                     &client_id,
                     NotificationEvent::NewRoom {
-                        room: creator_room.to_dto(),
-                        created_by: creator_entity,
+                        room: RoomResponse::from(&creator_room),
+                        created_by: creator,
                         first_message,
                     }
                 );
 
-                Ok(creator_room.to_dto())
+                Ok(RoomResponse::from(creator_room))
             } else {
                 Err(AppError::Processing("Newly created room is null.".to_string()))
             }
         } else {
             //is group room
-            let room_dto = room_entity.to_dto();
+            let room_dto = RoomResponse::from(room_entity);
             self.notifier
                 .notify_users(
                     users,
                     NotificationEvent::NewRoom {
                         room: room_dto.clone(),
-                        created_by: creator_entity.clone(),
+                        created_by: creator.clone(),
                         first_message,
                     },
                 )
@@ -272,13 +284,13 @@ impl RoomService {
         }
     }
 
-    pub async fn get_room_list_item_by_id(&self, client_id: Uuid, room_id: Uuid) -> Result<ChatRoomDto, AppError> {
+    pub async fn get_room_list_item_by_id(&self, client_id: Uuid, room_id: Uuid) -> Result<RoomResponse, AppError> {
         let room = self
             .rooms
             .find_specific_joined_room(&room_id, &client_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Room not found.".to_string()))?;
-        Ok(room.to_dto())
+        Ok(RoomResponse::from(room))
     }
 
     pub async fn leave_room(&self, client_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
@@ -321,7 +333,7 @@ impl RoomService {
             self.users.find_user_by_id(&client_id)
         )?;
 
-        let creator_entity = creator.ok_or_else(|| AppError::NotFound("UserID not found.".to_string()))?;
+        let creator_profile = UserProfileResponse::from(creator.ok_or_else(|| AppError::NotFound("UserID not found.".to_string()))?);
 
         if room.room_type == RoomType::Single {
             return Err(AppError::Validation("Private rooms doesn't allow invites!.".to_string()));
@@ -341,17 +353,19 @@ impl RoomService {
         //1. add him to the room
         let mut tx = self.db.begin().await?;
         let user = self.rooms.add_user_to_room(&mut tx, &user_id, &room_id).await?;
-        let preview_text = LastMessagePreviewText::RoomChange {
+        let preview_text = LastMessagePreviewJson::RoomChange {
             sender_username: user.display_name.clone(),
             room_change_type: RoomChangeType::JOIN,
         };
         self.rooms.update_last_room_message(&mut tx, &room_id, &preview_text).await?;
 
         //2. build room change message and send it to all previous users in the room
-        let message = MessageEntity::new(
+        let message = MessageRow::new(
             room_id,
             user.id,
-            MessageBody::RoomChange(RoomChangeBody::UserJoined { related_user: user.clone() }),
+            MessageBodyJson::RoomChange(RoomChangeJson::UserJoined {
+                related_user: RoomMemberSnapshotJson::from(user.clone()),
+            }),
         );
         self.chats.insert_message(&mut *tx, &message).await?;
 
@@ -374,8 +388,8 @@ impl RoomService {
             self.notifier,
             &user.id,
             NotificationEvent::NewRoom {
-                room: room_for_user.to_dto(),
-                created_by: creator_entity,
+                room: RoomResponse::from(room_for_user),
+                created_by: creator_profile,
                 first_message: None,
             }
         );
@@ -388,7 +402,7 @@ impl RoomService {
         Ok(room_id)
     }
 
-    pub async fn set_room_image(&self, client_id: Uuid, room_id: Uuid, image_data: Bytes) -> Result<UploadResponse, AppError> {
+    pub async fn set_room_image(&self, client_id: Uuid, room_id: Uuid, image_data: Bytes) -> Result<RoomImageUploadResponse, AppError> {
         self.ensure_member(&client_id, &room_id).await?;
 
         let img = crop_image_from_center(&image_data, 500, 500).map_err(|err| {
@@ -402,7 +416,7 @@ impl RoomService {
             return Err(AppError::S3("Unable save image in s3 bucket.".to_string()));
         };
         self.rooms.update_room_img_url(&room_id, &object_id).await?;
-        let response = UploadResponse {
+        let response = RoomImageUploadResponse {
             image_url: object_id.clone(),
             image_name: format!("{}.jpeg", object_id),
         };
@@ -410,7 +424,7 @@ impl RoomService {
     }
 
     /// A 1-1 room has no meaning once one side leaves, so it is deleted outright.
-    async fn leave_private_room(&self, room: ChatRoomEntity, users: Vec<RoomMember>) -> Result<(), AppError> {
+    async fn leave_private_room(&self, room: ChatRoomRow, users: Vec<RoomMemberRow>) -> Result<(), AppError> {
         let mut tx = self.db.begin().await?;
         self.chats.delete_room_messages(&mut *tx, &room.id).await?;
         self.rooms.delete_room(&mut tx, &room.id).await?;
@@ -423,10 +437,10 @@ impl RoomService {
         Ok(())
     }
 
-    async fn leave_group_room(&self, room: ChatRoomEntity, users: Vec<RoomMember>, leaving_user: RoomMember) -> Result<(), AppError> {
+    async fn leave_group_room(&self, room: ChatRoomRow, users: Vec<RoomMemberRow>, leaving_user: RoomMemberRow) -> Result<(), AppError> {
         let mut tx = self.db.begin().await?;
 
-        let preview_message = LastMessagePreviewText::RoomChange {
+        let preview_message = LastMessagePreviewJson::RoomChange {
             sender_username: leaving_user.display_name.clone(),
             room_change_type: RoomChangeType::LEAVE,
         };
@@ -452,11 +466,11 @@ impl RoomService {
             Ok(())
         } else {
             //find and handle the leaving user
-            let message = MessageEntity::new(
+            let message = MessageRow::new(
                 room.id,
                 leaving_user.id,
-                MessageBody::RoomChange(RoomChangeBody::UserLeft {
-                    related_user: leaving_user.clone(),
+                MessageBodyJson::RoomChange(RoomChangeJson::UserLeft {
+                    related_user: RoomMemberSnapshotJson::from(leaving_user.clone()),
                 }),
             );
             self.chats.insert_message(&mut *tx, &message).await?;
@@ -477,14 +491,14 @@ impl RoomService {
 
 /// Builds the room preview text for an optional first message sent on room creation.
 /// Mirrors `MessageService::generate_room_preview_text`, but for the restricted
-/// `FirstMessageBody` (no `Reply` in a brand-new room).
-fn first_message_preview_text(body: &FirstMessageBody, sender_username: String) -> LastMessagePreviewText {
+/// `FirstMessageRequest` (no `Reply` in a brand-new room).
+fn first_message_preview_text(body: &FirstMessageRequest, sender_username: String) -> LastMessagePreviewJson {
     match body {
-        FirstMessageBody::Text(text) => LastMessagePreviewText::Text {
+        FirstMessageRequest::Text(text) => LastMessagePreviewJson::Text {
             sender_username,
             text: text.text.clone(),
         },
-        FirstMessageBody::Media(media) => LastMessagePreviewText::Media {
+        FirstMessageRequest::Media(media) => LastMessagePreviewJson::Media {
             sender_username,
             media_type: media.media_type.clone(),
         },
@@ -492,15 +506,15 @@ fn first_message_preview_text(body: &FirstMessageBody, sender_username: String) 
 }
 
 /// Wraps a persisted room-change message in the event clients render it with.
-fn room_change_event(message: MessageEntity, preview_text: LastMessagePreviewText) -> NotificationEvent {
+fn room_change_event(message: MessageRow, preview_text: LastMessagePreviewJson) -> NotificationEvent {
     RoomChangeEvent {
-        message: MessageDto::from(message),
-        room_preview_text: preview_text,
+        message: MessageResponse::from(message),
+        room_preview_text: LastMessagePreviewResponse::from(preview_text),
     }
 }
 
 // Helper used by `get_read_states` — extracted for easier unit testing of the read logic.
-fn user_has_read(user: &RoomMember, room_latest: Option<chrono::DateTime<chrono::Utc>>) -> bool {
+fn user_has_read(user: &RoomMemberRow, room_latest: Option<chrono::DateTime<chrono::Utc>>) -> bool {
     match (room_latest, user.last_message_read_at) {
         (Some(latest_msg_time), Some(read_time)) => read_time >= latest_msg_time,
         (Some(_), None) => false,
@@ -511,12 +525,12 @@ fn user_has_read(user: &RoomMember, room_latest: Option<chrono::DateTime<chrono:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rooms::room_member::RoomMember;
+    use crate::rooms::entity::RoomMemberRow;
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
-    fn make_member(read_at: Option<chrono::DateTime<Utc>>) -> RoomMember {
-        RoomMember {
+    fn make_member(read_at: Option<chrono::DateTime<Utc>>) -> RoomMemberRow {
+        RoomMemberRow {
             id: Uuid::new_v4(),
             display_name: "test".to_string(),
             profile_picture: None,

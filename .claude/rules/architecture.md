@@ -24,8 +24,15 @@ src/<domain>/
   repository.rs   one repository per domain
   service.rs      single-service domain (users)
   service/        multi-service domain (rooms, messaging), one file per service
-  model.rs        DTOs / entities
+  entity.rs       …Row structs (no serde) + …Json JSONB column payloads
+  request.rs      …Request structs (Deserialize + Validate)
+  response.rs     …Response structs (Serialize)
+  model.rs        types shared across those boundaries: cursors, DB/wire enums, cache shapes
 ```
+
+The four data-type files follow the same promote-to-a-directory rule as `service.rs` vs `service/`:
+one file until it gets long, then a directory of the same name. Which type belongs in which file,
+and why a row may not be a response, is `.claude/rules/model.md` — read it before adding a type.
 
 ## Repositories
 
@@ -116,7 +123,7 @@ pub async fn handle_leave_room(
 - A handler that needs two services asks for two. If it needs three, the use case probably belongs
   in a service.
 - **The split:** the handler validates *syntax* — `validator` derives, `decode_cursor`,
-  `clamp_page_size`, multipart field extraction. Anything that requires reading the database,
+  `PageSize` clamping, multipart field extraction. Anything that requires reading the database,
   **including authorization**, is the service's. "Is this user in this room?" is not a handler
   question.
 - See `.claude/rules/handlers.md` for extraction, return types and error variants.

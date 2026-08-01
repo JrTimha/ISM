@@ -7,8 +7,15 @@
 
 use bytes::Bytes;
 use image::{GenericImageView, ImageError};
-use serde::Serializer;
 use std::io::Cursor;
+
+/// Length above which a room preview is shortened, and the length it is shortened to.
+///
+/// The gap matters: a 51-character text becomes 43 characters, so re-truncating an already
+/// truncated value is a no-op. That is what makes it safe to move truncation off the write path
+/// and onto the read path without rewriting history.
+const PREVIEW_TRUNCATE_ABOVE: usize = 50;
+const PREVIEW_TRUNCATE_TO: usize = 40;
 
 pub fn crop_image_from_center(data: &Bytes, target_width: u32, target_height: u32) -> Result<Bytes, ImageError> {
     let img = match image::load_from_memory(data) {
@@ -33,15 +40,19 @@ pub fn crop_image_from_center(data: &Bytes, target_width: u32, target_height: u3
     }
 }
 
-pub fn truncate_and_serialize<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    if text.chars().count() > 50 {
-        let mut truncated = text.chars().take(40).collect::<String>();
+/// Shortens a room-list preview for display.
+///
+/// This used to be a `#[serde(serialize_with = ...)]` on `LastMessagePreviewText`, which was both
+/// the JSONB column type and the response type — so the truncation also ran on the `INSERT` path
+/// and the *stored* preview was already shortened. A display concern cannot be expressed as a
+/// `Serialize` impl on a type that is also a storage format; it belongs in the conversion from the
+/// stored value to the response, which is where this is now called from.
+pub fn truncate_preview(text: &str) -> String {
+    if text.chars().count() > PREVIEW_TRUNCATE_ABOVE {
+        let mut truncated = text.chars().take(PREVIEW_TRUNCATE_TO).collect::<String>();
         truncated.push_str("...");
-        serializer.serialize_str(&truncated)
+        truncated
     } else {
-        serializer.serialize_str(text)
+        text.to_string()
     }
 }

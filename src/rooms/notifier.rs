@@ -10,8 +10,8 @@
 use crate::broadcast::{BroadcastChannel, NotificationEvent};
 use crate::cache::redis_cache::Cache;
 use crate::core::errors::AppError;
+use crate::rooms::model::RoomContext;
 use crate::rooms::repository::RoomRepository;
-use crate::rooms::room_member::RoomContext;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -40,9 +40,7 @@ impl RoomNotifier {
             return Ok(context);
         }
 
-        let context = RoomContext {
-            members: self.rooms.select_all_room_member(room_id).await?,
-        };
+        let context = RoomContext::from_rows(self.rooms.select_all_room_member(room_id).await?);
         self.cache.set_room_context(room_id, &context).await?;
         Ok(context)
     }

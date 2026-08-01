@@ -1,7 +1,39 @@
 use crate::core::{Database, Repository};
-use crate::users::model::{RelationshipState, User, UserPaginationCursor, UserRelationshipEntity, UserWithRelationshipEntity};
+use crate::users::entity::{UserRelationshipRow, UserRow, UserWithRelationshipRow};
+use crate::users::model::{RelationshipState, UserPaginationCursor};
 use sqlx::{Error, PgConnection, query_as};
 use uuid::Uuid;
+
+/// Every column of `app_user` that [`UserRow`] decodes, aliased to `r_user`.
+///
+/// `app_user` belongs to the wider Meventure platform and carries columns ISM has no use for, so
+/// the list is explicit rather than `SELECT *`. It is shared because four runtime-checked queries
+/// must select exactly the same set: `UserRow::from_row` fails at *runtime* on a missing column, and
+/// unlike the `query_as!` macro these queries get no compile-time column check.
+///
+/// A macro expanding to a string literal rather than a `const`, so the call sites can `concat!` it
+/// into a `&'static str`. Building the SQL with `format!` would produce a `String`, which sqlx 0.9
+/// rejects unless wrapped in `AssertSqlSafe` — an audit escape hatch that would be a lie here and a
+/// bad precedent to set in a file full of user-supplied bind parameters.
+macro_rules! user_columns {
+    () => {
+        r#"
+            r_user.id,
+            r_user.display_name,
+            r_user.profile_picture,
+            r_user.street_credits,
+            r_user.description,
+            r_user.friends_count,
+            r_user.posts_count,
+            r_user.role,
+            r_user.email,
+            r_user.created_at,
+            r_user.deleted_at,
+            r_user.last_modified_at,
+            r_user.raw_name
+        "#
+    };
+}
 
 /// User profiles and the symmetric `user_relationship` table.
 #[derive(Clone)]
@@ -16,17 +48,11 @@ impl Repository for UserRepository {
 }
 
 impl UserRepository {
-    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationshipEntity>, Error> {
-        let user = query_as::<_, UserWithRelationshipEntity>(
-            r#"SELECT
-                r_user.id,
-                r_user.display_name,
-                r_user.profile_picture,
-                r_user.street_credits,
-                r_user.description,
-                r_user.friends_count,
-                r_user.posts_count,
-                r_user.role,
+    pub async fn find_user_by_id_with_relationship_type(&self, client_id: &Uuid, searched_user_id: &Uuid) -> Result<Option<UserWithRelationshipRow>, Error> {
+        let user = query_as::<_, UserWithRelationshipRow>(concat!(
+            "SELECT ",
+            user_columns!(),
+            r#",
                 user_relationship.user_a_id,
                 user_relationship.user_b_id,
                 user_relationship.state,
@@ -36,8 +62,9 @@ impl UserRepository {
                     (user_relationship.user_a_id = r_user.id AND user_relationship.user_b_id = $2) OR
                     (user_relationship.user_b_id = r_user.id AND user_relationship.user_a_id = $2)
                 WHERE r_user.id = $1 AND r_user.id <> $2
-            "#,
-        )
+                  AND r_user.deleted_at IS NULL
+            "#
+        ))
         .bind(searched_user_id)
         .bind(client_id)
         .fetch_optional(self.db.pool())
@@ -45,9 +72,12 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn find_user_by_id(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
+    /// The one user query written as a `query_as!` macro, so the column list below is verified
+    /// against the live schema at build time. The runtime queries in this file cannot be, which
+    /// is why they share [`USER_COLUMNS`] instead.
+    pub async fn find_user_by_id(&self, user_id: &Uuid) -> Result<Option<UserRow>, Error> {
         let user = query_as!(
-            User,
+            UserRow,
             r#"SELECT
                     r_user.id,
                     r_user.display_name,
@@ -56,7 +86,12 @@ impl UserRepository {
                     r_user.description,
                     r_user.friends_count,
                     r_user.posts_count,
-                    r_user.role
+                    r_user.role,
+                    r_user.email,
+                    r_user.created_at,
+                    r_user.deleted_at,
+                    r_user.last_modified_at,
+                    r_user.raw_name
                     FROM app_user r_user
                     WHERE r_user.id = $1
                 "#,
@@ -73,18 +108,12 @@ impl UserRepository {
         username: &str,
         page_size: i64,
         cursor: UserPaginationCursor,
-    ) -> Result<Vec<UserWithRelationshipEntity>, Error> {
-        let user = query_as::<_, UserWithRelationshipEntity>(
-            r#"SELECT
-                r_user.id,
-                r_user.display_name,
-                r_user.profile_picture,
-                r_user.street_credits,
-                r_user.description,
-                r_user.friends_count,
-                r_user.posts_count,
-                r_user.role,
-                 user_relationship.user_a_id,
+    ) -> Result<Vec<UserWithRelationshipRow>, Error> {
+        let user = query_as::<_, UserWithRelationshipRow>(concat!(
+            "SELECT ",
+            user_columns!(),
+            r#",
+                user_relationship.user_a_id,
                 user_relationship.user_b_id,
                 user_relationship.state,
                 user_relationship.relationship_change_timestamp
@@ -95,11 +124,12 @@ impl UserRepository {
                 WHERE
                     r_user.raw_name LIKE lower(concat('%', $1, '%'))
                     AND r_user.id <> $2
+                    AND r_user.deleted_at IS NULL
                     AND ($3 IS NULL OR (r_user.display_name, r_user.id) > ($3, $4))
                 ORDER BY r_user.display_name ASC, r_user.id ASC
                 LIMIT $5
-            "#,
-        )
+            "#
+        ))
         .bind(username)
         .bind(client_id)
         .bind(cursor.last_seen_name)
@@ -119,28 +149,23 @@ impl UserRepository {
         username: Option<&str>,
         cursor: UserPaginationCursor,
         limit: i64,
-    ) -> Result<Vec<User>, Error> {
-        let requests = query_as::<_, User>(
-            r#"SELECT
-                u.id,
-                u.display_name,
-                u.profile_picture,
-                u.street_credits,
-                u.description,
-                u.friends_count,
-                u.posts_count,
-                u.role
-                FROM app_user u
+    ) -> Result<Vec<UserRow>, Error> {
+        let requests = query_as::<_, UserRow>(concat!(
+            "SELECT ",
+            user_columns!(),
+            r#"
+                FROM app_user r_user
                 INNER JOIN user_relationship ur ON
-                    (ur.user_a_id = u.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR
-                    (ur.user_b_id = u.id AND ur.user_a_id = $1 AND ur.state = 'B_INVITED')
+                    (ur.user_a_id = r_user.id AND ur.user_b_id = $1 AND ur.state = 'A_INVITED') OR
+                    (ur.user_b_id = r_user.id AND ur.user_a_id = $1 AND ur.state = 'B_INVITED')
                 WHERE
-                    ($2::text IS NULL OR u.raw_name LIKE lower(concat('%', $2, '%')))
-                    AND ($3::text IS NULL OR (u.display_name, u.id) > ($3, $4))
-                ORDER BY u.display_name ASC, u.id ASC
+                    ($2::text IS NULL OR r_user.raw_name LIKE lower(concat('%', $2, '%')))
+                    AND r_user.deleted_at IS NULL
+                    AND ($3::text IS NULL OR (r_user.display_name, r_user.id) > ($3, $4))
+                ORDER BY r_user.display_name ASC, r_user.id ASC
                 LIMIT $5
-            "#,
-        )
+            "#
+        ))
         .bind(client_id)
         .bind(username)
         .bind(cursor.last_seen_name)
@@ -161,22 +186,15 @@ impl UserRepository {
         username: Option<&str>,
         cursor: UserPaginationCursor,
         limit: i64,
-    ) -> Result<Vec<User>, Error> {
-        let users = query_as::<_, User>(
+    ) -> Result<Vec<UserRow>, Error> {
+        let users = query_as::<_, UserRow>(concat!(
+            "SELECT ",
+            user_columns!(),
             r#"
-                SELECT
-                    u.id,
-                    u.display_name,
-                    u.profile_picture,
-                    u.street_credits,
-                    u.description,
-                    u.friends_count,
-                    u.posts_count,
-                    u.role
                 FROM
-                    app_user u
+                    app_user r_user
                 INNER JOIN
-                    user_relationship rl ON u.id = (
+                    user_relationship rl ON r_user.id = (
                         CASE
                             WHEN rl.user_a_id = $1 THEN rl.user_b_id
                             WHEN rl.user_b_id = $1 THEN rl.user_a_id
@@ -185,12 +203,13 @@ impl UserRepository {
                     )
                 WHERE
                     rl.state = $2
-                    AND ($3::text IS NULL OR u.raw_name LIKE lower(concat('%', $3, '%')))
-                    AND ($4::text IS NULL OR (u.display_name, u.id) > ($4, $5))
-                ORDER BY u.display_name ASC, u.id ASC
+                    AND r_user.deleted_at IS NULL
+                    AND ($3::text IS NULL OR r_user.raw_name LIKE lower(concat('%', $3, '%')))
+                    AND ($4::text IS NULL OR (r_user.display_name, r_user.id) > ($4, $5))
+                ORDER BY r_user.display_name ASC, r_user.id ASC
                 LIMIT $6
-            "#,
-        )
+            "#
+        ))
         .bind(client_id)
         .bind(state.to_string())
         .bind(username)
@@ -202,9 +221,9 @@ impl UserRepository {
         Ok(users)
     }
 
-    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationshipEntity>, Error> {
+    pub async fn search_for_relationship(&self, conn: &mut PgConnection, client_id: &Uuid, other_id: &Uuid) -> Result<Option<UserRelationshipRow>, Error> {
         let relationship = sqlx::query_as!(
-            UserRelationshipEntity,
+            UserRelationshipRow,
             r#"
                 SELECT
                     ur.user_a_id,
@@ -223,7 +242,7 @@ impl UserRepository {
         Ok(relationship)
     }
 
-    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipEntity) -> Result<(), Error> {
+    pub async fn insert_relationship(&self, conn: &mut PgConnection, user_relationship: &UserRelationshipRow) -> Result<(), Error> {
         sqlx::query!(
             r#"
                 INSERT INTO user_relationship (user_a_id, user_b_id, state, relationship_change_timestamp)
@@ -245,9 +264,9 @@ impl UserRepository {
         user_a_id: &Uuid,
         user_b_id: &Uuid,
         new_state: RelationshipState,
-    ) -> Result<UserRelationshipEntity, sqlx::Error> {
+    ) -> Result<UserRelationshipRow, sqlx::Error> {
         let entity = sqlx::query_as!(
-            UserRelationshipEntity,
+            UserRelationshipRow,
             r#"
                 UPDATE user_relationship
                     SET state = $1, relationship_change_timestamp = NOW()
@@ -267,7 +286,7 @@ impl UserRepository {
         Ok(entity)
     }
 
-    pub async fn delete_relationship_state(&self, conn: &mut PgConnection, user_relationship: UserRelationshipEntity) -> Result<(), sqlx::Error> {
+    pub async fn delete_relationship_state(&self, conn: &mut PgConnection, user_relationship: UserRelationshipRow) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"
                 DELETE FROM user_relationship

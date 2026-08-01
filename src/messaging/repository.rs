@@ -1,5 +1,6 @@
 use crate::core::{Database, Repository};
-use crate::messaging::model::{MessageBody, MessageEntity, MsgType};
+use crate::messaging::entity::{MessageBodyJson, MessageRow};
+use crate::messaging::model::MsgType;
 use chrono::{DateTime, Utc};
 use sqlx::{Error, Postgres};
 use uuid::Uuid;
@@ -17,7 +18,8 @@ impl Repository for ChatRepository {
 }
 
 impl ChatRepository {
-    pub async fn insert_message<'e, E>(&self, exec: E, message: &MessageEntity) -> Result<(), Error>
+    
+    pub async fn insert_message<'e, E>(&self, exec: E, message: &MessageRow) -> Result<(), Error>
     where
         E: sqlx::Executor<'e, Database = Postgres>,
     {
@@ -29,7 +31,7 @@ impl ChatRepository {
             message.message_id,
             message.chat_room_id,
             message.sender_id,
-            message.msg_body.clone() as sqlx::types::Json<MessageBody>,
+            message.msg_body.clone() as sqlx::types::Json<MessageBodyJson>,
             message.msg_type.clone() as MsgType,
             message.created_at
         )
@@ -38,15 +40,15 @@ impl ChatRepository {
         Ok(())
     }
 
-    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<MessageEntity>, Error> {
+    pub async fn fetch_messages(&self, room_id: Uuid, before: DateTime<Utc>) -> Result<Vec<MessageRow>, Error> {
         let messages = sqlx::query_as!(
-            MessageEntity,
+            MessageRow,
             r#"
             SELECT
                 message_id,
                 chat_room_id,
                 sender_id,
-                msg_body AS "msg_body: sqlx::types::Json<MessageBody>",
+                msg_body AS "msg_body: sqlx::types::Json<MessageBodyJson>",
                 msg_type AS "msg_type: MsgType",
                 created_at
             FROM chat_message
@@ -62,15 +64,15 @@ impl ChatRepository {
         Ok(messages)
     }
 
-    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<MessageEntity, Error> {
+    pub async fn fetch_message_by_id(&self, message_id: &Uuid, room_id: &Uuid) -> Result<MessageRow, Error> {
         let message = sqlx::query_as!(
-            MessageEntity,
+            MessageRow,
             r#"
             SELECT
                 message_id,
                 chat_room_id,
                 sender_id,
-                msg_body AS "msg_body: sqlx::types::Json<MessageBody>",
+                msg_body AS "msg_body: sqlx::types::Json<MessageBodyJson>",
                 msg_type AS "msg_type: MsgType",
                 created_at
             FROM chat_message
